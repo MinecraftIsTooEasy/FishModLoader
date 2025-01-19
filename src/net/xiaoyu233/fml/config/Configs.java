@@ -12,6 +12,8 @@ import static net.xiaoyu233.fml.FishModLoader.CONFIG_REGISTRY;
 public class Configs {
 
     public static final ConfigRoot CONFIG = new ConfigRoot(Constants.FML_CONFIG_VERSION).withComment("FishModLoader配置文件").
+            addEntry(new ConfigCategory("Fix").withComment("修复")
+                    .addEntry(new ConfigEntry<>("TNTFix", Codec.BOOLEAN, true, Fix.TNTFix).withComment("修复TNT刷物品漏洞"))).
             addEntry(new ConfigCategory("Server").withComment("服务端")
                     .addEntry(new ConfigEntry<>("allowClientMods", Codec.BOOLEAN, true, Server.ALLOW_CLIENT_MODS).withComment("允许客户端使用客户端模组(如坐标器)"))).
             addEntry(new ConfigCategory("Client").withComment("客户端")
@@ -32,23 +34,27 @@ public class Configs {
         CONFIG_REGISTRY.reloadConfig();
     }
 
-    public static class Client{
+    public static class Fix {
+        public static final FieldReference<Boolean> TNTFix = new FieldReference<>(true);
+    }
+
+    public static class Server {
+        public static final FieldReference<Boolean> ALLOW_CLIENT_MODS = new FieldReference<>(true);
+    }
+
+    public static class Client {
         public static final FieldReference<Integer> FPS_LIMIT = new FieldReference<>(120);
     }
 
-    public static class Debug{
+    public static class Debug {
         public static final FieldReference<Boolean> DEBUG = new FieldReference<>(false);
         public static final FieldReference<Boolean> PRINT_CLASSLOAD_INFO = new FieldReference<>(false);
         public static final FieldReference<Boolean> PRINT_ENTITY_DAMAGE_INFO = new FieldReference<>(true);
 
-        public static class DumpClass{
+        public static class DumpClass {
             public static final FieldReference<Boolean> DUMP_CLASS = new FieldReference<>(false);
             public static final FieldReference<String> DUMP_PREFIX = new FieldReference<>("net.minecraft");
             public static final FieldReference<File> DUMP_PATH = new FieldReference<>(new File(""));
         }
-    }
-
-    public static class Server{
-        public static final FieldReference<Boolean> ALLOW_CLIENT_MODS = new FieldReference<>(true);
     }
 }
