@@ -31,13 +31,16 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="46b5f149-8df1-4fa7-8f8c-6cf5928e7b53" name="Default Changelist" comment="update changelog">
+    <list default="true" id="46b5f149-8df1-4fa7-8f8c-6cf5928e7b53" name="Default Changelist" comment="Update to 3.4.1">
+      <change afterPath="$PROJECT_DIR$/libs.zip" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ChangeLogCN.md" beforeDir="false" afterPath="$PROJECT_DIR$/ChangeLogCN.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/FishModLoader.ipr" beforeDir="false" afterPath="$PROJECT_DIR$/FishModLoader.ipr" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/FishModLoader.iws" beforeDir="false" afterPath="$PROJECT_DIR$/FishModLoader.iws" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/config/Configs.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/config/Configs.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/MinecraftTrans.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/MinecraftTrans.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/FishModLoader.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/FishModLoader.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/LanguageLoaderTrans.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/LanguageLoaderTrans.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/client/DefaultResourcePackMixin.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/client/DefaultResourcePackMixin.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/util/Constants.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/util/Constants.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/client/StringTranslateMixin.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/fix/FixLongHashMapWorld.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/fix/FixLongHashMapWorld.java" afterDir="false" />
     </list>
     <list id="40b664fe-9756-4d87-93a9-42981856d871" name="No Update" comment="" />
     <option name="SHOW_DIALOG" value="false" />
@@ -150,7 +153,7 @@
     "WebServerToolWindowFactoryState": "false",
     "git-widget-placeholder": "master",
     "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "F:/Projects/IDEA/Minecraft/MITE/FML/FishModLoader/libs/guava-28.0-jre.jar",
+    "last_opened_file_path": "F:/Projects/IDEA/Minecraft/MITE/FML/FishModLoader/libs/log4j-core-2.17.1.jar",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
@@ -188,11 +191,11 @@
       <recent name="H:\IDEAProjects\FishModLoader\src\com\llamalad7\mixinextras\versions" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="F:\Projects\IDEA\Minecraft\MITE\FML\FishModLoader\libs" />
       <recent name="F:\Projects\IDEA\Minecraft\MITE\FML\FishModLoader\src\net\xiaoyu233\fml\reload\transform\fix" />
       <recent name="F:\Projects\IDEA\Minecraft\MITE\FML\FishModLoader\src\net\xiaoyu233\fml\reload\transform\fix\fix_nbt" />
       <recent name="F:\Projects\IDEA\Minecraft\MITE\FML\FishModLoader\src\net\fabricmc\loader\impl" />
       <recent name="H:\IDEAProjects\FishModLoader\src\com\llamalad7\mixinextras\versions" />
-      <recent name="H:\IDEAProjects\FishModLoader" />
     </key>
     <key name="MoveMembersDialog.RECENTS_KEY">
       <recent name="net.xiaoyu233.fml.reload.event.recipe.ShapedRecipeModifier" />
@@ -822,7 +825,15 @@
       <option name="project" value="LOCAL" />
       <updated>1737350702953</updated>
     </task>
-    <option name="localTasksCounter" value="47" />
+    <task id="LOCAL-00047" summary="Update to 3.4.1">
+      <option name="closed" value="true" />
+      <created>1737358993451</created>
+      <option name="number" value="00047" />
+      <option name="presentableId" value="LOCAL-00047" />
+      <option name="project" value="LOCAL" />
+      <updated>1737358993451</updated>
+    </task>
+    <option name="localTasksCounter" value="48" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -852,7 +863,6 @@
   </component>
   <component name="VcsManagerConfiguration">
     <option name="ADD_EXTERNAL_FILES_SILENTLY" value="true" />
-    <MESSAGE value="Fix bossbar entity crash" />
     <MESSAGE value="Log4j2 lookup vulnerability fix" />
     <MESSAGE value="Log all messages through log4j2&#10;Make configs can be reloaded on runtime&#10;New GUI config editor(Downward compatible)&#10;Fix fps limit problem&#10;Remove unnecessary class dumping" />
     <MESSAGE value="Fix illegally open config editor" />
@@ -877,7 +887,8 @@
     <MESSAGE value="fix a bug" />
     <MESSAGE value="update to v3.4.0" />
     <MESSAGE value="update changelog" />
-    <option name="LAST_COMMIT_MESSAGE" value="update changelog" />
+    <MESSAGE value="Update to 3.4.1" />
+    <option name="LAST_COMMIT_MESSAGE" value="Update to 3.4.1" />
     <option name="OPTIMIZE_IMPORTS_BEFORE_PROJECT_COMMIT" value="true" />
     <option name="REARRANGE_BEFORE_PROJECT_COMMIT" value="true" />
   </component>
@@ -934,8 +945,8 @@
         </line-breakpoint>
         <line-breakpoint type="java-method">
           <url>file://$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/client/DefaultResourcePackMixin.java</url>
-          <line>23</line>
-          <properties class="net.xiaoyu233.fml.reload.transform.client.DefaultResourcePackMixin" method="redirectFixLanguageLoad">
+          <line>20</line>
+          <properties class="net.xiaoyu233.fml.reload.transform.client.DefaultResourcePackMixin">
             <option name="EMULATED" value="true" />
             <option name="WATCH_EXIT" value="false" />
           </properties>
@@ -1057,7 +1068,7 @@
         </line-breakpoint>
         <line-breakpoint type="java-line">
           <url>file://$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/client/DefaultResourcePackMixin.java</url>
-          <line>24</line>
+          <line>21</line>
           <option name="timeStamp" value="287" />
         </line-breakpoint>
         <line-breakpoint type="java-line">

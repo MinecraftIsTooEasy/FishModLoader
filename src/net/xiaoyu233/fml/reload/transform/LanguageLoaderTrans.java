@@ -25,31 +25,14 @@ import java.util.Map;
 
 @Mixin(Locale.class)
 public class LanguageLoaderTrans {
-   @Shadow
-   Map field_135032_a;
+    @Shadow
+    Map field_135032_a;
 
-   @Inject(method = "loadLocaleDataFiles", at = @At(value = "INVOKE_ASSIGN", target = "Ljava/lang/String;format(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;", shift = At.Shift.AFTER), locals = LocalCapture.CAPTURE_FAILHARD)
-   public synchronized void a(ResourceManager var1, List var2, CallbackInfo callbackInfo, Iterator<?>iterator, String var4, String var5) {
-//      this.a.clear();
-//
-//      for (Object o : var2) {
-//           String var4 = (String) o;
-//           String var5 = String.format("lang/%s.lang", var4);
-           MITEEvents.MITE_EVENT_BUS.post(new LanguageResourceReloadEvent(this.field_135032_a, var4));
-           Translations.addTranslationsFor(this.field_135032_a, var4);
-//
-//           for (Object value : var1.a()) {
-//               String var7 = (String) value;
-//
-//               try {
-//                   this.a(var1.b(new bjo(var7, var5)));
-//               } catch (IOException ignored) {
-//               }
-//           }
-//       }
-//
-//      this.b();
-   }
+    @Inject(method = "loadLocaleDataFiles", at = @At(value = "INVOKE_ASSIGN", target = "Ljava/lang/String;format(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;", shift = At.Shift.AFTER), locals = LocalCapture.CAPTURE_FAILHARD)
+    public synchronized void loadLocaleDataFiles(ResourceManager var1, List var2, CallbackInfo callbackInfo, Iterator<?> iterator, String var4, String var5) {
+        MITEEvents.MITE_EVENT_BUS.post(new LanguageResourceReloadEvent(this.field_135032_a, var4));
+        Translations.addTranslationsFor(this.field_135032_a, var4);
+    }
 
     @Inject(method = "translateKeyPrivate", at = @At(value = "HEAD"), cancellable = true)
     private void betterTranslation(String registerName, CallbackInfoReturnable<String> cir) {

@@ -20,7 +20,7 @@ public abstract class FixLongHashMapWorld implements IBlockAccess {
         return (int)par0 + (int)(par0 >>> 32) * 92821;
     }
 
-    @Inject(method = "getBlockId", at = @At(value="HEAD"))
+    @Inject(method = "getBlockId", at = @At(value = "HEAD"))
     public void getKey(int par1, int par2, int par3, CallbackInfoReturnable<Integer> cir) {
         this.key = (long)(par1 >> 4) & 0xFFFFFFFFL | ((long)(par3 >> 4) & 0xFFFFFFFFL) << 32;
     }

@@ -58,7 +58,7 @@ public class FishModLoader{
    private static boolean isServer = false;
    //Cancel version check
    private static final List<ConfigRegistry> ALL_REGISTRIES = new ArrayList<>();
-   public static final ConfigRegistry CONFIG_REGISTRY = new ConfigRegistry(Configs.CONFIG,Configs.CONFIG_FILE);
+   public static final ConfigRegistry CONFIG_REGISTRY = new ConfigRegistry(Configs.CONFIG, Configs.CONFIG_FILE);
    private static final Map<String, LanguageAdapter> adapterMap = new HashMap<>();
    private static final EntrypointStorage entrypointStorage = new EntrypointStorage();
    private static final AccessWidener accessWidener = new AccessWidener();
