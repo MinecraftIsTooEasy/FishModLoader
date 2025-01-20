@@ -3,7 +3,8 @@
 ### v3.4.0
 * 完善了输出类加载信息,现在可输出class_tinker与access_widener
 * 完善了Class Tinkerers,现在可在mod中向原有的enum添加内容
-* 支持mod自定义assets,需要在init中写入`ModResourceManager.addResourcePackDomain(MOID)`,方块物品需要
+* 支持mod自定义assets,需要在init中写入`ModResourceManager.addResourcePackDomain("modid")`,方块物品需要在icon字符串最前面插入`modid:`
+* 支持读取json格式的语言文件
 * 注册物品/方块允许单独定义Unlocalized Name和不定义Resource Location & Unlocalized Name
 * 移除了一些无用类与无用注释
 * 修复了用户MITE版本错误的问题
