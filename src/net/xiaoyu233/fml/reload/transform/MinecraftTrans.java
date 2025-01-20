@@ -1,11 +1,13 @@
 package net.xiaoyu233.fml.reload.transform;
 
+import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import net.minecraft.Minecraft;
 import net.xiaoyu233.fml.FishModLoader;
 import net.xiaoyu233.fml.config.Configs;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.injection.At;
 
 @Mixin(Minecraft.class)
 public class MinecraftTrans {
@@ -23,5 +25,12 @@ public class MinecraftTrans {
                 error_message = text.replaceAll("\n", "");
             }
         }
+    }
+
+    @ModifyReturnValue(method = "inDevMode", at = @At("TAIL"))
+    private static boolean inDevMode(boolean original) {
+        if (FishModLoader.isDevelopmentEnvironment() && Configs.Debug.DEVENV.get())
+            return true;
+        return original;
     }
 }

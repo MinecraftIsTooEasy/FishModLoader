@@ -20,6 +20,7 @@ public class Configs {
                     .addEntry(new ConfigEntry<>("fpsLimit", Codec.INTEGER, 120, Client.FPS_LIMIT).withComment("FPS最大值"))).
             addEntry(new ConfigCategory("Debug").withComment("调试").
                     addEntry(new ConfigEntry<>("debug", Debug.DEBUG).withComment("开启调试模式")).
+                    addEntry(new ConfigEntry<>("dev_env", Debug.DEVENV).withComment("开发环境下自动开启MITE的DEV模式")).
                     addEntry(new ConfigEntry<>("print_entity_damage_info", Debug.PRINT_ENTITY_DAMAGE_INFO).withComment("输出实体受到伤害信息")).
                     addEntry(new ConfigEntry<>("printClassloadInfo", Codec.BOOLEAN, false, Debug.PRINT_CLASSLOAD_INFO).withComment("输出类加载信息")).
                     addEntry(new ConfigCategory("DumpClass").withComment("类导出").
@@ -48,6 +49,7 @@ public class Configs {
 
     public static class Debug {
         public static final FieldReference<Boolean> DEBUG = new FieldReference<>(false);
+        public static final FieldReference<Boolean> DEVENV = new FieldReference<>(true);
         public static final FieldReference<Boolean> PRINT_CLASSLOAD_INFO = new FieldReference<>(false);
         public static final FieldReference<Boolean> PRINT_ENTITY_DAMAGE_INFO = new FieldReference<>(true);
 

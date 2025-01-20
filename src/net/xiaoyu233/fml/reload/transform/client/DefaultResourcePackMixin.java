@@ -9,6 +9,7 @@ import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.io.File;
@@ -23,15 +24,15 @@ public abstract class DefaultResourcePackMixin {
 //    private InputStream redirectGetPackMetadata(Class<?> c, String path){
 //        return DefaultResourcePack.class.getClassLoader().findResources(path);
 //    }
-//    @Redirect(method = "getInputStream", at = @At(value = "INVOKE", target = "Lnet/minecraft/DefaultResourcePack;getResourceStream(Lnet/minecraft/ResourceLocation;)Ljava/io/InputStream;"))
-//    private InputStream redirectFixLanguageLoad(DefaultResourcePack t, ResourceLocation resourceLocation){
-//        String resourcePath = resourceLocation.getResourcePath();
-//        if (this.fileAssets.toString().contains("\\legacy") && resourcePath.contains(".lang") && !resourcePath.contains("en_US")){
-//            return null;
-//        } else {
-//            return this.getResourceStream(resourceLocation);
-//        }
-//    }
+    @Redirect(method = "getInputStream", at = @At(value = "INVOKE", target = "Lnet/minecraft/DefaultResourcePack;getResourceStream(Lnet/minecraft/ResourceLocation;)Ljava/io/InputStream;"))
+    private InputStream redirectFixLanguageLoad(DefaultResourcePack t, ResourceLocation resourceLocation){
+        String resourcePath = resourceLocation.getResourcePath();
+        if (this.fileAssets.toString().contains("\\legacy") && resourcePath.contains(".lang") && !resourcePath.contains("en_US")){
+            return null;
+        } else {
+            return this.getResourceStream(resourceLocation);
+        }
+    }
 
     @Inject(method = "<clinit>", at = @At("RETURN"))
     private static void addDefaultResourceDomain(CallbackInfo ci) {

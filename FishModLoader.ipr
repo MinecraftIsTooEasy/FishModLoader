@@ -494,6 +494,7 @@
         <element id="extracted-dir" path="$PROJECT_DIR$/libs/Fabric-ASM-v2.3.jar" path-in-jar="/" />
         <element id="extracted-dir" path="$PROJECT_DIR$/libs/tiny-remapper-0.10.4+local.jar" path-in-jar="/" />
         <element id="extracted-dir" path="$PROJECT_DIR$/libs/mapping-io-0.5.0.jar" path-in-jar="/" />
+        <element id="extracted-dir" path="$PROJECT_DIR$/libs/guava-28.0-jre.jar" path-in-jar="/" />
       </root>
     </artifact>
     <artifact type="jar" build-on-make="true" name="FishModLoader:install">

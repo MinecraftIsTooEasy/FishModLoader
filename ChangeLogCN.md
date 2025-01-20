@@ -1,5 +1,12 @@
 # FishModLoader
 
+### v3.4.1
+* 修复了无法读取.minecraft\assets\virtual\legacy\lang\下的语言文件的问题
+* 加入了处于开发环境时自动开启MITE DEV模式的配置项(默认开)
+* 重新内置guava-28.0-jre
+
+---
+
 ### v3.4.0
 * 完善了输出类加载信息,现在可输出class_tinker与access_widener
 * 完善了Class Tinkerers,现在可在mod中向原有的enum添加内容
