@@ -6,7 +6,6 @@ import net.xiaoyu233.fml.FishModLoader;
 import net.xiaoyu233.fml.Translations;
 import net.xiaoyu233.fml.reload.event.LanguageResourceReloadEvent;
 import net.xiaoyu233.fml.reload.event.MITEEvents;
-import net.xiaoyu233.fml.reload.utils.LocaleDataFixer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -48,11 +47,8 @@ public class LanguageLoaderTrans {
     @Inject(method = "loadLocaleDataFiles", at = @At(value = "INVOKE", target = "Lnet/minecraft/Locale;checkUnicode()V"))
     private void readJsonFile(ResourceManager resourceManager, List langList, CallbackInfo ci) {
         for (Object localeName : langList) {
-            String legacyName = (String)localeName;
+            String legacyName = (String) localeName;
             this.loadJsonFile(resourceManager, String.format("lang/%s.json", legacyName));
-            String futureName = LocaleDataFixer.translateToFuture(legacyName);
-            if (futureName.equals(legacyName)) continue;
-            this.loadJsonFile(resourceManager, String.format("lang/%s.json", futureName));
         }
     }
 
@@ -60,7 +56,7 @@ public class LanguageLoaderTrans {
     private void loadJsonFile(ResourceManager resourceManager, String fileName) {
         for (Object resourceDomain : resourceManager.getResourceDomains()) {
             try {
-                this.loadJsonData(resourceManager.getAllResources(new ResourceLocation((String)resourceDomain, fileName)), fileName);
+                this.loadJsonData(resourceManager.getAllResources(new ResourceLocation((String) resourceDomain, fileName)), fileName);
             }
             catch (Exception exception) {}
         }

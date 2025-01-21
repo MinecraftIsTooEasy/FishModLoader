@@ -1,11 +1,12 @@
 # FishModLoader
 
 ### v3.4.1
-* 修复了无法读取.minecraft\assets\virtual\legacy\lang\下的语言文件的问题
 * 加入了处于开发环境时自动开启MITE DEV模式的配置项(默认开)
 * 重新内置guava-28.0-jre
-* 将内置log4j版本升为2.17.1以避免漏洞和异常
+* 将内置log4j版本升为2.24.3以避免漏洞和异常
 * 重写了SoundsRegisterEvent, 允许注册音效, 唱片, 音乐
+* 修复了无法读取.minecraft\assets\virtual\legacy\lang\下的语言文件的问题
+* 修复了读取的json语言文件与当前选择语言不符的问题
 
 ---
 
