@@ -7,14 +7,14 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class ModResourceManager {
-    public static final Set resourceDomains = new HashSet<>();
+    public static final Set<String> resourceDomains = new HashSet<>();
 
     @Environment(EnvType.CLIENT)
     public static void addResourcePackDomain(String domain) {
         resourceDomains.add(domain);
     }
 
-    public static Set getResourceDomains() {
+    public static Set<String> getResourceDomains() {
         return resourceDomains;
     }
 }
