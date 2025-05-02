@@ -7,7 +7,7 @@ import org.spongepowered.asm.mixin.Overwrite;
 import java.io.DataInput;
 import java.io.IOException;
 
-@Mixin(Packet.class)
+@Mixin(value = Packet.class, priority = 999)
 public class FixString {
     @Overwrite
     public static String readString(DataInput par0DataInput, int par1) throws IOException {

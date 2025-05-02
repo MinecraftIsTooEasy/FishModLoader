@@ -5,7 +5,7 @@ import net.xiaoyu233.fml.config.Configs;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 
-@Mixin(Minecraft.class)
+@Mixin(value = Minecraft.class, priority = 999)
 public class FpsUnlimited {
    @Overwrite
    private int getLimitFramerate() {

@@ -12,7 +12,15 @@ public class FixMinecart {
     @Shadow
     private static String[][] s;
 
-    @Inject(method =  "<clinit>",at = @At(ordinal = 1,value = "FIELD",shift = At.Shift.BEFORE,target = "Lnet/minecraft/EntityMinecart;s:[[Ljava/lang/String;"))
+    @Inject(
+            method = "<clinit>",
+            at = @At(
+                    ordinal = 1,
+                    value = "FIELD",
+                    shift = At.Shift.BEFORE,
+                    target = "Lnet/minecraft/EntityMinecart;s:[[Ljava/lang/String;"
+            )
+    )
     private static void fixClassload(CallbackInfo callbackInfo){
         s = new String[0][0];
     }

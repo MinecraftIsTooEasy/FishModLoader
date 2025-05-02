@@ -7,7 +7,7 @@ import org.spongepowered.asm.mixin.Shadow;
 
 import java.util.Map;
 
-@Mixin(NBTTagCompound.class)
+@Mixin(value = NBTTagCompound.class, priority = 999)
 public abstract class NBTTagCompoundMixin {
     @Shadow
     private Map<?, ?> tagMap;

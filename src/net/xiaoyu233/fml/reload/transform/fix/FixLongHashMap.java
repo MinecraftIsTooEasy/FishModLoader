@@ -4,7 +4,7 @@ import net.minecraft.LongHashMap;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 
-@Mixin(LongHashMap.class)
+@Mixin(value = LongHashMap.class, priority = 999)
 public abstract class FixLongHashMap {
     /**
      * @author embeddedt

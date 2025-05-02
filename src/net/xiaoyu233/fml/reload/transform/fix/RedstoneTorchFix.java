@@ -17,7 +17,7 @@ public abstract class RedstoneTorchFix extends BlockTorch {
 
    @Inject(method = "canBeReplacedBy", at = @At("HEAD"), cancellable = true)
    public void fixReplaceCrash(int metadata, Block other_block, int other_block_metadata, CallbackInfoReturnable<Boolean> callbackInfo) {
-      if (other_block instanceof BlockRailBase){
+      if (other_block instanceof BlockRailBase) {
          callbackInfo.setReturnValue(false);
       }
    }

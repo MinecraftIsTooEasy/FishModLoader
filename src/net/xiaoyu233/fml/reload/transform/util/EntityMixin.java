@@ -9,9 +9,9 @@ import org.spongepowered.asm.mixin.Mixin;
 @Mixin(Entity.class)
 public abstract class EntityMixin implements IEntity {
 
-    public String getNamespace(){return EntityUtil.getNamespace(ReflectHelper.dyCast(Entity.class, this).getClass());}
+    public String getNamespace() { return EntityUtil.getNamespace(ReflectHelper.dyCast(Entity.class, this).getClass());}
 
-    public void setNamespace(String namespace){ throw new UnsupportedOperationException();}
+    public void setNamespace(String namespace) { throw new UnsupportedOperationException();}
 
-    public boolean hasNamespaceSet(){return true;}
+    public boolean hasNamespaceSet() { return true; }
 }

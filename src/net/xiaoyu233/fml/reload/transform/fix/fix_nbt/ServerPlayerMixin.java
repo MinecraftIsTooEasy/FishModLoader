@@ -7,7 +7,7 @@ import org.spongepowered.asm.mixin.Overwrite;
 
 import java.util.Collection;
 
-@Mixin(ServerPlayer.class)
+@Mixin(value = ServerPlayer.class, priority = 999)
 public abstract class ServerPlayerMixin extends EntityPlayer {
     public ServerPlayerMixin(World par1World, String par2Str) {
         super(par1World, par2Str);
