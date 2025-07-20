@@ -21,28 +21,23 @@ public class EnchantmentRegisterMixin {
     @Shadow @Final @Mutable
     public static Enchantment[] enchantmentsBookList;
 
-    @Inject(method = "<clinit>" , at = @At("RETURN"))
-    private static void injectRegister(CallbackInfo callbackInfo){
+    @Inject(method = "<clinit>", at = @At("RETURN"))
+    private static void injectRegister(CallbackInfo callbackInfo) {
         EnchantmentRegistryEvent event = new EnchantmentRegistryEvent();
         MITEEvents.MITE_EVENT_BUS.post(event);
-        registerEnchantmentsUnsafe(event.getEnchantmentList());
+        registerDynamicEnchantments(event.getEnchantmentList());
     }
 
-    private static void registerEnchantmentsUnsafe(List<Enchantment> enchantments) {
-        for (int i = 0, bLength = enchantmentsList.length; i < bLength; i++) {
-            if (enchantmentsList[i] == null) {
-                for (int j = 0, enchantmentsLength = enchantments.size(); j < enchantmentsLength; j++) {
-                    enchantmentsList[i + j] = enchantments.get(j);
-                }
-                break;
-            }
+    private static synchronized void registerDynamicEnchantments(List<Enchantment> newEnchantments) {
+        if (newEnchantments == null || newEnchantments.isEmpty()) {
+            return;
         }
-        ArrayList<Enchantment> var0 = new ArrayList<>();
+        List<Enchantment> filtered = new ArrayList<>(enchantmentsList.length);
         for (Enchantment enchantment : enchantmentsList) {
             if (enchantment != null) {
-                var0.add(enchantment);
+                filtered.add(enchantment);
             }
         }
-        enchantmentsBookList = var0.toArray((new Enchantment[0]));
+        enchantmentsBookList = filtered.toArray(new Enchantment[0]);
     }
 }

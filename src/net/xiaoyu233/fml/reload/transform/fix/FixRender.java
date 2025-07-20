@@ -2,6 +2,7 @@ package net.xiaoyu233.fml.reload.transform.fix;
 
 import net.minecraft.OpenGlHelper;
 import org.lwjgl.opengl.ARBMultitexture;
+import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;

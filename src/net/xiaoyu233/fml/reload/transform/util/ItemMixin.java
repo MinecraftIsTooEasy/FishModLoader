@@ -29,8 +29,8 @@ public abstract class ItemMixin implements IItem {
     }
 
     @Override
-    public void setNamespace(String blockNamespace) {
-        this.itemNamespace.set(blockNamespace);
+    public void setNamespace(String itemNamespace) {
+        this.itemNamespace.set(itemNamespace);
     }
 
     @Override

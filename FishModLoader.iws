@@ -31,17 +31,17 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="46b5f149-8df1-4fa7-8f8c-6cf5928e7b53" name="Default Changelist" comment="test fix lang and log4j">
+    <list default="true" id="46b5f149-8df1-4fa7-8f8c-6cf5928e7b53" name="Default Changelist" comment="only intel gpu enable FixRender">
+      <change afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/api/item/IItemStack.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/util/ItemStackMixin.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ChangeLogCN.md" beforeDir="false" afterPath="$PROJECT_DIR$/ChangeLogCN.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/FishModLoader.ipr" beforeDir="false" afterPath="$PROJECT_DIR$/FishModLoader.ipr" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/FishModLoader.iws" beforeDir="false" afterPath="$PROJECT_DIR$/FishModLoader.iws" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/fix/FixLongHashMap.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/fix/FixLongHashMap.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/fix/FixMinecart.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/fix/FixMinecart.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/fix/FixString.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/fix/FixString.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/fix/FpsUnlimit2.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/fix/FpsUnlimit2.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/fix/FpsUnlimited.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/fix/FpsUnlimited.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/fix/RedstoneTorchFix.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/fix/RedstoneTorchFix.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/fix/fix_nbt/NBTTagCompoundMixin.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/fix/fix_nbt/NBTTagCompoundMixin.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/fix/fix_nbt/ServerPlayerMixin.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/fix/fix_nbt/ServerPlayerMixin.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/util/EntityMixin.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/util/EntityMixin.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/LanguageLoaderTrans.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/LanguageLoaderTrans.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/fix/FixRender.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/fix/FixRender.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/registry/EnchantmentRegisterMixin.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/registry/EnchantmentRegisterMixin.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/util/ItemMixin.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/util/ItemMixin.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/util/Constants.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/util/Constants.java" afterDir="false" />
     </list>
     <list id="40b664fe-9756-4d87-93a9-42981856d871" name="No Update" comment="" />
     <option name="SHOW_DIALOG" value="false" />
@@ -93,12 +93,12 @@
       <filtered-out-file-type name="COMMIT_BY_MESSAGE" />
     </file-type-list>
   </component>
-  <component name="GithubPullRequestsUISettings"><![CDATA[{
-  "selectedUrlAndAccountId": {
-    "url": "git@github.com:MinecraftIsTooEasy/FishModLoader.git",
-    "accountId": "e2d82425-26c0-4739-a7e9-e4287796a9d9"
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;git@github.com:MinecraftIsTooEasy/FishModLoader.git&quot;,
+    &quot;accountId&quot;: &quot;e2d82425-26c0-4739-a7e9-e4287796a9d9&quot;
   }
-}]]></component>
+}</component>
   <component name="HighlightingSettingsPerFile">
     <setting file="jar://$PROJECT_DIR$/libs/asm-8.0-sources.jar!/org/objectweb/asm/Opcodes.java" root0="FORCE_HIGHLIGHTING" />
     <setting file="jar://$PROJECT_DIR$/libs/asm-tree-8.0-sources.jar!/org/objectweb/asm/tree/MethodNode.java" root0="FORCE_HIGHLIGHTING" />
@@ -155,7 +155,7 @@
     "WebServerToolWindowFactoryState": "false",
     "git-widget-placeholder": "master",
     "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "F:/Projects/IDEA/Minecraft/MITE/FML/FishModLoader/libs/mapping-io-0.6.1.jar",
+    "last_opened_file_path": "D:/Projects/IDEA/Minecraft/MITE/FishModLoader/libs/log4j-core-2.24.1.jar",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
@@ -186,18 +186,18 @@
       <recent name="net.xiaoyu233.fml.util" />
     </key>
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="D:\Projects\IDEA\Minecraft\MITE\FishModLoader\libs" />
       <recent name="F:\Projects\IDEA\Minecraft\MITE\FML\FishModLoader\libs" />
       <recent name="F:\Projects\IDEA\Minecraft\MITE\FML\FishModLoader" />
       <recent name="F:\Projects\IDEA\Minecraft\FishModLoader\libs" />
       <recent name="H:\IDEAProjects\FishModLoader\src" />
-      <recent name="H:\IDEAProjects\FishModLoader\src\com\llamalad7\mixinextras\versions" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="D:\Projects\IDEA\Minecraft\MITE\FishModLoader\libs" />
       <recent name="F:\Projects\IDEA\Minecraft\MITE\FML\FishModLoader\libs" />
       <recent name="F:\Projects\IDEA\Minecraft\MITE\FML\FishModLoader\src\net\xiaoyu233\fml\reload\transform\fix" />
       <recent name="F:\Projects\IDEA\Minecraft\MITE\FML\FishModLoader\src\net\xiaoyu233\fml\reload\transform\fix\fix_nbt" />
       <recent name="F:\Projects\IDEA\Minecraft\MITE\FML\FishModLoader\src\net\fabricmc\loader\impl" />
-      <recent name="H:\IDEAProjects\FishModLoader\src\com\llamalad7\mixinextras\versions" />
     </key>
     <key name="MoveMembersDialog.RECENTS_KEY">
       <recent name="net.xiaoyu233.fml.reload.event.recipe.ShapedRecipeModifier" />
@@ -382,16 +382,16 @@
       </method>
     </configuration>
     <list>
-      <item itemvalue="JAR 应用程序.Unnamed" />
       <item itemvalue="JAR 应用程序.Unnamed (1)" />
+      <item itemvalue="JAR 应用程序.Unnamed" />
       <item itemvalue="Java 草稿.Scratch" />
-      <item itemvalue="应用程序.Client" />
-      <item itemvalue="应用程序.Client (1)" />
       <item itemvalue="应用程序.Client (1.4.2)" />
-      <item itemvalue="应用程序.Server" />
-      <item itemvalue="应用程序.Server (1)" />
+      <item itemvalue="应用程序.Client (1)" />
+      <item itemvalue="应用程序.Client" />
       <item itemvalue="应用程序.Server (1.4.2)" />
+      <item itemvalue="应用程序.Server (1)" />
       <item itemvalue="应用程序.Server (Jar)" />
+      <item itemvalue="应用程序.Server" />
       <item itemvalue="应用程序.Test" />
       <item itemvalue="应用程序.MapConnector" />
       <item itemvalue="应用程序.MappingConvertor" />
@@ -843,7 +843,15 @@
       <option name="project" value="LOCAL" />
       <updated>1737382789801</updated>
     </task>
-    <option name="localTasksCounter" value="49" />
+    <task id="LOCAL-00049" summary="only intel gpu enable FixRender">
+      <option name="closed" value="true" />
+      <created>1746152064116</created>
+      <option name="number" value="00049" />
+      <option name="presentableId" value="LOCAL-00049" />
+      <option name="project" value="LOCAL" />
+      <updated>1746152064116</updated>
+    </task>
+    <option name="localTasksCounter" value="50" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -873,7 +881,6 @@
   </component>
   <component name="VcsManagerConfiguration">
     <option name="ADD_EXTERNAL_FILES_SILENTLY" value="true" />
-    <MESSAGE value="Fix illegally open config editor" />
     <MESSAGE value="Update to v1.4.2" />
     <MESSAGE value="Update to v1.5.0" />
     <MESSAGE value="Update version" />
@@ -898,7 +905,8 @@
     <MESSAGE value="Update to 3.4.1" />
     <MESSAGE value="test" />
     <MESSAGE value="test fix lang and log4j" />
-    <option name="LAST_COMMIT_MESSAGE" value="test fix lang and log4j" />
+    <MESSAGE value="only intel gpu enable FixRender" />
+    <option name="LAST_COMMIT_MESSAGE" value="only intel gpu enable FixRender" />
     <option name="OPTIMIZE_IMPORTS_BEFORE_PROJECT_COMMIT" value="true" />
     <option name="REARRANGE_BEFORE_PROJECT_COMMIT" value="true" />
   </component>
