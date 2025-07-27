@@ -31,17 +31,9 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="46b5f149-8df1-4fa7-8f8c-6cf5928e7b53" name="Default Changelist" comment="only intel gpu enable FixRender">
-      <change afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/api/item/IItemStack.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/util/ItemStackMixin.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ChangeLogCN.md" beforeDir="false" afterPath="$PROJECT_DIR$/ChangeLogCN.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/FishModLoader.ipr" beforeDir="false" afterPath="$PROJECT_DIR$/FishModLoader.ipr" afterDir="false" />
+    <list default="true" id="46b5f149-8df1-4fa7-8f8c-6cf5928e7b53" name="Default Changelist" comment="3.4.2 pre">
       <change beforePath="$PROJECT_DIR$/FishModLoader.iws" beforeDir="false" afterPath="$PROJECT_DIR$/FishModLoader.iws" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/LanguageLoaderTrans.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/LanguageLoaderTrans.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/fix/FixRender.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/fix/FixRender.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/registry/EnchantmentRegisterMixin.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/registry/EnchantmentRegisterMixin.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/util/ItemMixin.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/util/ItemMixin.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/util/Constants.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/util/Constants.java" afterDir="false" />
     </list>
     <list id="40b664fe-9756-4d87-93a9-42981856d871" name="No Update" comment="" />
     <option name="SHOW_DIALOG" value="false" />
@@ -132,49 +124,49 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Application.Client (1).executor": "Run",
-    "Application.Client (1.4.2).executor": "Run",
-    "Application.Client.executor": "Run",
-    "Application.ModRemapper.executor": "Run",
-    "Application.Server (1).executor": "Run",
-    "Application.Server.executor": "Debug",
-    "Downloaded.Files.Path": "H:\\IDEAProjects\\FishModLoader\\libs",
-    "Downloaded.Files.Path.Enabled": "true",
-    "JAR Application.Unnamed (1).executor": "Run",
-    "JAR Application.Unnamed.executor": "Run",
-    "JAR 应用程序.Unnamed.executor": "Run",
-    "Repository.Attach.Annotations": "false",
-    "Repository.Attach.JavaDocs": "false",
-    "Repository.Attach.Sources": "false",
-    "RunOnceActivity.OpenProjectViewOnStart": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "SONARLINT_PRECOMMIT_ANALYSIS": "true",
-    "WebServerToolWindowFactoryState": "false",
-    "git-widget-placeholder": "master",
-    "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "D:/Projects/IDEA/Minecraft/MITE/FishModLoader/libs/log4j-core-2.24.1.jar",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "project.structure.last.edited": "工件",
-    "project.structure.proportion": "0.1515625",
-    "project.structure.side.proportion": "0.26036867",
-    "run.code.analysis.last.selected.profile": "pProject Default",
-    "settings.editor.selected.configurable": "configurable.group.appearance",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Application.Client (1).executor&quot;: &quot;Run&quot;,
+    &quot;Application.Client (1.4.2).executor&quot;: &quot;Run&quot;,
+    &quot;Application.Client.executor&quot;: &quot;Run&quot;,
+    &quot;Application.ModRemapper.executor&quot;: &quot;Run&quot;,
+    &quot;Application.Server (1).executor&quot;: &quot;Run&quot;,
+    &quot;Application.Server.executor&quot;: &quot;Debug&quot;,
+    &quot;Downloaded.Files.Path&quot;: &quot;H:\\IDEAProjects\\FishModLoader\\libs&quot;,
+    &quot;Downloaded.Files.Path.Enabled&quot;: &quot;true&quot;,
+    &quot;JAR Application.Unnamed (1).executor&quot;: &quot;Run&quot;,
+    &quot;JAR Application.Unnamed.executor&quot;: &quot;Run&quot;,
+    &quot;JAR 应用程序.Unnamed.executor&quot;: &quot;Run&quot;,
+    &quot;Repository.Attach.Annotations&quot;: &quot;false&quot;,
+    &quot;Repository.Attach.JavaDocs&quot;: &quot;false&quot;,
+    &quot;Repository.Attach.Sources&quot;: &quot;false&quot;,
+    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;SONARLINT_PRECOMMIT_ANALYSIS&quot;: &quot;true&quot;,
+    &quot;WebServerToolWindowFactoryState&quot;: &quot;false&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;D:/Projects/IDEA/Minecraft/MITE/FishModLoader/libs/log4j-core-2.24.1.jar&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;project.structure.last.edited&quot;: &quot;工件&quot;,
+    &quot;project.structure.proportion&quot;: &quot;0.1515625&quot;,
+    &quot;project.structure.side.proportion&quot;: &quot;0.26036867&quot;,
+    &quot;run.code.analysis.last.selected.profile&quot;: &quot;pProject Default&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;configurable.group.appearance&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   },
-  "keyToStringList": {
-    "com.intellij.ide.scratch.ScratchImplUtil$2/New Scratch File": [
-      "C++",
-      "JAVA"
+  &quot;keyToStringList&quot;: {
+    &quot;com.intellij.ide.scratch.ScratchImplUtil$2/New Scratch File&quot;: [
+      &quot;C++&quot;,
+      &quot;JAVA&quot;
     ]
   }
-}]]></component>
+}</component>
   <component name="ReaderModeSettings">
     <option name="enabled" value="false" />
   </component>
@@ -667,14 +659,6 @@
       <option name="project" value="LOCAL" />
       <updated>1686754190175</updated>
     </task>
-    <task id="LOCAL-00027" summary="Update to v1.5.0">
-      <option name="closed" value="true" />
-      <created>1709300564099</created>
-      <option name="number" value="00027" />
-      <option name="presentableId" value="LOCAL-00027" />
-      <option name="project" value="LOCAL" />
-      <updated>1709300564099</updated>
-    </task>
     <task id="LOCAL-00028" summary="Update version">
       <option name="closed" value="true" />
       <created>1709300727331</created>
@@ -851,7 +835,15 @@
       <option name="project" value="LOCAL" />
       <updated>1746152064116</updated>
     </task>
-    <option name="localTasksCounter" value="50" />
+    <task id="LOCAL-00050" summary="3.4.2 pre">
+      <option name="closed" value="true" />
+      <created>1752990585981</created>
+      <option name="number" value="00050" />
+      <option name="presentableId" value="LOCAL-00050" />
+      <option name="project" value="LOCAL" />
+      <updated>1752990585981</updated>
+    </task>
+    <option name="localTasksCounter" value="51" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -881,8 +873,6 @@
   </component>
   <component name="VcsManagerConfiguration">
     <option name="ADD_EXTERNAL_FILES_SILENTLY" value="true" />
-    <MESSAGE value="Update to v1.4.2" />
-    <MESSAGE value="Update to v1.5.0" />
     <MESSAGE value="Update version" />
     <MESSAGE value="Update to v2.0.0" />
     <MESSAGE value="Remove logs" />
@@ -906,7 +896,9 @@
     <MESSAGE value="test" />
     <MESSAGE value="test fix lang and log4j" />
     <MESSAGE value="only intel gpu enable FixRender" />
-    <option name="LAST_COMMIT_MESSAGE" value="only intel gpu enable FixRender" />
+    <MESSAGE value="fml 3.4.2 pre" />
+    <MESSAGE value="3.4.2 pre" />
+    <option name="LAST_COMMIT_MESSAGE" value="3.4.2 pre" />
     <option name="OPTIMIZE_IMPORTS_BEFORE_PROJECT_COMMIT" value="true" />
     <option name="REARRANGE_BEFORE_PROJECT_COMMIT" value="true" />
   </component>

@@ -45,8 +45,11 @@ public class LanguageLoaderTrans {
 
     @Inject(method = "loadLocaleDataFiles", at = @At(value = "INVOKE", target = "Lnet/minecraft/Locale;checkUnicode()V"))
     private void readJsonFile(ResourceManager resourceManager, List<String> langList, CallbackInfo ci) {
-        for (String localeName : langList) {
-            this.loadJsonFile(resourceManager, String.format("lang/%s.json", localeName));
+        try {
+            for (String localeName : langList) {
+                this.loadJsonFile(resourceManager, String.format("lang/%s.json", localeName));
+            }
+        } catch (Exception ignore) {
         }
     }
 
