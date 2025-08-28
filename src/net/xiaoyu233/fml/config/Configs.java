@@ -24,7 +24,7 @@ public class Configs {
                     addEntry(new ConfigEntry<>("print_entity_damage_info", Debug.PRINT_ENTITY_DAMAGE_INFO).withComment("输出实体受到伤害信息")).
                     addEntry(new ConfigEntry<>("printClassloadInfo", Codec.BOOLEAN, false, Debug.PRINT_CLASSLOAD_INFO).withComment("输出类加载信息")).
                     addEntry(new ConfigCategory("DumpClass").withComment("类导出").
-                            addEntry(new ConfigEntry<>("dumpPath", Codec.FILE, new File("./.mixin.out"), Debug.DumpClass.DUMP_PATH).withComment("类文件输出目录")).
+                            addEntry(new ConfigEntry<>("dumpPath", Codec.FILE, new File("." + File.separator + ".mixin.out"), Debug.DumpClass.DUMP_PATH).withComment("类文件输出目录")).
                             addEntry(new ConfigEntry<>("dumpPrefix", Codec.STRING, "net.minecraft", Debug.DumpClass.DUMP_PREFIX).withComment("导出类文件包名所需前缀")).
                             addEntry(new ConfigEntry<>("dumpClass", Codec.BOOLEAN, false, Debug.DumpClass.DUMP_CLASS).withComment("输出Mixin处理后的类文件")).
                             addEntry(DumpStage.makeExportCategory())));

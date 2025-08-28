@@ -88,22 +88,32 @@ public class ClasspathModCandidateFinder implements ModCandidateFinder {
 
 			// Search for URLs which point to 'fabric.mod.json' entries, to be considered as mods.
 			try {
-				Enumeration<URL> mods = Launch.knotLoader.getClassLoader().getResources("fml.mod.json");
+				Set<Path> processedPaths = new HashSet<>();
 
-				while (mods.hasMoreElements()) {
-					URL url = mods.nextElement();
+				for (String dataFile : new String[]{"fml.mod.json", "fabric.mod.json"}) {
+					Enumeration<URL> mods = Launch.knotLoader.getClassLoader().getResources(dataFile);
 
-					try {
-						Path path = LoaderUtil.normalizeExistingPath(UrlUtil.getCodeSource(url, "fml.mod.json"));
-						List<Path> paths = pathGroups.get(path);
+					while (mods.hasMoreElements()) {
+						URL url = mods.nextElement();
 
-						if (paths == null) {
-							out.accept(path, false);
-						} else {
-							out.accept(paths, false);
+						try {
+							Path path = LoaderUtil.normalizeExistingPath(UrlUtil.getCodeSource(url, dataFile));
+
+							if (processedPaths.contains(path)) {
+								continue;
+							}
+							processedPaths.add(path);
+
+							List<Path> paths = pathGroups.get(path);
+
+							if (paths == null) {
+								out.accept(path, false);
+							} else {
+								out.accept(paths, false);
+							}
+						} catch (UrlConversionException e) {
+							Log.debug(LogCategory.DISCOVERY, "Error determining location for %s from %s", dataFile, url, e);
 						}
-					} catch (UrlConversionException e) {
-						Log.debug(LogCategory.DISCOVERY, "Error determining location for fabric.mod.json from %s", url, e);
 					}
 				}
 			} catch (IOException e) {

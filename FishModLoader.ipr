@@ -495,6 +495,8 @@
         <element id="extracted-dir" path="$PROJECT_DIR$/libs/tiny-remapper-0.10.4+local.jar" path-in-jar="/" />
         <element id="file-copy" path="$PROJECT_DIR$/libs/log4j-api-2.24.1.jar" />
         <element id="file-copy" path="$PROJECT_DIR$/libs/log4j-core-2.24.1.jar" />
+        <element id="extracted-dir" path="$PROJECT_DIR$/libs/log4j-core-2.24.1.jar" path-in-jar="/" />
+        <element id="extracted-dir" path="$PROJECT_DIR$/libs/log4j-api-2.24.1.jar" path-in-jar="/" />
       </root>
     </artifact>
     <artifact type="jar" build-on-make="true" name="FishModLoader:install">

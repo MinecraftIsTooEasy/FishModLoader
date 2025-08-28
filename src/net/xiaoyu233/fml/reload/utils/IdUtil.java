@@ -25,10 +25,12 @@ public class IdUtil {
         return nextEnchantmentID++;
     }
 
+    @Deprecated(since = "3.5.0")
     public static int getNextItemID() {
         return nextItemID++;
     }
 
+    @Deprecated(since = "3.5.0")
     public static int getNextBlockID() {
         return nextBlockID--;
     }

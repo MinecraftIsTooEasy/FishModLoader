@@ -356,86 +356,93 @@ public final class ModDiscoverer {
 		}
 
 		private ModCandidate computeDir(Path path) throws IOException, ParseMetadataException {
-			Path modJson = path.resolve("fml.mod.json");
-			if (!Files.exists(modJson)) return null;
-
-			LoaderModMetadata metadata;
-
-			try (InputStream is = Files.newInputStream(modJson)) {
-				metadata = parseMetadata(is, path.toString());
-			}
-
-			return ModCandidate.createPlain(paths, metadata, requiresRemap, Collections.emptyList());
-		}
-
-		private ModCandidate computeJarFile(Path path) throws IOException, ParseMetadataException {
-			try (ZipFile zf = new ZipFile(path.toFile())) {
-				ZipEntry entry = zf.getEntry("fml.mod.json");
-				if (entry == null) return null;
+			for (String dataFile : new String[]{"fml.mod.json", "fabric.mod.json"}) {
+				Path modJson = path.resolve(dataFile);
+				if (!Files.exists(modJson)) return null;
 
 				LoaderModMetadata metadata;
 
-				try (InputStream is = zf.getInputStream(entry)) {
-					metadata = parseMetadata(is, localPath);
+				try (InputStream is = Files.newInputStream(modJson)) {
+					metadata = parseMetadata(is, path.toString());
 				}
 
-				if (!metadata.loadsInEnvironment(envType)) {
-					return ModCandidate.createPlain(paths, metadata, requiresRemap, Collections.emptyList());
-				}
+				return ModCandidate.createPlain(paths, metadata, requiresRemap, Collections.emptyList());
+			}
+            return null;
+        }
 
-				List<ModScanTask> nestedModTasks;
+		private ModCandidate computeJarFile(Path path) throws IOException, ParseMetadataException {
+			try (ZipFile zf = new ZipFile(path.toFile())) {
+				for (String dataFile : new String[]{"fml.mod.json", "fabric.mod.json"}) {
 
-				if (metadata.getJars().isEmpty()) {
-					nestedModTasks = Collections.emptyList();
-				} else {
-					Set<NestedJarEntry> nestedJarPaths = new HashSet<>(metadata.getJars());
+					ZipEntry entry = zf.getEntry(dataFile);
+					if (entry == null) return null;
 
-					nestedModTasks = computeNestedMods(new ZipEntrySource() {
-						private final Iterator<NestedJarEntry> jarIt = nestedJarPaths.iterator();
-						private ZipEntry currentEntry;
+					LoaderModMetadata metadata;
 
-						@Override
-						public ZipEntry getNextEntry() throws IOException {
-							while (jarIt.hasNext()) {
-								NestedJarEntry jar = jarIt.next();
-								ZipEntry ret = zf.getEntry(jar.getFile());
+					try (InputStream is = zf.getInputStream(entry)) {
+						metadata = parseMetadata(is, localPath);
+					}
 
-								if (isValidNestedJarEntry(ret)) {
-									currentEntry = ret;
-									jarIt.remove();
-									return ret;
+					if (!metadata.loadsInEnvironment(envType)) {
+						return ModCandidate.createPlain(paths, metadata, requiresRemap, Collections.emptyList());
+					}
+
+					List<ModScanTask> nestedModTasks;
+
+					if (metadata.getJars().isEmpty()) {
+						nestedModTasks = Collections.emptyList();
+					} else {
+						Set<NestedJarEntry> nestedJarPaths = new HashSet<>(metadata.getJars());
+
+						nestedModTasks = computeNestedMods(new ZipEntrySource() {
+							private final Iterator<NestedJarEntry> jarIt = nestedJarPaths.iterator();
+							private ZipEntry currentEntry;
+
+							@Override
+							public ZipEntry getNextEntry() throws IOException {
+								while (jarIt.hasNext()) {
+									NestedJarEntry jar = jarIt.next();
+									ZipEntry ret = zf.getEntry(jar.getFile());
+
+									if (isValidNestedJarEntry(ret)) {
+										currentEntry = ret;
+										jarIt.remove();
+										return ret;
+									}
+								}
+
+								currentEntry = null;
+								return null;
+							}
+
+							@Override
+							public RewindableInputStream getInputStream() throws IOException {
+								try (InputStream is = zf.getInputStream(currentEntry)) {
+									return new RewindableInputStream(is);
 								}
 							}
+						});
 
-							currentEntry = null;
-							return null;
+						if (!nestedJarPaths.isEmpty() && FishModLoader.isDevelopmentEnvironment()) {
+							Log.warn(LogCategory.METADATA, "Mod %s %s references missing nested jars: %s", metadata.getId(), metadata.getVersion(), nestedJarPaths);
 						}
-
-						@Override
-						public RewindableInputStream getInputStream() throws IOException {
-							try (InputStream is = zf.getInputStream(currentEntry)) {
-								return new RewindableInputStream(is);
-							}
-						}
-					});
-
-					if (!nestedJarPaths.isEmpty() && FishModLoader.isDevelopmentEnvironment()) {
-						Log.warn(LogCategory.METADATA, "Mod %s %s references missing nested jars: %s", metadata.getId(), metadata.getVersion(), nestedJarPaths);
 					}
+
+					List<ModCandidate> nestedMods;
+
+					if (nestedModTasks.isEmpty()) {
+						nestedMods = Collections.emptyList();
+					} else {
+						nestedMods = new ArrayList<>();
+						nestedModInitDatas.add(new NestedModInitData(nestedModTasks, nestedMods));
+					}
+
+					return ModCandidate.createPlain(paths, metadata, requiresRemap, nestedMods);
 				}
-
-				List<ModCandidate> nestedMods;
-
-				if (nestedModTasks.isEmpty()) {
-					nestedMods = Collections.emptyList();
-				} else {
-					nestedMods = new ArrayList<>();
-					nestedModInitDatas.add(new NestedModInitData(nestedModTasks, nestedMods));
-				}
-
-				return ModCandidate.createPlain(paths, metadata, requiresRemap, nestedMods);
 			}
-		}
+            return null;
+        }
 
 		private ModCandidate computeJarStream() throws IOException, ParseMetadataException {
 			//TODO Add legacy mod support here
@@ -444,7 +451,7 @@ public final class ModDiscoverer {
 
 			try (ZipInputStream zis = new ZipInputStream(is)) {
 				while ((entry = zis.getNextEntry()) != null) {
-					if (entry.getName().equals("fml.mod.json")) {
+					if (entry.getName().equals("fml.mod.json") || entry.getName().equals("fabric.mod.json")) {
 						metadata = parseMetadata(zis, localPath);
 						break;
 					}
