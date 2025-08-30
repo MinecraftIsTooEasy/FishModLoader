@@ -31,18 +31,10 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="46b5f149-8df1-4fa7-8f8c-6cf5928e7b53" name="Default Changelist" comment="3.4.2 release">
-      <change afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/utils/IDAllocator.java" afterDir="false" />
+    <list default="true" id="46b5f149-8df1-4fa7-8f8c-6cf5928e7b53" name="Default Changelist" comment="test IDAllocator">
       <change beforePath="$PROJECT_DIR$/ChangeLogCN.md" beforeDir="false" afterPath="$PROJECT_DIR$/ChangeLogCN.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/FishModLoader.ipr" beforeDir="false" afterPath="$PROJECT_DIR$/FishModLoader.ipr" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/FishModLoader.iws" beforeDir="false" afterPath="$PROJECT_DIR$/FishModLoader.iws" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/net/fabricmc/loader/impl/discovery/ArgumentModCandidateFinder.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/fabricmc/loader/impl/discovery/ArgumentModCandidateFinder.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/net/fabricmc/loader/impl/discovery/ClasspathModCandidateFinder.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/fabricmc/loader/impl/discovery/ClasspathModCandidateFinder.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/net/fabricmc/loader/impl/discovery/ModDiscoverer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/fabricmc/loader/impl/discovery/ModDiscoverer.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/config/Configs.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/config/Configs.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/LanguageLoaderTrans.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/transform/LanguageLoaderTrans.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/utils/IdUtil.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/utils/IdUtil.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/util/Constants.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/util/Constants.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/utils/IDAllocator.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/utils/IDAllocator.java" afterDir="false" />
     </list>
     <list id="40b664fe-9756-4d87-93a9-42981856d871" name="No Update" comment="" />
     <option name="SHOW_DIALOG" value="false" />
@@ -166,7 +158,7 @@
     &quot;project.structure.proportion&quot;: &quot;0.1515625&quot;,
     &quot;project.structure.side.proportion&quot;: &quot;0.26036867&quot;,
     &quot;run.code.analysis.last.selected.profile&quot;: &quot;pProject Default&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;configurable.group.appearance&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;org.jetbrains.plugins.github.ui.GithubSettingsConfigurable&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   },
   &quot;keyToStringList&quot;: {
@@ -668,14 +660,6 @@
       <option name="project" value="LOCAL" />
       <updated>1686754190175</updated>
     </task>
-    <task id="LOCAL-00029" summary="Update to v2.0.0">
-      <option name="closed" value="true" />
-      <created>1709386175663</created>
-      <option name="number" value="00029" />
-      <option name="presentableId" value="LOCAL-00029" />
-      <option name="project" value="LOCAL" />
-      <updated>1709386175663</updated>
-    </task>
     <task id="LOCAL-00030" summary="Remove logs">
       <option name="closed" value="true" />
       <created>1709386233680</created>
@@ -852,7 +836,15 @@
       <option name="project" value="LOCAL" />
       <updated>1753625375948</updated>
     </task>
-    <option name="localTasksCounter" value="52" />
+    <task id="LOCAL-00052" summary="test IDAllocator">
+      <option name="closed" value="true" />
+      <created>1756387636832</created>
+      <option name="number" value="00052" />
+      <option name="presentableId" value="LOCAL-00052" />
+      <option name="project" value="LOCAL" />
+      <updated>1756387636834</updated>
+    </task>
+    <option name="localTasksCounter" value="53" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -882,7 +874,6 @@
   </component>
   <component name="VcsManagerConfiguration">
     <option name="ADD_EXTERNAL_FILES_SILENTLY" value="true" />
-    <MESSAGE value="Update to v2.0.0" />
     <MESSAGE value="Remove logs" />
     <MESSAGE value="Update readme" />
     <MESSAGE value="3.0.0 preview" />
@@ -907,7 +898,8 @@
     <MESSAGE value="fml 3.4.2 pre" />
     <MESSAGE value="3.4.2 pre" />
     <MESSAGE value="3.4.2 release" />
-    <option name="LAST_COMMIT_MESSAGE" value="3.4.2 release" />
+    <MESSAGE value="test IDAllocator" />
+    <option name="LAST_COMMIT_MESSAGE" value="test IDAllocator" />
     <option name="OPTIMIZE_IMPORTS_BEFORE_PROJECT_COMMIT" value="true" />
     <option name="REARRANGE_BEFORE_PROJECT_COMMIT" value="true" />
   </component>
