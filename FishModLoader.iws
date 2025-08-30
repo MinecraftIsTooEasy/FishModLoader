@@ -31,11 +31,7 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="46b5f149-8df1-4fa7-8f8c-6cf5928e7b53" name="Default Changelist" comment="test IDAllocator">
-      <change beforePath="$PROJECT_DIR$/ChangeLogCN.md" beforeDir="false" afterPath="$PROJECT_DIR$/ChangeLogCN.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/FishModLoader.iws" beforeDir="false" afterPath="$PROJECT_DIR$/FishModLoader.iws" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/utils/IDAllocator.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/net/xiaoyu233/fml/reload/utils/IDAllocator.java" afterDir="false" />
-    </list>
+    <list default="true" id="46b5f149-8df1-4fa7-8f8c-6cf5928e7b53" name="Default Changelist" comment="improve IDAllocator" />
     <list id="40b664fe-9756-4d87-93a9-42981856d871" name="No Update" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -660,14 +656,6 @@
       <option name="project" value="LOCAL" />
       <updated>1686754190175</updated>
     </task>
-    <task id="LOCAL-00030" summary="Remove logs">
-      <option name="closed" value="true" />
-      <created>1709386233680</created>
-      <option name="number" value="00030" />
-      <option name="presentableId" value="LOCAL-00030" />
-      <option name="project" value="LOCAL" />
-      <updated>1709386233680</updated>
-    </task>
     <task id="LOCAL-00031" summary="Update readme">
       <option name="closed" value="true" />
       <created>1709386485874</created>
@@ -844,7 +832,15 @@
       <option name="project" value="LOCAL" />
       <updated>1756387636834</updated>
     </task>
-    <option name="localTasksCounter" value="53" />
+    <task id="LOCAL-00053" summary="improve IDAllocator">
+      <option name="closed" value="true" />
+      <created>1756549478760</created>
+      <option name="number" value="00053" />
+      <option name="presentableId" value="LOCAL-00053" />
+      <option name="project" value="LOCAL" />
+      <updated>1756549478761</updated>
+    </task>
+    <option name="localTasksCounter" value="54" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -874,7 +870,6 @@
   </component>
   <component name="VcsManagerConfiguration">
     <option name="ADD_EXTERNAL_FILES_SILENTLY" value="true" />
-    <MESSAGE value="Remove logs" />
     <MESSAGE value="Update readme" />
     <MESSAGE value="3.0.0 preview" />
     <MESSAGE value="Cheat the MCDevPlugin" />
@@ -899,7 +894,8 @@
     <MESSAGE value="3.4.2 pre" />
     <MESSAGE value="3.4.2 release" />
     <MESSAGE value="test IDAllocator" />
-    <option name="LAST_COMMIT_MESSAGE" value="test IDAllocator" />
+    <MESSAGE value="improve IDAllocator" />
+    <option name="LAST_COMMIT_MESSAGE" value="improve IDAllocator" />
     <option name="OPTIMIZE_IMPORTS_BEFORE_PROJECT_COMMIT" value="true" />
     <option name="REARRANGE_BEFORE_PROJECT_COMMIT" value="true" />
   </component>

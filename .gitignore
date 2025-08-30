@@ -1,7 +1,7 @@
 /src/OpenAL64.dll
-/src/net/xiaoyu233/fml/util/MappingConvertor.java
-/src/net/xiaoyu233/fml/util/MappingGenerator.java
-/src/net/xiaoyu233/fml/util/MapConnector.java
+/src/main/java/net/xiaoyu233/fml/util/MappingConvertor.java
+/src/main/java/net/xiaoyu233/fml/util/MappingGenerator.java
+/src/main/java/net/xiaoyu233/fml/util/MapConnector.java
 /mappings.srg
 /field_backup.mapping
 /method_backup.mapping
