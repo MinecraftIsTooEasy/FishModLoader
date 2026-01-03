@@ -7,13 +7,13 @@
   + 自动解决id范围冲突
     + IdUtil.getNextItemID()与IdUtil.getNextBlockID()改为弃用状态
     + 其余id暂不考虑修改
+* 修改构建系统为Gradle
 * 现在可识别fabric模组，但能正常加载的仅限不依赖于Minecraft本体的极少数模组
 * 修复了`类文件输出目录`的默认配置在非Windows系统路径错误的问题
 * 修复了找不到json格式语言文件报错的问题
 
 #### **_WIP_**
 
-* 修改构建系统为Gradle
 * 修改混淆映射表为分包的MCP
 * 依赖库改为外置
 

@@ -12,8 +12,8 @@ plugins {
     id 'application'
 }
 
-version = 'v3.5.0'
-group = 'net.xiaoyu233'
+version = project.version
+group = project.group
 
 sourceCompatibility = JavaVersion.VERSION_17
 targetCompatibility = JavaVersion.VERSION_17
@@ -41,6 +41,8 @@ repositories {
 configurations {
     shaded
     implementation.extendsFrom shaded
+    launchLibs
+    natives
 }
 
 dependencies {
@@ -57,9 +59,7 @@ dependencies {
     shaded 'org.apache.logging.log4j:log4j-core:2.25.1'
     shaded 'org.apache.commons:commons-lang3:3.18.0'
 
-//    shaded 'org.lwjgl.lwjgl:lwjgl:2.9.4-nightly-20150209'
-//    shaded 'org.lwjgl.lwjgl:lwjgl_util:2.9.4-nightly-20150209'
-//    shaded 'org.lwjgl.lwjgl:lwjgl-platform:2.9.4-nightly-20150209'
+    //TODO don't shaded
     shaded 'org.lwjgl.lwjgl:lwjgl:2.9.0'
     shaded 'org.lwjgl.lwjgl:lwjgl_util:2.9.0'
     shaded 'org.lwjgl.lwjgl:lwjgl-platform:2.9.0'
@@ -75,23 +75,44 @@ dependencies {
 
     implementation 'it.unimi.dsi:fastutil:8.5.12'
 
+    natives 'org.lwjgl.lwjgl:lwjgl-platform:2.9.0:natives-windows'
+    natives 'org.lwjgl.lwjgl:lwjgl-platform:2.9.0:natives-linux'
+    natives 'org.lwjgl.lwjgl:lwjgl-platform:2.9.0:natives-osx'
+
+    //---------------------------------//
+    launchLibs 'net.sf.jopt-simple:jopt-simple:5.0.4'
+    launchLibs 'org.lwjgl.lwjgl:lwjgl:2.9.0'
+    launchLibs 'org.lwjgl.lwjgl:lwjgl_util:2.9.0'
+    launchLibs 'org.lwjgl.lwjgl:lwjgl-platform:2.9.0'
+    launchLibs 'net.java.jinput:jinput:2.0.9'
+    launchLibs 'net.java.jutils:jutils:1.0.0'
+    launchLibs 'com.ibm.icu:icu4j:51.1'
+    launchLibs 'com.mojang:authlib:1.5.21'
+    launchLibs 'com.mojang:patchy:1.1'
+    launchLibs 'oshi-project:oshi-core:1.1'
+    launchLibs 'net.java.dev.jna:jna:4.4.0'
+    launchLibs 'net.java.dev.jna:platform:3.4.0'
+    launchLibs 'com.mojang:text2speech:1.11.3'
+    launchLibs 'com.paulscode:soundsystem:20120107'
+    launchLibs 'com.paulscode:codecwav:20101023'
+    launchLibs 'com.paulscode:libraryjavasound:20101123'
+    launchLibs 'com.paulscode:librarylwjglopenal:20100824'
+    launchLibs 'com.paulscode:codecjorbis:20101023'
+    launchLibs 'argo:argo:2.25_fixed'
+    launchLibs 'org.bouncycastle:bcprov-jdk15on:1.47'
 }
 
-compileJava {
-    options.encoding = 'UTF-8'
-    options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
-}
 
-task fatJar(type: Jar) {
+tasks.register('shadowJar', Jar) {
+    group = 'fishmodloader'
+
     archiveClassifier = 'all'
-
     from sourceSets.main.output
 
     from {
         configurations.shaded.collect { it.isDirectory() ? it : zipTree(it) }
     } {
         duplicatesStrategy = DuplicatesStrategy.WARN
-        // 排除签名文件
         exclude 'META-INF/*.SF'
         exclude 'META-INF/*.RSA'
         exclude 'META-INF/*.DSA'
@@ -104,8 +125,4 @@ task fatJar(type: Jar) {
     }
 }
 
-task launchMinecraft(type: JavaExec, dependsOn: fatJar) {
-    mainClass = 'net.xiaoyu233.fml.relaunch.client.Main'
-    classpath = files(fatJar.archiveFile)
-    jvmArgs '-Dminecraft.client.jar=libs/1.6.4-MITE.jar'
-}
+apply from: 'tasks.gradle'

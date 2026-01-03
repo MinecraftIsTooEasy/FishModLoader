@@ -1,0 +1,148 @@
+ext {
+    runDir = file("${projectDir}/run") as File
+    assetsDir = file("${projectDir}/run/assets/virtual/legacy") as File
+    nativesDir = file("${projectDir}/run/natives") as File
+
+    def buildClasspath = { ->
+        def classpathFiles = []
+        classpathFiles.add(shadowJar.archiveFile.get().asFile)
+        classpathFiles.add(runConfig.localJar)
+        classpathFiles.addAll(configurations.launchLibs.files)
+        return files(classpathFiles)
+    }
+
+    runConfig = [
+            localJar: file("libs/1.6.4-MITE.jar"),
+            nativesDir: nativesDir,
+            buildClasspath: buildClasspath,
+
+            jvmArgs: [
+                    "-Xmx2G",
+                    "-Xms1G",
+                    "-XX:+UseG1GC",
+                    "-XX:+UnlockExperimentalVMOptions",
+                    "-XX:MaxGCPauseMillis=100",
+                    "-XX:+DisableExplicitGC",
+                    "-Dminecraft.client.jar=libs/1.6.4-MITE.jar",
+                    "-Djava.library.path=${nativesDir.absolutePath}",
+                    "-Dlog4j.configurationFile=log4j2.xml",
+                    "-DLog4jContextSelector=org.apache.logging.log4j.core.selector.BasicContextSelector",
+                    "-Dlog4j2.debug=false",
+                    "-Dlog4j2.disableJmx=true",
+                    "-Dlog4j2.skipJansi=true",
+                    "-Dfabric.development=true"
+            ],
+
+            gameArgs: [
+                    "--version", "1.6.4",
+                    "--gameDir", runDir,
+                    "--assetsDir", assetsDir,
+                    "--accessToken", "0",
+                    "--userProperties", "{}",
+                    "--username", "${username}",
+                    "--session", "a.a.a.a",
+                    "--width", 854,
+                    "--height", 480
+            ],
+
+            customLibs: configurations.launchLibs.files,
+
+            workingDir: runDir,
+
+            debug: true
+    ]
+}
+
+tasks.register('cleanNatives', Delete) {
+    delete runConfig.nativesDir
+}
+
+tasks.register('extractNatives', Copy) {
+    dependsOn cleanNatives
+
+    doFirst {
+        runConfig.nativesDir.mkdirs()
+    }
+
+    from {
+        configurations.natives.collect { zipTree(it) }
+    }
+    into runConfig.nativesDir
+
+    include '**/*.dll'
+    include '**/*.so'
+    include '**/*.dylib'
+    include '**/*.jnilib'
+
+    exclude 'META-INF/**'
+}
+
+tasks.register('runClient', JavaExec) {
+    group = 'fishmodloader'
+
+    dependsOn extractNatives
+    dependsOn shadowJar
+    dependsOn copyLogConfig
+
+    mainClass = 'net.xiaoyu233.fml.relaunch.client.Main'
+    classpath = runConfig.buildClasspath.call()
+    def jvmArgsList = new ArrayList(runConfig.jvmArgs as Collection)
+    jvmArgsList.add("-Dlog.file.prefix=client")
+    jvmArgs(jvmArgsList)
+
+    args(runConfig.gameArgs)
+
+    workingDir = runConfig.workingDir
+}
+
+tasks.register('runServer', JavaExec) {
+    group = 'fishmodloader'
+
+    dependsOn extractNatives
+    dependsOn shadowJar
+    dependsOn copyLogConfig
+
+    mainClass = 'net.xiaoyu233.fml.relaunch.server.Main'
+
+    classpath = runConfig.buildClasspath.call()
+
+    def jvmArgsList = new ArrayList(runConfig.jvmArgs as Collection)
+    jvmArgsList.add("-Dlog.file.prefix=server")
+    jvmArgs(jvmArgsList)
+
+    workingDir = runDir
+}
+
+tasks.register('showLaunchParams') {
+    group = 'fishmodloader'
+
+    doLast {
+        def classpathFiles = [
+                shadowJar.archiveFile.get().asFile,
+                runConfig.localJar
+        ]
+        classpathFiles.addAll(runConfig.customLibs)
+
+        classpathFiles.eachWithIndex { file, index ->
+            println "  [${index + 1}] ${file.name} (${file.exists() ? 'exist' : 'doesNotExist'})"
+        }
+        println "java ${runConfig.jvmArgs.join(' ')} -cp ${classpathFiles.join(File.pathSeparator)} ${runConfig.mainClass} ${runConfig.gameArgs.join(' ')}"
+    }
+}
+
+tasks.register('copyLogConfig', Copy) {
+    from 'src/main/resources/log4j2.xml'
+    into runConfig.workingDir
+
+    doFirst {
+        if (!runConfig.workingDir.exists()) {
+            runConfig.workingDir.mkdirs()
+        }
+    }
+}
+
+tasks.withType(JavaExec).configureEach { task ->
+    if (task.name.startsWith('launch')) {
+        task.dependsOn extractNatives
+    }
+}
