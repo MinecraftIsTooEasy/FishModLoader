@@ -24,14 +24,14 @@
  */
 package org.spongepowered.asm.service;
 
+import java.io.InputStream;
+import java.util.Collection;
+
 import org.spongepowered.asm.launch.platform.container.IContainerHandle;
 import org.spongepowered.asm.logging.ILogger;
 import org.spongepowered.asm.mixin.MixinEnvironment.CompatibilityLevel;
 import org.spongepowered.asm.mixin.MixinEnvironment.Phase;
 import org.spongepowered.asm.util.ReEntranceLock;
-
-import java.io.InputStream;
-import java.util.Collection;
 
 /**
  * Mixin Service interface. Mixin services connect the mixin subsytem to the
@@ -129,6 +129,18 @@ public interface IMixinService {
      * functionality.</b>
      */
     public abstract IMixinAuditTrail getAuditTrail();
+
+    /**
+     * Return the feature validator for this service. <b>This component is required
+     * and services must not return null.</b>
+     */
+    public abstract IFeatureValidator getFeatureValidator();
+
+    /**
+     * Return the advice provider for this service. <b>This component is required
+     * and services must not return null.</b>
+     */
+    public abstract IAdviceProvider getAdviceProvider();
     
     /**
      * Get additional platform agents for this service 

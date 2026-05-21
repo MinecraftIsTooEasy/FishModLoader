@@ -24,10 +24,10 @@
  */
 package org.spongepowered.asm.mixin.transformer;
 
-import org.objectweb.asm.tree.ClassNode;
-
 import java.util.HashSet;
 import java.util.Set;
+
+import org.objectweb.asm.tree.ClassNode;
 
 /**
  * Passthrough coprocessor which simply keeps track of classes which are

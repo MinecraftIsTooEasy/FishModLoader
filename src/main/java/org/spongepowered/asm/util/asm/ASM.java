@@ -24,25 +24,25 @@
  */
 package org.spongepowered.asm.util.asm;
 
+import java.lang.reflect.Field;
+import java.util.jar.Attributes;
+
 import org.objectweb.asm.Opcodes;
 import org.spongepowered.asm.launch.platform.MainAttributes;
 import org.spongepowered.asm.util.VersionNumber;
 
-import java.lang.reflect.Field;
-import java.util.jar.Attributes;
-
 /**
  * Utility methods for determining ASM version and other version-specific
- * shenanigansw
+ * shenanigans
  */
 public final class ASM {
     
-    private static int majorVersion = Opcodes.ASM9;
-    private static int minorVersion = 8;
+    private static int majorVersion = 5;
+    private static int minorVersion = 0;
     
     // Implementation versions, only available from ASM
-    private static int implMinorVersion = 9;
-    private static int patchVersion = 1;
+    private static int implMinorVersion = 0;
+    private static int patchVersion = 0;
     
     private static String maxVersion = "FALLBACK";
     

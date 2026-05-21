@@ -24,19 +24,19 @@
  */
 package org.spongepowered.asm.launch;
 
+import java.lang.reflect.Constructor;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.spongepowered.asm.logging.ILogger;
 import org.spongepowered.asm.launch.platform.CommandLineOptions;
 import org.spongepowered.asm.launch.platform.MixinPlatformManager;
-import org.spongepowered.asm.logging.ILogger;
 import org.spongepowered.asm.mixin.MixinEnvironment;
 import org.spongepowered.asm.mixin.MixinEnvironment.Phase;
 import org.spongepowered.asm.mixin.throwables.MixinError;
 import org.spongepowered.asm.service.IMixinInternal;
 import org.spongepowered.asm.service.IMixinService;
 import org.spongepowered.asm.service.MixinService;
-
-import java.lang.reflect.Constructor;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Bootstraps the mixin subsystem. This class acts as a bridge between the mixin
@@ -183,7 +183,7 @@ public abstract class MixinBootstrap {
                 return;
             }
             
-            throw new IllegalStateException("MixinBootstrap.doInit() called before MixinBootstrap.initial()");
+            throw new IllegalStateException("MixinBootstrap.doInit() called before MixinBootstrap.start()");
         }
 
         MixinBootstrap.getPlatform().getPhaseProviderClasses();

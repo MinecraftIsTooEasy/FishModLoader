@@ -24,16 +24,19 @@
  */
 package org.spongepowered.asm.mixin.transformer;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+import org.objectweb.asm.tree.InnerClassNode;
+import org.spongepowered.asm.logging.ILogger;
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.commons.Remapper;
 import org.objectweb.asm.tree.ClassNode;
-import org.objectweb.asm.tree.InnerClassNode;
-import org.spongepowered.asm.logging.ILogger;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
-import org.spongepowered.asm.mixin.extensibility.IRemapper;
 import org.spongepowered.asm.mixin.transformer.ClassInfo.Field;
 import org.spongepowered.asm.mixin.transformer.ClassInfo.Method;
 import org.spongepowered.asm.mixin.transformer.ext.IClassGenerator;
@@ -43,11 +46,8 @@ import org.spongepowered.asm.service.MixinService;
 import org.spongepowered.asm.util.IConsumer;
 import org.spongepowered.asm.util.asm.ASM;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
 
 /**
  * Class generator which creates unique copies of inner classes within mixins
@@ -136,7 +136,7 @@ final class InnerClassGenerator implements IClassGenerator {
             } catch (ClassNotFoundException ex) {
                 // expected under ASM 5.0.3 since the new class doesn't exist yet
             }
-            
+
             if (InnerClassGenerator.clRemapper == null) {
                 try {
                     InnerClassGenerator.clRemapper = (Class<? extends ClassVisitor>)Class.forName(InnerClassGenerator.REMAPPER_CLASS_LEGACY);
@@ -146,7 +146,7 @@ final class InnerClassGenerator implements IClassGenerator {
                 }
             }
         }
-        
+
         return InnerClassGenerator.clRemapper.getConstructor(ClassVisitor.class, Remapper.class).newInstance(cv, remapper);
     }
     
@@ -237,7 +237,7 @@ final class InnerClassGenerator implements IClassGenerator {
         } catch (Exception ex) {
             InnerClassGenerator.logger.catching(ex);
         }
-        
+
         return false;
     }
 
@@ -246,14 +246,14 @@ final class InnerClassGenerator implements IClassGenerator {
      * class with a meta annotation describing the original class.
      */
     static class InnerClassAdapter extends ClassVisitor {
-        
+
         private final InnerClassInfo info;
-        
+
         InnerClassAdapter(ClassVisitor cv, InnerClassInfo info) {
             super(ASM.API_VERSION, cv);
             this.info = info;
         }
-        
+
         /* (non-Javadoc)
          * @see org.objectweb.asm.ClassVisitor#visitNestHost(java.lang.String)
          */
@@ -263,7 +263,7 @@ final class InnerClassGenerator implements IClassGenerator {
             // from the target class
             this.cv.visitNestHost(this.info.getNestHostName());
         }
-        
+
         /* (non-Javadoc)
          * @see org.objectweb.asm.ClassVisitor
          *      #visitSource(java.lang.String, java.lang.String)
@@ -276,7 +276,7 @@ final class InnerClassGenerator implements IClassGenerator {
             av.visit("name", this.info.getOriginalName().substring(this.info.getOriginalName().lastIndexOf('/') + 1));
             av.visitEnd();
         }
-        
+
     }
 
     /**
@@ -284,48 +284,48 @@ final class InnerClassGenerator implements IClassGenerator {
      * that it can participate in the remapping process.
      */
     class InnerClassInfo extends Remapper implements ISyntheticClassInfo {
-        
+
         /**
          * Mixin which provides this class
          */
-        private final IMixinInfo mixin;
-        
+        private final MixinInfo mixin;
+
         /**
          * Target class info
          */
         private final ClassInfo targetClassInfo;
-        
+
         /**
          * Original class name
          */
         private final String originalName;
-        
+
         /**
          * Class name (internal name)
          */
         private final String name;
-        
+
         /**
          * Mixin which owns this inner class
          */
         private final MixinInfo owner;
-        
+
         /**
          * Name of the owner mixin (class ref)
          */
         private final String ownerName;
-        
+
         /**
          * Name of the new nest host based on the target class
          */
         private final String nestHostName;
-        
+
         /**
          *  Number of times this inner class has been generated
          */
         private int loadCounter;
 
-        InnerClassInfo(IMixinInfo mixin, ClassInfo targetClass, ClassInfo nestHost, String originalName, String name, MixinInfo owner) {
+        InnerClassInfo(MixinInfo mixin, ClassInfo targetClass, ClassInfo nestHost, String originalName, String name, MixinInfo owner) {
             this.mixin = mixin;
             this.targetClassInfo = targetClass;
             this.originalName = originalName;
@@ -334,12 +334,12 @@ final class InnerClassGenerator implements IClassGenerator {
             this.ownerName = owner.getClassRef();
             this.nestHostName = nestHost.getName();
         }
-        
+
         @Override
         public IMixinInfo getMixin() {
             return this.mixin;
         }
-        
+
         @Override
         public boolean isLoaded() {
             return this.loadCounter > 0;
@@ -349,38 +349,41 @@ final class InnerClassGenerator implements IClassGenerator {
         public String getName() {
             return this.name;
         }
-        
+
         @Override
         public String getClassName() {
             return this.name.replace('/', '.');
         }
-        
+
         String getOriginalName() {
             return this.originalName;
         }
-        
+
         MixinInfo getOwner() {
             return this.owner;
         }
-        
+
         String getOwnerName() {
             return this.ownerName;
         }
-        
+
         String getTargetName() {
             return this.targetClassInfo.getName();
         }
-        
+
         ClassInfo getTargetClass() {
             return this.targetClassInfo;
         }
-        
+
         String getNestHostName() {
             return this.nestHostName;
         }
-        
+
         void accept(final ClassVisitor classVisitor) throws ClassNotFoundException, IOException {
             ClassNode classNode = MixinService.getService().getBytecodeProvider().getClassNode(this.originalName);
+            if (this.loadCounter == 0) {
+                this.mixin.validateInnerClass(classNode);
+            }
             this.readInnerClasses(classNode);
             classNode.accept(classVisitor);
             this.loadCounter++;
@@ -400,7 +403,7 @@ final class InnerClassGenerator implements IClassGenerator {
          * Used to remap fields which have been renamed while being applied to
          * the target class or by an implementation of IRemapper.
          *
-         * @see IRemapper
+         * @see org.spongepowered.asm.mixin.extensibility.IRemapper
          */
         @Override
         public String mapFieldName(String owner, String name, String descriptor) {
@@ -417,7 +420,7 @@ final class InnerClassGenerator implements IClassGenerator {
          * Used to remap methods which have been renamed while being applied to
          * the target class or by an implementation of IRemapper.
          *
-         * @see IRemapper
+         * @see org.spongepowered.asm.mixin.extensibility.IRemapper
          */
         @Override
         public String mapMethodName(String owner, String name, String desc) {
@@ -441,7 +444,7 @@ final class InnerClassGenerator implements IClassGenerator {
             }
             return key;
         }
-        
+
         /* (non-Javadoc)
          * @see java.lang.Object#toString()
          */
@@ -458,7 +461,7 @@ final class InnerClassGenerator implements IClassGenerator {
                     InnerClassGenerator.innerClassCoordinate(this.owner, this.targetClassInfo, originalName)
             );
         }
-        
+
     }
 
 }

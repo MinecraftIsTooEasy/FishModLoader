@@ -24,14 +24,14 @@
  */
 package org.spongepowered.asm.mixin.gen;
 
+import java.util.ArrayList;
+
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.spongepowered.asm.mixin.gen.throwables.InvalidAccessorException;
 import org.spongepowered.asm.service.MixinService;
 import org.spongepowered.asm.util.asm.ASM;
-
-import java.util.ArrayList;
 
 /**
  * Base class for accessor generators

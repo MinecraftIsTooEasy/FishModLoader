@@ -24,6 +24,11 @@
  */
 package org.spongepowered.asm.mixin.injection.struct;
 
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Set;
+
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -37,28 +42,26 @@ import org.spongepowered.asm.mixin.transformer.ClassInfo;
 import org.spongepowered.asm.mixin.transformer.struct.Initialiser;
 import org.spongepowered.asm.mixin.transformer.struct.InsnRange;
 import org.spongepowered.asm.util.Bytecode;
-import org.spongepowered.asm.util.Bytecode.DelegateInitialiser;
 import org.spongepowered.asm.util.Constants;
 import org.spongepowered.asm.util.asm.MarkerNode;
-
-import java.util.Deque;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Set;
+import org.spongepowered.asm.util.Bytecode.DelegateInitialiser;
 
 /**
  * A {@link Target} which is a constructor
  */
 public class Constructor extends Target {
     
-    private final String targetName;
-    private final String targetSuperName;
     /**
      * Cached delegate initialiser call
      */
     private DelegateInitialiser delegateInitialiser;
+    
     private MarkerNode initialiserInjectionPoint;
     private MarkerNode bodyStart;
+    
+    private final String targetName; 
+    private final String targetSuperName;
+
     private Set<String> mixinInitialisedFields = new HashSet<String>();
 
     public Constructor(ClassInfo classInfo, ClassNode classNode, MethodNode method) {
@@ -73,8 +76,18 @@ public class Constructor extends Target {
     }
     
     /**
+     * Get whether this constructor should have mixin initialisers injected into
+     * it based on whether a delegate initialiser call is absent or is a call to
+     * super()
+     */
+    public boolean isInjectable() {
+        DelegateInitialiser delegateInit = this.findDelegateInitNode();
+        return !delegateInit.isPresent || delegateInit.isSuper;
+    }
+    
+    /**
      * Identifies line numbers in the supplied ctor which correspond to the
-     * initial and end of the method body.
+     * start and end of the method body.
      *
      * @param ctor constructor to scan
      * @return range indicating the line numbers of the specified constructor
@@ -83,7 +96,7 @@ public class Constructor extends Target {
     public static InsnRange getRange(MethodNode ctor) {
         boolean lineNumberIsValid = false;
         AbstractInsnNode endReturn = null;
-        
+
         int line = 0, start = 0, end = 0, delegateIndex = -1;
         for (Iterator<AbstractInsnNode> iter = ctor.instructions.iterator(); iter.hasNext();) {
             AbstractInsnNode insn = iter.next();
@@ -106,16 +119,16 @@ public class Constructor extends Target {
                 }
             }
         }
-        
+
         if (endReturn != null) {
             LabelNode label = new LabelNode(new Label());
             ctor.instructions.insertBefore(endReturn, label);
             ctor.instructions.insertBefore(endReturn, new LineNumberNode(start, label));
         }
-        
+
         return new InsnRange(start, end, delegateIndex);
     }
-    
+
     /**
      * Find the call to <tt>super()</tt> or <tt>this()</tt> in a constructor.
      * This attempts to locate the first call to <tt>&lt;init&gt;</tt> which
@@ -129,18 +142,8 @@ public class Constructor extends Target {
         if (this.delegateInitialiser == null) {
             this.delegateInitialiser = Bytecode.findDelegateInit(this.method, this.classInfo.getSuperName(), this.classNode.name);
         }
-        
-        return this.delegateInitialiser;
-    }
 
-    /**
-     * Get whether this constructor should have mixin initialisers injected into
-     * it based on whether a delegate initialiser call is absent or is a call to
-     * super()
-     */
-    public boolean isInjectable() {
-        DelegateInitialiser delegateInit = this.findDelegateInitNode();
-        return !delegateInit.isPresent || delegateInit.isSuper;
+        return this.delegateInitialiser;
     }
 
     /**
@@ -197,11 +200,11 @@ public class Constructor extends Target {
                 }
             }
         }
-        
+
         if (lastInsn == null) {
             return null;
         }
-        
+
         this.initialiserInjectionPoint = new MarkerNode(MarkerNode.INITIALISER_TAIL);
         this.insert(lastInsn, this.initialiserInjectionPoint);
         return this.initialiserInjectionPoint;

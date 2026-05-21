@@ -24,12 +24,12 @@
  */
 package org.spongepowered.asm.mixin;
 
-import org.spongepowered.asm.util.ConstraintParser.Constraint;
-
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+
+import org.spongepowered.asm.util.ConstraintParser.Constraint;
 
 /**
  * <p>Annotation used to indicate a mixin class member which must overwrite a

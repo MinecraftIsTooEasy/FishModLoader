@@ -24,6 +24,9 @@
  */
 package org.spongepowered.asm.mixin.transformer;
 
+import java.util.Map.Entry;
+import java.util.function.Supplier;
+
 import org.objectweb.asm.tree.FieldNode;
 import org.spongepowered.asm.mixin.MixinEnvironment.Feature;
 import org.spongepowered.asm.mixin.injection.struct.InjectionInfo;
@@ -32,9 +35,6 @@ import org.spongepowered.asm.mixin.transformer.ClassInfo.Field;
 import org.spongepowered.asm.mixin.transformer.struct.Clinit;
 import org.spongepowered.asm.mixin.transformer.throwables.InvalidInterfaceMixinException;
 import org.spongepowered.asm.util.Annotations;
-
-import java.util.Map.Entry;
-import java.util.function.Supplier;
 
 /**
  * Applicator for interface mixins, mainly just disables things which aren't

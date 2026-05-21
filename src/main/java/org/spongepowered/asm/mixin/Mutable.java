@@ -24,12 +24,12 @@
  */
 package org.spongepowered.asm.mixin;
 
-import org.spongepowered.asm.mixin.gen.Accessor;
-
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+
+import org.spongepowered.asm.mixin.gen.Accessor;
 
 /**
  * Use in conjunction with {@link Final} or {@link Accessor} to indicate that

@@ -24,14 +24,7 @@
  */
 package org.spongepowered.tools.obfuscation;
 
-import org.spongepowered.asm.mixin.Implements;
-import org.spongepowered.asm.mixin.Overwrite;
-import org.spongepowered.asm.mixin.Shadow;
-import org.spongepowered.asm.mixin.gen.Accessor;
-import org.spongepowered.asm.mixin.gen.Invoker;
-import org.spongepowered.tools.obfuscation.interfaces.IMessagerEx.MessageType;
-import org.spongepowered.tools.obfuscation.mirror.AnnotationHandle;
-import org.spongepowered.tools.obfuscation.mirror.TypeUtils;
+import java.util.Set;
 
 import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
@@ -40,7 +33,15 @@ import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
-import java.util.Set;
+
+import org.spongepowered.asm.mixin.Implements;
+import org.spongepowered.asm.mixin.Overwrite;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.gen.Accessor;
+import org.spongepowered.asm.mixin.gen.Invoker;
+import org.spongepowered.tools.obfuscation.interfaces.IMessagerEx.MessageType;
+import org.spongepowered.tools.obfuscation.mirror.AnnotationHandle;
+import org.spongepowered.tools.obfuscation.mirror.TypeUtils;
 
 /**
  * Annotation processor which finds {@link Shadow} and {@link Overwrite}
@@ -106,7 +107,7 @@ public class MixinObfuscationProcessorTargets extends MixinObfuscationProcessor 
             
             if (elem.getKind() == ElementKind.FIELD) {
                 this.mixins.registerShadow((TypeElement)parent, (VariableElement)elem, shadow);
-            } else if (elem.getKind() == ElementKind.METHOD) {
+            } else if (elem.getKind() == ElementKind.METHOD || elem.getKind() == ElementKind.CONSTRUCTOR) {
                 this.mixins.registerShadow((TypeElement)parent, (ExecutableElement)elem, shadow);
             } else {
                 this.mixins.printMessage(MessageType.SHADOW_ON_INVALID_ELEMENT, "Element is not a method or field",  elem);

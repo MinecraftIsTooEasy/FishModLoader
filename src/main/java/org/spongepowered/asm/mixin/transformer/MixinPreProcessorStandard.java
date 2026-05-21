@@ -24,18 +24,14 @@
  */
 package org.spongepowered.asm.mixin.transformer;
 
-import com.google.common.base.Strings;
+import java.lang.annotation.Annotation;
+import java.util.Iterator;
+
+import org.spongepowered.asm.logging.ILogger;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
-import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.AnnotationNode;
-import org.objectweb.asm.tree.FieldInsnNode;
-import org.objectweb.asm.tree.FieldNode;
-import org.objectweb.asm.tree.InvokeDynamicInsnNode;
-import org.objectweb.asm.tree.MethodInsnNode;
-import org.objectweb.asm.tree.MethodNode;
-import org.spongepowered.asm.logging.ILogger;
+import org.objectweb.asm.tree.*;
 import org.spongepowered.asm.mixin.Dynamic;
 import org.spongepowered.asm.mixin.MixinEnvironment;
 import org.spongepowered.asm.mixin.MixinEnvironment.CompatibilityLevel;
@@ -48,6 +44,7 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 import org.spongepowered.asm.mixin.gen.Invoker;
 import org.spongepowered.asm.mixin.gen.throwables.InvalidAccessorException;
 import org.spongepowered.asm.mixin.struct.MemberRef;
+import org.spongepowered.asm.mixin.throwables.ClassMetadataNotFoundException;
 import org.spongepowered.asm.mixin.throwables.MixinException;
 import org.spongepowered.asm.mixin.transformer.ClassInfo.Field;
 import org.spongepowered.asm.mixin.transformer.ClassInfo.Method;
@@ -68,8 +65,7 @@ import org.spongepowered.asm.util.perf.Profiler;
 import org.spongepowered.asm.util.perf.Profiler.Section;
 import org.spongepowered.asm.util.throwables.SyntheticBridgeException;
 
-import java.lang.annotation.Annotation;
-import java.util.Iterator;
+import com.google.common.base.Strings;
 
 /**
  * <p>Mixin bytecode pre-processor. This class is responsible for bytecode pre-
@@ -196,6 +192,15 @@ class MixinPreProcessorStandard {
         AnnotationNode shadowAnnotation = Annotations.getVisible(mixinMethod, Shadow.class);
         if (shadowAnnotation == null) {
             return;
+        }
+
+        if (Constants.CTOR.equals(mixinMethod.name)) {
+            for (String disallowedKey : new String[] {"prefix", "aliases"}) {
+                if (Annotations.getValue(shadowAnnotation, disallowedKey) != null) {
+                    throw new InvalidMixinException(this.mixin, String.format("@Shadow constructor %s.%s declares %s. This is not allowed.",
+                            this.mixin, mixinMethod, disallowedKey));
+                }
+            }
         }
         
         String prefix = Annotations.<String>getValue(shadowAnnotation, "prefix", Shadow.class);
@@ -410,17 +415,17 @@ class MixinPreProcessorStandard {
             target = context.findRemappedMethod(mixinMethod);
             if (target == null) {
                 throw new InvalidMixinException(this.mixin,
-                        String.format("%s method %s in %s was not located in the target class %s. %s%s", type, mixinMethod.name, this.mixin,
+                        String.format("%s method %s%s in %s was not located in the target class %s. %s%s", type, mixinMethod.name, mixinMethod.desc, this.mixin,
                                 context.getTarget(), context.getReferenceMapper().getStatus(),
                                 MixinPreProcessorStandard.getDynamicInfo(mixinMethod)));
             }
             mixinMethod.name = method.renameTo(target.name);
         }
         
-        if (Constants.CTOR.equals(target.name)) {
+        if (Constants.CTOR.equals(target.name) && !Constants.CTOR.equals(mixinMethod.name)) {
             throw new InvalidMixinException(this.mixin, String.format("Nice try! %s in %s cannot alias a constructor", mixinMethod.name, this.mixin));
         }
-        
+
         if (!Bytecode.compareFlags(mixinMethod, target, Opcodes.ACC_STATIC)) {
             throw new InvalidMixinException(this.mixin, String.format("STATIC modifier of %s method %s in %s does not match the target", type,
                     mixinMethod.name, this.mixin));
@@ -440,6 +445,11 @@ class MixinPreProcessorStandard {
     }
 
     private void conformVisibility(MixinTargetContext context, MixinMethodNode mixinMethod, SpecialMethod type, MethodNode target) {
+        if (Constants.CTOR.equals(mixinMethod.name)) {
+            // No need to change invocation opcodes
+            return;
+        }
+
         Visibility visTarget = Bytecode.getVisibility(target);
         Visibility visMethod = Bytecode.getVisibility(mixinMethod);
         if (visMethod.ordinal() >= visTarget.ordinal()) {
@@ -466,7 +476,7 @@ class MixinPreProcessorStandard {
     }
 
     protected Method getSpecialMethod(MixinMethodNode mixinMethod, SpecialMethod type) {
-        Method method = this.mixin.getClassInfo().findMethod(mixinMethod, ClassInfo.INCLUDE_ALL);
+        Method method = this.mixin.getClassInfo().findMethod(mixinMethod, ClassInfo.INCLUDE_ALL | ClassInfo.INCLUDE_INITIALISERS);
         this.checkMethodNotUnique(method, type);
         return method;
     }
@@ -570,7 +580,7 @@ class MixinPreProcessorStandard {
 
     protected void attachFields(MixinTargetContext context) {
         IActivity fieldActivity = this.activities.begin("?");
-        for (Iterator<FieldNode> iter = this.classNode.getFields().iterator(); iter.hasNext();) {
+        for (Iterator<FieldNode> iter = this.classNode.fields.iterator(); iter.hasNext();) {
             FieldNode mixinField = iter.next();
             fieldActivity.next("%s:%s", mixinField.name, mixinField.desc);
             AnnotationNode shadow = Annotations.getVisible(mixinField, Shadow.class);
@@ -654,9 +664,6 @@ class MixinPreProcessorStandard {
                 mixinField.name = field.renameTo(target.name);
             }
             
-            // Shadow fields get stripped from the mixin class
-            iter.remove();
-            
             if (isShadow) {
                 boolean isFinal = field.isDecoratedFinal();
                 if (this.verboseLogging && Bytecode.hasFlag(target, Opcodes.ACC_FINAL) != isFinal) {
@@ -666,6 +673,8 @@ class MixinPreProcessorStandard {
                     MixinPreProcessorStandard.logger.warn(message, this.mixin, mixinField.name);
                 }
 
+                // Shadow fields get stripped from the mixin class
+                iter.remove();
                 context.addShadowField(mixinField, field);
             }
         }
@@ -780,7 +789,7 @@ class MixinPreProcessorStandard {
         } else {
             int includeStatic = (ref.getOpcode() == Opcodes.INVOKESTATIC
                     ? ClassInfo.INCLUDE_STATIC : 0);
-            Method method = owner.findMethodInHierarchy(ref.getName(), ref.getDesc(), SearchType.ALL_CLASSES, ClassInfo.INCLUDE_PRIVATE | includeStatic);
+            ClassInfo.Method method = owner.findMethodInHierarchy(ref.getName(), ref.getDesc(), SearchType.ALL_CLASSES, ClassInfo.INCLUDE_PRIVATE | includeStatic);
 
             //Accessors are never renamed, despite it appearing as if they have been
             member = method != null && !method.isAccessor() ? method : null;
@@ -823,17 +832,17 @@ class MixinPreProcessorStandard {
      * Types of annotated special method handled by the preprocessor
      */
     enum SpecialMethod {
-        
+
         MERGE(true),
         OVERWRITE(true, Overwrite.class),
         SHADOW(false, Shadow.class),
         ACCESSOR(false, Accessor.class),
         INVOKER(false, Invoker.class);
-        
+
         final boolean isOverwrite;
-        
+
         final Class<? extends Annotation> annotation;
-        
+
         final String description;
 
         private SpecialMethod(boolean isOverwrite, Class<? extends Annotation> type) {
@@ -841,18 +850,18 @@ class MixinPreProcessorStandard {
             this.annotation = type;
             this.description = "@" + Annotations.getSimpleName(type);
         }
-        
+
         private SpecialMethod(boolean isOverwrite) {
             this.isOverwrite = isOverwrite;
             this.annotation = null;
             this.description = "overwrite";
         }
-        
+
         @Override
         public String toString() {
             return this.description;
         }
-        
+
     }
 
 }

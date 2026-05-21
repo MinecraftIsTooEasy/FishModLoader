@@ -24,6 +24,9 @@
  */
 package org.spongepowered.asm.mixin.injection.code;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.InsnList;
@@ -31,13 +34,10 @@ import org.objectweb.asm.tree.MethodNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfig;
 import org.spongepowered.asm.mixin.injection.InjectionPoint;
 import org.spongepowered.asm.mixin.injection.selectors.TargetSelectors.SelectedMethod;
-import org.spongepowered.asm.mixin.injection.struct.InjectionNodes.InjectionNode;
 import org.spongepowered.asm.mixin.injection.struct.Target;
+import org.spongepowered.asm.mixin.injection.struct.InjectionNodes.InjectionNode;
 import org.spongepowered.asm.mixin.transformer.meta.MixinMerged;
 import org.spongepowered.asm.util.Annotations;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Couples {@link MethodSlice method slices} to a {@link Target} for injection

@@ -24,6 +24,9 @@
  */
 package org.spongepowered.asm.mixin.injection.points;
 
+import java.util.Collection;
+import java.util.Iterator;
+
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -35,9 +38,6 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.selectors.ITargetSelector;
 import org.spongepowered.asm.mixin.injection.struct.InjectionPointData;
 import org.spongepowered.asm.util.Bytecode;
-
-import java.util.Collection;
-import java.util.Iterator;
 
 /**
  * <p>This injection point searches for GETFIELD and PUTFIELD (and static

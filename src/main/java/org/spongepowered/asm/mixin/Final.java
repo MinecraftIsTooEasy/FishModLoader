@@ -24,14 +24,14 @@
  */
 package org.spongepowered.asm.mixin;
 
-import org.spongepowered.asm.mixin.MixinEnvironment.Option;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.transformer.throwables.InvalidMixinException;
-
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+
+import org.spongepowered.asm.mixin.MixinEnvironment.Option;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.transformer.throwables.InvalidMixinException;
 
 /**
  * This annotation has two uses:

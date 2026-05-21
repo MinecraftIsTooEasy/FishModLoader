@@ -24,6 +24,9 @@
  */
 package org.spongepowered.asm.mixin.transformer;
 
+import java.lang.reflect.Constructor;
+import java.util.List;
+
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.launch.MixinInitialisationError;
 import org.spongepowered.asm.mixin.MixinEnvironment;
@@ -35,9 +38,6 @@ import org.spongepowered.asm.mixin.transformer.ext.IHotSwap;
 import org.spongepowered.asm.transformers.TreeTransformer;
 import org.spongepowered.asm.util.Constants;
 import org.spongepowered.asm.util.asm.ASM;
-
-import java.lang.reflect.Constructor;
-import java.util.List;
 
 /**
  * Transformer which manages the mixin configuration and application process
@@ -67,15 +67,25 @@ final class MixinTransformer extends TreeTransformer implements IMixinTransforme
      */
     private final IHotSwap hotSwapper;
     /**
-     * Class generator
-     */
-    private final MixinClassGenerator generator;
-
-    /**
      * Mixin processor which actually manages application of mixins
      */
     private final MixinProcessor processor;
+    /**
+     * Class generator
+     */
+    private final MixinClassGenerator generator;
     
+    /**
+     * You need to ask yourself why you're reading this comment
+     */
+    private static ClassNode createEmptyClass(String name) {
+        ClassNode classNode = new ClassNode(ASM.API_VERSION);
+        classNode.name = name.replace('.', '/');
+        classNode.version = MixinEnvironment.getCompatibilityLevel().getClassVersion();
+        classNode.superName = Constants.OBJECT;
+        return classNode;
+    }
+
     MixinTransformer() {
         MixinEnvironment environment = MixinEnvironment.getCurrentEnvironment();
         
@@ -97,17 +107,6 @@ final class MixinTransformer extends TreeTransformer implements IMixinTransforme
         this.generator = new MixinClassGenerator(environment, this.extensions);
         
         DefaultExtensions.create(environment, this.extensions, this.syntheticClassRegistry, this.nestHostCoprocessor);
-    }
-
-    /**
-     * You need to ask yourself why you're reading this comment
-     */
-    private static ClassNode createEmptyClass(String name) {
-        ClassNode classNode = new ClassNode(ASM.API_VERSION);
-        classNode.name = name.replace('.', '/');
-        classNode.version = MixinEnvironment.getCompatibilityLevel().getClassVersion();
-        classNode.superName = Constants.OBJECT;
-        return classNode;
     }
     
     private IHotSwap initHotSwapper(MixinEnvironment environment) {
@@ -290,7 +289,7 @@ final class MixinTransformer extends TreeTransformer implements IMixinTransforme
      * Impl of mixin transformer factory
      */
     static class Factory implements IMixinTransformerFactory {
-        
+
         /* (non-Javadoc)
          * @see org.spongepowered.asm.mixin.transformer.IMixinTransformerFactory
          *      #createTransformer()
@@ -299,7 +298,7 @@ final class MixinTransformer extends TreeTransformer implements IMixinTransforme
         public IMixinTransformer createTransformer() throws MixinInitialisationError {
             return new MixinTransformer();
         }
-        
+
     }
 
 }

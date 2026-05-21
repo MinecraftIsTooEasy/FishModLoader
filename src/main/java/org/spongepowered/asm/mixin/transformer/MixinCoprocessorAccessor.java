@@ -24,6 +24,9 @@
  */
 package org.spongepowered.asm.mixin.transformer;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AnnotationNode;
@@ -41,11 +44,8 @@ import org.spongepowered.asm.mixin.transformer.meta.MixinProxy;
 import org.spongepowered.asm.mixin.transformer.throwables.MixinTransformerError;
 import org.spongepowered.asm.util.Annotations;
 import org.spongepowered.asm.util.Bytecode;
-import org.spongepowered.asm.util.Bytecode.Visibility;
 import org.spongepowered.asm.util.LanguageFeatures;
-
-import java.util.HashMap;
-import java.util.Map;
+import org.spongepowered.asm.util.Bytecode.Visibility;
 
 /**
  * This coprocessor handles transformations to accessor mixins themselves as
@@ -83,19 +83,6 @@ class MixinCoprocessorAccessor extends MixinCoprocessor {
 
     void registerAccessor(MixinInfo mixin) {
         this.accessorMixins.put(mixin.getClassName(), mixin);
-    }
-
-    private static void createProxy(MethodNode methodNode, ClassInfo targetClass, Method method) {
-        methodNode.access |= Opcodes.ACC_SYNTHETIC;
-        methodNode.instructions.clear();
-        Type[] args = Type.getArgumentTypes(methodNode.desc);
-        Type returnType = Type.getReturnType(methodNode.desc);
-        Bytecode.loadArgs(args, methodNode.instructions, 0);
-        methodNode.instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, targetClass.getName(), method.getName(), methodNode.desc,
-                targetClass.isInterface()));
-        methodNode.instructions.add(new InsnNode(returnType.getOpcode(Opcodes.IRETURN)));
-        methodNode.maxStack = Bytecode.getFirstNonArgLocalIndex(args, false);
-        methodNode.maxLocals = 0;
     }
 
     @Override
@@ -155,6 +142,19 @@ class MixinCoprocessorAccessor extends MixinCoprocessor {
         }
         
         return method;
+    }
+
+    private static void createProxy(MethodNode methodNode, ClassInfo targetClass, Method method) {
+        methodNode.access |= Opcodes.ACC_SYNTHETIC;
+        methodNode.instructions.clear();
+        Type[] args = Type.getArgumentTypes(methodNode.desc);
+        Type returnType = Type.getReturnType(methodNode.desc);
+        Bytecode.loadArgs(args, methodNode.instructions, 0);
+        methodNode.instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, targetClass.getName(), method.getName(), methodNode.desc,
+                targetClass.isInterface()));
+        methodNode.instructions.add(new InsnNode(returnType.getOpcode(Opcodes.IRETURN)));
+        methodNode.maxStack = Bytecode.getFirstNonArgLocalIndex(args, false);
+        methodNode.maxLocals = 0;
     }
 
 }

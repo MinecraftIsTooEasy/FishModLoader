@@ -24,6 +24,9 @@
  */
 package org.spongepowered.asm.mixin.injection.invoke;
 
+import java.util.Arrays;
+import java.util.List;
+
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.MethodInsnNode;
@@ -37,9 +40,6 @@ import org.spongepowered.asm.mixin.injection.struct.Target;
 import org.spongepowered.asm.mixin.injection.struct.Target.Extension;
 import org.spongepowered.asm.mixin.injection.throwables.InvalidInjectionException;
 import org.spongepowered.asm.util.Bytecode;
-
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * A bytecode injector which allows a single argument of a chosen method call to

@@ -24,6 +24,10 @@
  */
 package org.spongepowered.asm.mixin.injection.invoke.arg;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import org.spongepowered.asm.logging.ILogger;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
@@ -31,7 +35,6 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.util.CheckClassAdapter;
-import org.spongepowered.asm.logging.ILogger;
 import org.spongepowered.asm.mixin.MixinEnvironment;
 import org.spongepowered.asm.mixin.MixinEnvironment.Option;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
@@ -45,9 +48,6 @@ import org.spongepowered.asm.util.Constants;
 import org.spongepowered.asm.util.IConsumer;
 import org.spongepowered.asm.util.SignaturePrinter;
 import org.spongepowered.asm.util.asm.MethodVisitorEx;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Class generator which creates subclasses of {@link Args} to be used by the

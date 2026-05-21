@@ -24,8 +24,21 @@
  */
 package org.spongepowered.tools.obfuscation.mirror;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableList.Builder;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.annotation.Annotation;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import javax.annotation.processing.Filer;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.PackageElement;
+import javax.lang.model.type.TypeMirror;
+import javax.tools.StandardLocation;
+
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AnnotationNode;
@@ -38,19 +51,8 @@ import org.spongepowered.asm.util.asm.IAnnotationHandle;
 import org.spongepowered.tools.obfuscation.interfaces.IMixinAnnotationProcessor;
 import org.spongepowered.tools.obfuscation.interfaces.ITypeHandleProvider;
 
-import javax.annotation.processing.Filer;
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.PackageElement;
-import javax.lang.model.type.TypeMirror;
-import javax.tools.StandardLocation;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.lang.annotation.Annotation;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList.Builder;
 
 /**
  * The specs of JSR 269 mean that mirror will only give us things visible down
@@ -203,7 +205,7 @@ public class TypeHandleASM extends TypeHandle {
         if (TypeHandleASM.cache.containsKey(fqName)) {
             return TypeHandleASM.cache.get(fqName);
         }
-        
+
         InputStream is = null;
         try {
             Filer filer = ap.getProcessingEnvironment().getFiler();
@@ -235,6 +237,26 @@ public class TypeHandleASM extends TypeHandle {
     }
 
     /* (non-Javadoc)
+     * @see org.spongepowered.tools.obfuscation.mirror.TypeHandle
+     *      #getSuperclass()
+     */
+    @Override
+    public TypeHandle getSuperclass() {
+        if (this.classNode.superName == null) {
+            return null;
+        }
+        return this.typeProvider.getTypeHandle(this.classNode.superName);
+    }
+
+    /* (non-Javadoc)
+     * @see org.spongepowered.tools.obfuscation.mirror.TypeHandle#isInterface()
+     */
+    @Override
+    public boolean isNotInterface() {
+        return (this.classNode.access & Opcodes.ACC_INTERFACE) == 0;
+    }
+
+    /* (non-Javadoc)
      * @see org.spongepowered.tools.obfuscation.mirror.TypeHandle#findDescriptor
      *  (org.spongepowered.asm.mixin.injection.selectors.ITargetSelectorByName)
      */
@@ -253,15 +275,17 @@ public class TypeHandleASM extends TypeHandle {
     }
 
     /* (non-Javadoc)
-     * @see org.spongepowered.tools.obfuscation.mirror.TypeHandle
-     *      #getSuperclass()
+     * @see org.spongepowered.tools.obfuscation.mirror.TypeHandle#findField(
+     *      java.lang.String, java.lang.String, boolean)
      */
     @Override
-    public TypeHandle getSuperclass() {
-        if (this.classNode.superName == null) {
-            return null;
+    public FieldHandle findField(String name, String type, boolean matchCase) {
+        for (FieldNode field : this.classNode.fields) {
+            if (TypeHandleASM.compareElement(field.name, TypeUtils.getJavaSignature(field.desc), name, type, matchCase)) {
+                return new FieldHandleASM(this, field);
+            }
         }
-        return this.typeProvider.getTypeHandle(this.classNode.superName);
+        return null;
     }
 
     /* (non-Javadoc)
@@ -273,28 +297,6 @@ public class TypeHandleASM extends TypeHandle {
         for (MethodNode method : this.classNode.methods) {
             if (TypeHandleASM.compareElement(method.name, TypeUtils.getJavaSignature(method.desc), name, signature, matchCase)) {
                 return new MethodHandleASM(this, method);
-            }
-        }
-        return null;
-    }
-
-    /* (non-Javadoc)
-     * @see org.spongepowered.tools.obfuscation.mirror.TypeHandle#isInterface()
-     */
-    @Override
-    public boolean isNotInterface() {
-        return (this.classNode.access & Opcodes.ACC_INTERFACE) == 0;
-    }
-
-    /* (non-Javadoc)
-     * @see org.spongepowered.tools.obfuscation.mirror.TypeHandle#findField(
-     *      java.lang.String, java.lang.String, boolean)
-     */
-    @Override
-    public FieldHandle findField(String name, String type, boolean matchCase) {
-        for (FieldNode field : this.classNode.fields) {
-            if (TypeHandleASM.compareElement(field.name, TypeUtils.getJavaSignature(field.desc), name, type, matchCase)) {
-                return new FieldHandleASM(this, field);
             }
         }
         return null;

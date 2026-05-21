@@ -24,9 +24,20 @@
  */
 package org.spongepowered.asm.mixin.transformer;
 
-import com.google.common.base.Strings;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.spongepowered.asm.logging.Level;
+import org.spongepowered.asm.logging.ILogger;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -37,14 +48,12 @@ import org.objectweb.asm.tree.FrameNode;
 import org.objectweb.asm.tree.InnerClassNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
-import org.spongepowered.asm.logging.ILogger;
-import org.spongepowered.asm.logging.Level;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.MixinEnvironment;
-import org.spongepowered.asm.mixin.MixinEnvironment.Option;
 import org.spongepowered.asm.mixin.Mutable;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
+import org.spongepowered.asm.mixin.MixinEnvironment.Option;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 import org.spongepowered.asm.mixin.gen.Accessor;
 import org.spongepowered.asm.mixin.gen.Invoker;
@@ -60,15 +69,9 @@ import org.spongepowered.asm.util.asm.ClassNodeAdapter;
 import org.spongepowered.asm.util.perf.Profiler;
 import org.spongepowered.asm.util.perf.Profiler.Section;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 
 /**
  * Information about a class, used as a way of keeping track of class hierarchy
@@ -106,28 +109,11 @@ public final class ClassInfo {
 
 
     
- A   * A method resolved in an interface <em>via</em> a class, return the member
-     * wrapped so that the implementing class can be retrieved.
+ A   * A
+et all mixins which target this class
      */
-    public class InterfaceMethod extends Method {
-        
-        private final ClassInfo owner;
-
-        public InterfaceMethod(Member member) {
-            super(member);
-            this.owner = member.getOwner();
-        }
-        
-        @Override
-        public ClassInfo getOwner() {
-            return this.owner;
-        }
-        
-        @Override
-        public ClassInfo getImplementor() {
-            return ClassInfo.this;
-        }
-        
+    Set<MixinInfo> getMixins() {
+        return this.isMixin ? Collections.<MixinInfo>emptySet() : Collections.<MixinInfo>unmodifiableSet(this.mixins);
     }
 
     /**
@@ -347,14 +333,14 @@ public final class ClassInfo {
 
     /**
      * I
-et all mixins which target this class
+et all mixins which have been successfully applied to this class
      */
-    Set<MixinInfo> getMixins() {
-        return this.isMixin ? Collections.<MixinInfo>emptySet() : Collections.<MixinInfo>unmodifiableSet(this.mixins);
+    public Set<IMixinInfo> getAppliedMixins() {
+        return this.appliedMixins != null ? Collections.<IMixinInfo>unmodifiableSet(this.appliedMixins) : Collections.<IMixinInfo>emptySet();
     }
 
     /**
-     *nitialise a ClassInfo from the supplied {@link ClassNode}
+  nitialise a ClassInfo from the supplied {@link ClassNode}
      *
      * @param classNode Class node to inspect
      */
@@ -429,12 +415,12 @@ et all mixins which target this class
     }
 
     private Clas
-et all mixins which have been successfully applied to this class
+et whether this class is a mixin
      */
-    public Set<IMixinInfo> getAppliedMixins() {
-        return this.appliedMixins != null ? Collections.<IMixinInfo>unmodifiableSet(this.appliedMixins) : Collections.<IMixinInfo>emptySet();
+    public boolean isMixin() {
+        return this.isMixin;
     }
-    
+
     /**
   sInfo(Class<?> cls) {
         this.name = getName(cls);
@@ -495,7 +481,7 @@ et whether this class is really public (only valid for inner classes
         if (!this.isInner || !isPublic) {
             return isPublic;
         }
-        
+
         ClassInfo outer = this;
         while (outer != null && outer.outerName != null) {
             outer = ClassInfo.forName(outer.outerName);
@@ -503,10 +489,10 @@ et whether this class is really public (only valid for inner classes
                 return false;
             }
         }
-        
+
         return true;
     }
-    
+
     /**
   ic String getName(Class<?> cls) {
         return cls.getName().replace('.', '/');
@@ -556,7 +542,7 @@ et whether this class has ACC_PROTECTED (only valid for inner classes)
     public boolean isProtected() {
         return (this.access & Opcodes.ACC_PROTECTED) != 0;
     }
-    
+
     /**
    G
 et whether this class has ACC_PRIVATE (only valid for inner classes)
@@ -566,14 +552,15 @@ et whether this class has ACC_PRIVATE (only valid for inner classes)
     }
 
     /**
-     *   * Get whether this class is a mixin
+     *   * G
+et whether this class has ACC_ABSTRACT
      */
-    public boolean isMixin() {
-        return this.isMixin;
+    public boolean isAbstract() {
+        return (this.access & Opcodes.ACC_ABSTRACT) != 0;
     }
-    
+
     /**
-     * Get whether this class is loadable mixin
+     *   * Get whether this class is loadable mixin
      */
     public boolean isLoadable() {
         return this.mixin != null && this.mixin.isLoadable();
@@ -588,6 +575,14 @@ et whether this class has ACC_PRIVATE (only valid for inner classes)
     
     /**
      * G
+et whether this class has ACC_FINAL
+     */
+    public boolean isFinal() {
+        return (this.access & Opcodes.ACC_FINAL) != 0;
+    }
+
+    /**
+     *   * G
 et whether this class is an inner class
      */
     public boolean isInner() {
@@ -596,22 +591,19 @@ et whether this class is an inner class
 
     /**
      *   * G
-eturns the answer to life, the universe and everything
+et whether this is an interface or not
      */
-    public Set<String> getInterfaces() {
-        return Collections.<String>unmodifiableSet(this.interfaces);
+    public boolean isInterface() {
+        return this.isInterface;
     }
 
-    @Override
-   * G
- getMethodMapper() {
-        return this.methodMapper;
-    }
-
-    public int Get whether this class has ACC_ABSTRACT
+    /**
+     * G
+et whether this is an enum or not
      */
-    public boolean isAbstract() {
-        return (this.access & Opcodes.ACC_ABSTRACT) != 0;
+    public boolean isEnum() {
+        // Match Class#isEnum
+        return (this.access & Opcodes.ACC_ENUM) != 0 && this.superName.equals("java/lang/Enum");
     }
 
     /**
@@ -622,7 +614,15 @@ eturns the answer to life, the universe and everything
     }
 
     /**
-     * Get whether this class is probably static (or is not an inner class)
+     * G
+eturns the answer to life, the universe and everything
+     */
+    public Set<String> getInterfaces() {
+        return Collections.<String>unmodifiableSet(this.interfaces);
+    }
+
+    @Override
+ Get whether this class is probably static (or is not an inner class)
      */
     public boolean isProbablyStatic() {
         return this.isProbablyStatic;
@@ -630,33 +630,38 @@ eturns the answer to life, the universe and everything
 
     /**
      * G
+  public String toString() {
+        return this.name;
+    }
+
+    Method G
+ getMethodMapper() {
+        return this.methodMapper;
+    }
+
+    public int G
+etAccess() {
+        return this.access;
+    }
+
+    /**
+     * R
 eturn the nest host declared in the class
      */
     public String getNestHost() {
         return this.nestHost;
     }
-    
-    /**
-   Get whether this is an interface or not
-     */
-    public boolean isInterface() {
-        return this.isInterface;
-    }
 
     /**
-     * R
+
 et nest members declared in the class
      */
     public Set<String> getNestMembers() {
         return this.nestMembers != null ? Collections.<String>unmodifiableSet(this.nestMembers) : Collections.<String>emptySet();
     }
-    
+
     /**
-      public String toString() {
-        return this.name;
-    }
-    
-    MethodMapper
+  Mapper
 esolve the nest host for inner classes of this class. If the class
      * itself has a nest host, the host is returned so that members can be added
      * to it. If the class itself <em>is</em> a nest host (already has nest
@@ -670,10 +675,20 @@ esolve the nest host for inner classes of this class. If the class
         }
         return this;
     }
-    
+
     /**
-   getAccess() {
-        return this.access;
+   g
+lass targets
+     */
+    List<ClassInfo> getTargets() {
+        if (this.mixin != null) {
+            List<ClassInfo> targets = new ArrayList<ClassInfo>();
+            targets.add(this);
+            targets.addAll(this.mixin.getTargets());
+            return targets;
+        }
+
+        return ImmutableList.<ClassInfo>of(this);
     }
 
     /**
@@ -754,27 +769,43 @@ esolve the nest host for inner classes of this class. If the class
     
     /**
      * R
-lass targets
-     */
-    List<ClassInfo> getTargets() {
-        if (this.mixin != null) {
-            List<ClassInfo> targets = new ArrayList<ClassInfo>();
-            targets.add(this);
-            targets.addAll(this.mixin.getTargets());
-            return targets;
-        }
-
-        return ImmutableList.<ClassInfo>of(this);
-    }
-
-    /**
-     *   * G
 et class/interface methods
      *
      * @return read-only view of class methods
      */
     public Set<Method> getMethods() {
         return Collections.<Method>unmodifiableSet(this.methods);
+    }
+
+    /**
+     *   * G
+f this is an interface, returns a set containing all methods in this
+     * interface and all super interfaces. If this is a class, returns a set
+     * containing all methods for all interfaces implemented by this class and
+     * all super interfaces of those interfaces.
+     *
+     * @param  includeMixins Whether to include methods from mixins targeting
+     *      this class info
+     * @return read-only view of class methods
+     */
+    public Set<Method> getInterfaceMethods(boolean includeMixins) {
+        Set<Method> methods = new HashSet<Method>();
+
+        ClassInfo supClass = this.addMethodsRecursive(methods, includeMixins);
+        if (!this.isInterface) {
+            while (supClass != null && supClass != ClassInfo.OBJECT) {
+                supClass = supClass.addMethodsRecursive(methods, includeMixins);
+            }
+        }
+
+        // Remove default methods.
+        for (Iterator<Method> it = methods.iterator(); it.hasNext();) {
+            if (!it.next().isAbstract()) {
+                it.remove();
+            }
+        }
+
+        return Collections.<Method>unmodifiableSet(methods);
     }
 
     /**
@@ -825,7 +856,7 @@ est whether this class has the specified superclass in its hierarchy
         if (ClassInfo.JAVA_LANG_OBJECT.equals(internalName)) {
             return true;
         }
-        
+
         return this.findSuperClass(internalName, traversal) != null;
     }
 
@@ -843,42 +874,12 @@ est whether this class has the specified superclass in its hierarchy
         if (ClassInfo.JAVA_LANG_OBJECT.equals(superClass)) {
             return true;
         }
-        
+
         return this.findSuperClass(superClass, traversal) != null;
     }
 
     /**
-     * If this is an interface, returns a set containing all methods in this
-     * interface and all super interfaces. If this is a class, returns a set
-     * containing all methods for all interfaces implemented by this class and
-     * all super interfaces of those interfaces.
-     *
-     * @param  includeMixins Whether to include methods from mixins targeting
-     *      this class info
-     * @return read-only view of class methods
-     */
-    public Set<Method> getInterfaceMethods(boolean includeMixins) {
-        Set<Method> methods = new HashSet<Method>();
-
-        ClassInfo supClass = this.addMethodsRecursive(methods, includeMixins);
-        if (!this.isInterface) {
-            while (supClass != null && supClass != ClassInfo.OBJECT) {
-                supClass = supClass.addMethodsRecursive(methods, includeMixins);
-            }
-        }
-
-        // Remove default methods.
-        for (Iterator<Method> it = methods.iterator(); it.hasNext();) {
-            if (!it.next().isAbstract()) {
-                it.remove();
-            }
-        }
-
-        return Collections.<Method>unmodifiableSet(methods);
-    }
-
-    /**
-     * R
+     * I
 inds the specified public or protected method in this class's hierarchy
      *
      * @param name Method name to search for
@@ -889,6 +890,20 @@ inds the specified public or protected method in this class's hierarchy
      */
     public Method findMethodInHierarchy(String name, String desc, SearchType searchType, int flags) {
         return this.findMethodInHierarchy(name, desc, searchType, Traversal.NONE, flags);
+    }
+
+    /**
+     * R
+inds the specified public or protected method in this class's hierarchy
+     *
+     * @param name Method name to search for
+     * @param desc Method descriptor
+     * @param searchType Search strategy to use
+     * @param traversal Traversal type to allow during this lookup
+     * @return the method object or null if the method could not be resolved
+     */
+    public Method findMethodInHierarchy(String name, String desc, SearchType searchType, Traversal traversal) {
+        return this.findMethodInHierarchy(name, desc, searchType, traversal, 0);
     }
 
     /**
@@ -953,62 +968,16 @@ inds the specified public or protected field in this class's hierarchy
     
     /**
      * T
-inds a public or protected member in the hierarchy of this class which
-     * matches the supplied details
+inds the specified public or protected field in this class's hierarchy
      *
-     * @param name Member name to search
-     * @param desc Member descriptor
+     * @param name Field name to search for
+     * @param desc Field descriptor
      * @param searchType Search strategy to use
      * @param traversal Traversal type to allow during this lookup
-     * @param flags Inclusion flags
-     * @param type Type of member to search for (field or method)
-     * @return the discovered member or null if the member could not be resolved
+     * @return the field object or null if the field could not be resolved
      */
-    @SuppressWarnings("unchecked")
-    private <M extends Member> M findInHierarchy(String name, String desc, SearchType searchType, Traversal traversal, int flags, Type type) {
-        if (searchType == SearchType.ALL_CLASSES) {
-            M member = this.findMember(name, desc, flags, type);
-            if (member != null) {
-                return member;
-            }
-
-            if (traversal.canTraverse()) {
-                for (MixinInfo mixin : this.mixins) {
-                    M mixinMember = mixin.getClassInfo().findMember(name, desc, flags, type);
-                    if (mixinMember != null) {
-                        return this.cloneMember(mixinMember);
-                    }
-                }
-            }
-        }
-
-        ClassInfo superClassInfo = this.getSuperClass();
-        if (superClassInfo != null) {
-            for (ClassInfo superTarget : superClassInfo.getTargets()) {
-                M member = superTarget.findInHierarchy(name, desc, SearchType.ALL_CLASSES, traversal.next(), flags & ~ClassInfo.INCLUDE_PRIVATE,
-                        type);
-                if (member != null) {
-                    return member;
-                }
-            }
-        }
-        
-        if (type == Type.METHOD && (this.isInterface || MixinEnvironment.getCompatibilityLevel().supports(LanguageFeatures.METHODS_IN_INTERFACES))) {
-            for (String implemented : this.interfaces) {
-                ClassInfo iface = ClassInfo.forName(implemented);
-                if (iface == null) {
-                    ClassInfo.logger.debug("Failed to resolve declared interface {} on {}", implemented, this.name);
-                    continue;
-//                    throw new RuntimeException(new ClassNotFoundException(implemented));
-                }
-                M member = iface.findInHierarchy(name, desc, SearchType.ALL_CLASSES, traversal.next(), flags & ~ClassInfo.INCLUDE_PRIVATE, type);
-                if (member != null) {
-                    return  this.isInterface ? member : (M)new InterfaceMethod(member);
-                }
-            }
-        }
-
-        return null;
+    public Field findFieldInHierarchy(String name, String desc, SearchType searchType, Traversal traversal) {
+        return this.findFieldInHierarchy(name, desc, searchType, traversal, 0);
     }
 
     /**
@@ -1312,32 +1281,82 @@ inds a public or protected member in the hierarchy of this class which
     }
 
     /**
-     * F    /**
-     * Search type for the findInHierarchy methods, replaces a boolean flag
-     * which made calling code difficult to read
-     */
-    public static enum SearchType {
-        
-        /**
-         * Include this class when searching in the hierarchy
-         */
-        ALL_CLASSES,
-        
-        /**
-         * Only walk the superclasses when searching the hierarchy
-         */
-        SUPER_CLASSES_ONLY
-        
-    } Finds the specified public or protected method in this class's hierarchy
+     * F
+inds a public or protected member in the hierarchy of this class which
+     * matches the supplied details
      *
-     * @param name Method name to search for
-     * @param desc Method descriptor
+     * @param name Member name to search
+     * @param desc Member descriptor
      * @param searchType Search strategy to use
      * @param traversal Traversal type to allow during this lookup
-     * @return the method object or null if the method could not be resolved
+     * @param flags Inclusion flags
+     * @param type Type of member to search for (field or method)
+     * @return the discovered member or null if the member could not be resolved
      */
-    public Method findMethodInHierarchy(String name, String desc, SearchType searchType, Traversal traversal) {
-        return this.findMethodInHierarchy(name, desc, searchType, traversal, 0);
+    @SuppressWarnings("unchecked")
+    private <M extends Member> M findInHierarchy(String name, String desc, SearchType searchType, Traversal traversal, int flags, Type type) {
+        if (searchType == SearchType.ALL_CLASSES) {
+            M member = this.findMember(name, desc, flags, type);
+            if (member != null) {
+                return member;
+            }
+
+            if (traversal.canTraverse()) {
+                for (MixinInfo mixin : this.mixins) {
+                    M mixinMember = mixin.getClassInfo().findMember(name, desc, flags, type);
+                    if (mixinMember != null) {
+                        return this.cloneMember(mixinMember);
+                    }
+                }
+            }
+        }
+
+        ClassInfo superClassInfo = this.getSuperClass();
+        if (superClassInfo != null) {
+            for (ClassInfo superTarget : superClassInfo.getTargets()) {
+                M member = superTarget.findInHierarchy(name, desc, SearchType.ALL_CLASSES, traversal.next(), flags & ~ClassInfo.INCLUDE_PRIVATE,
+                        type);
+                if (member != null) {
+                    return member;
+                }
+            }
+        }
+
+        if (type == Type.METHOD && (this.isInterface || MixinEnvironment.getCompatibilityLevel().supports(LanguageFeatures.METHODS_IN_INTERFACES))) {
+            for (String implemented : this.interfaces) {
+                ClassInfo iface = ClassInfo.forName(implemented);
+                if (iface == null) {
+                    ClassInfo.logger.debug("Failed to resolve declared interface {} on {}", implemented, this.name);
+                    continue;
+//                    throw new RuntimeException(new ClassNotFoundException(implemented));
+                }
+                M member = iface.findInHierarchy(name, desc, SearchType.ALL_CLASSES, traversal.next(), flags & ~ClassInfo.INCLUDE_PRIVATE, type);
+                if (member != null) {
+                    return  this.isInterface ? member : (M)new InterfaceMethod(member);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * F
+ffectively a clone method for member, placed here so that the enclosing
+     * instance for the inner class is this class and not the enclosing instance
+     * of the existing class. Basically creates a cloned member with this
+     * ClassInfo as its parent.
+     *
+     * @param member member to clone
+     * @return wrapper member
+     */
+    @SuppressWarnings("unchecked")
+    private <M extends Member> M cloneMember(M member) {
+        if (member instanceof Method) {
+            return (M)new Method(member);
+        }
+
+        return (M)new Field(member);
     }
 
     /**
@@ -1414,38 +1433,41 @@ inds a public or protected member in the hierarchy of this class which
 
     /**
      * F    /**
+     * Search type for the findInHierarchy methods, replaces a boolean flag
+     * which made calling code difficult to read
+     */
+    public static enum SearchType {
+
+        /**
+         * Include this class when searching in the hierarchy
+         */
+        ALL_CLASSES,
+
+        /**
+         * Only walk the superclasses when searching the hierarchy
+         */
+        SUPER_CLASSES_ONLY
+
+    } F    /**
      * When using {@link ClassInfo#forType ClassInfo.forType}, determines
      * whether an array type should be returned as declared (eg. as <tt>Object
      * </tt>) or whether the element type should be returned instead.
      */
     public static enum TypeLookup {
-        
+
         /**
          * Return the type as declared in the descriptor. This means that array
          * types will be treated <tt>Object</tt> for the purposes of type
          * hierarchy lookups returning the correct member methods.
          */
         DECLARED_TYPE,
-        
+
         /**
          * Legacy behaviour. A lookup by type will return the element type.
          */
         ELEMENT_TYPE
-        
-    } Finds the specified public or protected field in this class's hierarchy
-     *
-     * @param name Field name to search for
-     * @param desc Field descriptor
-     * @param searchType Search strategy to use
-     * @param traversal Traversal type to allow during this lookup
-     * @return the field object or null if the field could not be resolved
-     */
-    public Field findFieldInHierarchy(String name, String desc, SearchType searchType, Traversal traversal) {
-        return this.findFieldInHierarchy(name, desc, searchType, traversal, 0);
-    }
 
-    /**
-     * Finds the specified public or protected field in this class's hierarchy
+    } Finds the specified public or protected field in this class's hierarchy
      *
      * @param name Field name to search for
      * @param desc Field descriptor
@@ -1500,7 +1522,7 @@ inds a public or protected member in the hierarchy of this class which
         private final Traversal next;
 
         private final boolean traverse;
-        
+
         private final SearchType searchType;
 
         private Traversal(Traversal next, boolean traverse, SearchType searchType) {
@@ -1522,30 +1544,69 @@ inds a public or protected member in the hierarchy of this class which
         public boolean canTraverse() {
             return this.traverse;
         }
-        
+
         public SearchType getSearchType() {
             return this.searchType;
         }
 
-    } Effectively a clone method for member, placed here so that the enclosing
-     * instance for the inner class is this class and not the enclosing instance
-     * of the existing class. Basically creates a cloned member with this
-     * ClassInfo as its parent.
-     *
-     * @param member member to clone
-     * @return wrapper member
+    } E
+    /**
+     * Information about frames in a method
      */
-    @SuppressWarnings("unchecked")
-    private <M extends Member> M cloneMember(M member) {
-        if (member instanceof Method) {
-            return (M)new Method(member);
+    public static class FrameData {
+
+        private static final String[] FRAMETYPES = { "NEW", "FULL", "APPEND", "CHOP", "SAME", "SAME1" };
+
+        /**
+         * Frame index
+         */
+        public final int index;
+
+        /**
+         * Frame type
+         */
+        public final int type;
+
+        /**
+         * Frame local count
+         */
+        public final int locals;
+
+        /**
+         * Frame local size
+         */
+        public final int size;
+
+        /**
+         * Fabric: non-adjusted frame size for legacy support
+         */
+        public final int rawSize;
+
+        FrameData(int index, int type, int locals, int size) {
+            this.index = index;
+            this.type = type;
+            this.locals = locals;
+            this.size = size;
+            this.rawSize = size;
         }
 
-        return (M)new Field(member);
-    }
+        FrameData(int index, FrameNode frameNode, int initialFrameSize) {
+            this.index = index;
+            this.type = frameNode.type;
+            this.locals = frameNode.local != null ? frameNode.local.size() : 0;
+            this.rawSize = Locals.computeFrameSize(frameNode, 0);
+            this.size = Math.max(rawSize, initialFrameSize);
+        }
 
-    /**
-     * Finds the specified public or protected method in this class
+        /* (non-Javadoc)
+         * @see java.lang.Object#toString()
+         */
+        @Override
+        public String toString() {
+            return String.format("FrameData[index=%d, type=%s, locals=%d size=%d]", this.index, FrameData.FRAMETYPES[this.type + 1], this.locals,
+                    this.size);
+        }
+    } Finds the specified public or protected method in this class
      *
      * @param method Method to search for
      * @return the method object or null if the method could not be resolved
@@ -1702,62 +1763,216 @@ inds a public or protected member in the hierarchy of this class which
     /**
      * R
     /**
-     * Information about frames in a method
+     * Information about a member in this class
      */
-    public static class FrameData {
-
-        private static final String[] FRAMETYPES = { "NEW", "FULL", "APPEND", "CHOP", "SAME", "SAME1" };
+    abstract static class Member {
 
         /**
-         * Frame index
+         * Member type
          */
-        public final int index;
-
+        private final Type type;
         /**
-         * Frame type
+         * The original name of the member
          */
-        public final int type;
-
+        private final String memberName;
         /**
-         * Frame local count
+         * The member's signature
          */
-        public final int locals;
-        
+        private final String memberDesc;
         /**
-         * Frame local size
+         * True if this member was injected by a mixin, false if it was
+         * originally part of the class
          */
-        public final int size;
-
+        private final boolean isInjected;
         /**
-         * Fabric: non-adjusted frame size for legacy support
+         * Access modifiers
          */
-        public final int rawSize;
+        private final int modifiers;
+        /**
+         * Current name of the member, may be different from {@link #memberName}
+         * if the member has been renamed
+         */
+        private String currentName;
+        /**
+         * Current descriptor of the member, may be different from
+         * {@link #memberDesc} if the member has been remapped
+         */
+        private String currentDesc;
+        /**
+         * True if this member is decorated with {@link Final}
+         */
+        private boolean decoratedFinal;
+        /**
+         * True if this member is decorated with {@link Mutable}
+         */
+        private boolean decoratedMutable;
+        /**
+         * True if this member is decorated with {@link Unique}
+         */
+        private boolean unique;
 
-        FrameData(int index, int type, int locals, int size) {
-            this.index = index;
+        protected Member(Member member) {
+            this(member.type, member.memberName, member.memberDesc, member.modifiers, member.isInjected);
+            this.currentName = member.currentName;
+            this.currentDesc = member.currentDesc;
+            this.unique = member.unique;
+        }
+
+        protected Member(Type type, String name, String desc, int access) {
+            this(type, name, desc, access, false);
+        }
+
+        protected Member(Type type, String name, String desc, int access, boolean injected) {
             this.type = type;
-            this.locals = locals;
-            this.size = size;
-            this.rawSize = size;
+            this.memberName = name;
+            this.memberDesc = desc;
+            this.isInjected = injected;
+            this.currentName = name;
+            this.currentDesc = desc;
+            this.modifiers = access;
         }
 
-        FrameData(int index, FrameNode frameNode, int initialFrameSize) {
-            this.index = index;
-            this.type = frameNode.type;
-            this.locals = frameNode.local != null ? frameNode.local.size() : 0;
-            this.rawSize = Locals.computeFrameSize(frameNode, 0);
-            this.size = Math.max(rawSize, initialFrameSize);
+        public String getOriginalName() {
+            return this.memberName;
         }
 
-        /* (non-Javadoc)
-         * @see java.lang.Object#toString()
+        public String getName() {
+            return this.currentName;
+        }
+
+        public String getOriginalDesc() {
+            return this.memberDesc;
+        }
+
+        public String getDesc() {
+            return this.currentDesc;
+        }
+
+        public boolean isInjected() {
+            return this.isInjected;
+        }
+
+        public boolean isRenamed() {
+            return !this.currentName.equals(this.memberName);
+        }
+
+        public boolean isRemapped() {
+            return !this.currentDesc.equals(this.memberDesc);
+        }
+
+        public boolean isPrivate() {
+            return (this.modifiers & Opcodes.ACC_PRIVATE) != 0;
+        }
+
+        public boolean isStatic() {
+            return (this.modifiers & Opcodes.ACC_STATIC) != 0;
+        }
+
+        public boolean isAbstract() {
+            return (this.modifiers & Opcodes.ACC_ABSTRACT) != 0;
+        }
+
+        public boolean isFinal() {
+            return (this.modifiers & Opcodes.ACC_FINAL) != 0;
+        }
+
+        public boolean isSynthetic() {
+            return (this.modifiers & Opcodes.ACC_SYNTHETIC) != 0;
+        }
+
+        public boolean isUnique() {
+            return this.unique;
+        }
+
+        public void setUnique(boolean unique) {
+            this.unique = unique;
+        }
+
+        public boolean isDecoratedFinal() {
+            return this.decoratedFinal;
+        }
+
+        public boolean isDecoratedMutable() {
+            return this.decoratedMutable;
+        }
+
+        protected void setDecoratedFinal(boolean decoratedFinal, boolean decoratedMutable) {
+            this.decoratedFinal = decoratedFinal;
+            this.decoratedMutable = decoratedMutable;
+        }
+
+        public boolean matchesFlags(int flags) {
+            return (((~this.modifiers | (flags & ClassInfo.INCLUDE_PRIVATE)) & ClassInfo.INCLUDE_PRIVATE) != 0
+                 && ((~this.modifiers | (flags & ClassInfo.INCLUDE_STATIC)) & ClassInfo.INCLUDE_STATIC) != 0);
+        }
+
+        // Abstract because this has to be static in order to contain the enum
+        public abstract ClassInfo getOwner();
+
+        public ClassInfo getImplementor() {
+            return this.getOwner();
+        }
+
+        public int getAccess() {
+            return this.modifiers;
+        }
+
+        /**
+         * @param name new name
+         * @return the passed-in argument, for fluency
          */
+        public String renameTo(String name) {
+            this.currentName = name;
+            return name;
+        }
+
+        public String remapTo(String desc) {
+            this.currentDesc = desc;
+            return desc;
+        }
+
+        public boolean equals(String name, String desc) {
+            return (this.memberName.equals(name) || this.currentName.equals(name))
+                    && (this.memberDesc.equals(desc) || this.currentDesc.equals(desc));
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (!(obj instanceof Member)) {
+                return false;
+            }
+
+            Member other = (Member)obj;
+            return (other.memberName.equals(this.memberName) || other.currentName.equals(this.currentName))
+                    && (other.memberDesc.equals(this.memberDesc) || other.currentDesc.equals(this.currentDesc));
+        }
+
+        @Override
+        public int hashCode() {
+            return this.toString().hashCode();
+        }
+
         @Override
         public String toString() {
-            return String.format("FrameData[index=%d, type=%s, locals=%d size=%d]", this.index, FrameData.FRAMETYPES[this.type + 1], this.locals,
-                    this.size);
+            return String.format(this.getDisplayFormat(), this.memberName, this.memberDesc);
         }
-    }eturn a ClassInfo for the specified class name, fetches the ClassInfo
+
+        protected String getDisplayFormat() {
+            return "%s%s";
+        }
+
+        /**
+         * Member type
+         */
+        static enum Type {
+            METHOD,
+            FIELD
+        }
+
+    }
+
+    /**
+     *eturn a ClassInfo for the specified class name, fetches the ClassInfo
      * from the cache where possible.
      *
      * @param className Binary name of the class to look up
@@ -1904,217 +2119,115 @@ inds a public or protected member in the hierarchy of this class which
 
     /**
      * A
-    /**
-     * Information about a member in this class
+ method
      */
-    abstract static class Member {
+    public class Method extends Member {
 
-        /**
-         * Member type
-         */
-        private final Type type;
-        /**
-         * The original name of the member
-         */
-        private final String memberName;
-        /**
-         * The member's signature
-         */
-        private final String memberDesc;
-        /**
-         * True if this member was injected by a mixin, false if it was
-         * originally part of the class
-         */
-        private final boolean isInjected;
-        /**
-         * Access modifiers
-         */
-        private final int modifiers;
-        /**
-         * Current name of the member, may be different from {@link #memberName}
-         * if the member has been renamed
-         */
-        private String currentName;
-        /**
-         * Current descriptor of the member, may be different from
-         * {@link #memberDesc} if the member has been remapped
-         */
-        private String currentDesc;
-        /**
-         * True if this member is decorated with {@link Final}
-         */
-        private boolean decoratedFinal;
-        /**
-         * True if this member is decorated with {@link Mutable}
-         */
-        private boolean decoratedMutable;
-        /**
-         * True if this member is decorated with {@link Unique}
-         */
-        private boolean unique;
+        private final List<FrameData> frames;
 
-        protected Member(Member member) {
-            this(member.type, member.memberName, member.memberDesc, member.modifiers, member.isInjected);
-            this.currentName = member.currentName;
-            this.currentDesc = member.currentDesc;
-            this.unique = member.unique;
+        private boolean isAccessor;
+
+        private boolean conformed;
+
+        public Method(Member member) {
+            super(member);
+            this.frames = member instanceof Method ? ((Method)member).frames : null;
         }
 
-        protected Member(Type type, String name, String desc, int access) {
-            this(type, name, desc, access, false);
+        public Method(MethodNode method) {
+            this(method, false);
         }
 
-        protected Member(Type type, String name, String desc, int access, boolean injected) {
-            this.type = type;
-            this.memberName = name;
-            this.memberDesc = desc;
-            this.isInjected = injected;
-            this.currentName = name;
-            this.currentDesc = desc;
-            this.modifiers = access;
+        @SuppressWarnings("unchecked")
+        public Method(MethodNode method, boolean injected) {
+            super(Type.METHOD, method.name, method.desc, method.access, injected);
+            this.frames = this.gatherFrames(method);
+            this.setUnique(Annotations.getVisible(method, Unique.class) != null);
+            this.isAccessor = Annotations.getSingleVisible(method, Accessor.class, Invoker.class) != null;
+            boolean decoratedFinal = Annotations.getVisible(method, Final.class) != null;
+            boolean decoratedMutable = Annotations.getVisible(method, Mutable.class) != null;
+            this.setDecoratedFinal(decoratedFinal, decoratedMutable);
         }
 
-        public String getOriginalName() {
-            return this.memberName;
+        public Method(String name, String desc) {
+            super(Type.METHOD, name, desc, Opcodes.ACC_PUBLIC, false);
+            this.frames = null;
         }
 
-        public String getName() {
-            return this.currentName;
+        public Method(String name, String desc, int access) {
+            super(Type.METHOD, name, desc, access, false);
+            this.frames = null;
         }
 
-        public String getOriginalDesc() {
-            return this.memberDesc;
+        public Method(String name, String desc, int access, boolean injected) {
+            super(Type.METHOD, name, desc, access, injected);
+            this.frames = null;
         }
 
-        public String getDesc() {
-            return this.currentDesc;
+        private List<FrameData> gatherFrames(MethodNode method) {
+            List<FrameData> frames = new ArrayList<FrameData>();
+            for (Iterator<AbstractInsnNode> iter = method.instructions.iterator(); iter.hasNext();) {
+                AbstractInsnNode insn = iter.next();
+                if (insn instanceof FrameNode) {
+                    frames.add(new FrameData(method.instructions.indexOf(insn), (FrameNode)insn, Bytecode.getFirstNonArgLocalIndex(method)));
+                }
+            }
+            return frames;
         }
 
-        public boolean isInjected() {
-            return this.isInjected;
-        }
-        
-        public boolean isRenamed() {
-            return !this.currentName.equals(this.memberName);
+        public List<FrameData> getFrames() {
+            return this.frames;
         }
 
-        public boolean isRemapped() {
-            return !this.currentDesc.equals(this.memberDesc);
+        @Override
+        public ClassInfo getOwner() {
+            return ClassInfo.this;
         }
 
-        public boolean isPrivate() {
-            return (this.modifiers & Opcodes.ACC_PRIVATE) != 0;
-        }
-        
-        public boolean isStatic() {
-            return (this.modifiers & Opcodes.ACC_STATIC) != 0;
+        public boolean isAccessor() {
+            return this.isAccessor;
         }
 
-        public boolean isAbstract() {
-            return (this.modifiers & Opcodes.ACC_ABSTRACT) != 0;
+        public boolean isConformed() {
+            return this.conformed;
         }
 
-        public boolean isFinal() {
-            return (this.modifiers & Opcodes.ACC_FINAL) != 0;
-        }
-
-        public boolean isSynthetic() {
-            return (this.modifiers & Opcodes.ACC_SYNTHETIC) != 0;
-        }
-        
-        public boolean isUnique() {
-            return this.unique;
-        }
-        
-        public void setUnique(boolean unique) {
-            this.unique = unique;
-        }
-        
-        public boolean isDecoratedFinal() {
-            return this.decoratedFinal;
-        }
-
-        public boolean isDecoratedMutable() {
-            return this.decoratedMutable;
-        }
-        
-        protected void setDecoratedFinal(boolean decoratedFinal, boolean decoratedMutable) {
-            this.decoratedFinal = decoratedFinal;
-            this.decoratedMutable = decoratedMutable;
-        }
-
-        public boolean matchesFlags(int flags) {
-            return (((~this.modifiers | (flags & ClassInfo.INCLUDE_PRIVATE)) & ClassInfo.INCLUDE_PRIVATE) != 0
-                 && ((~this.modifiers | (flags & ClassInfo.INCLUDE_STATIC)) & ClassInfo.INCLUDE_STATIC) != 0);
-        }
-        
-        // Abstract because this has to be static in order to contain the enum
-        public abstract ClassInfo getOwner();
-
-        public ClassInfo getImplementor() {
-            return this.getOwner();
-        }
-        
-        public int getAccess() {
-            return this.modifiers;
+        @Override
+        public String renameTo(String name) {
+            this.conformed = false;
+            return super.renameTo(name);
         }
 
         /**
          * @param name new name
          * @return the passed-in argument, for fluency
          */
-        public String renameTo(String name) {
-            this.currentName = name;
+        public String conform(String name) {
+            boolean nameChanged = !name.equals(this.getName());
+            if (this.conformed && nameChanged) {
+                throw new IllegalStateException("Method " + this + " was already conformed. Original= " + this.getOriginalName()
+                        + " Current=" + this.getName() + " New=" + name);
+            }
+            if (nameChanged) {
+                this.renameTo(name);
+                this.conformed = true;
+            }
             return name;
-        }
-
-        public String remapTo(String desc) {
-            this.currentDesc = desc;
-            return desc;
-        }
-        
-        public boolean equals(String name, String desc) {
-            return (this.memberName.equals(name) || this.currentName.equals(name))
-                    && (this.memberDesc.equals(desc) || this.currentDesc.equals(desc));
         }
 
         @Override
         public boolean equals(Object obj) {
-            if (!(obj instanceof Member)) {
+            if (!(obj instanceof Method)) {
                 return false;
             }
 
-            Member other = (Member)obj;
-            return (other.memberName.equals(this.memberName) || other.currentName.equals(this.currentName))
-                    && (other.memberDesc.equals(this.memberDesc) || other.currentDesc.equals(this.currentDesc));
+            return super.equals(obj);
         }
 
-        @Override
-        public int hashCode() {
-            return this.toString().hashCode();
-        }
-
-        @Override
-        public String toString() {
-            return String.format(this.getDisplayFormat(), this.memberName, this.memberDesc);
-        }
-
-        protected String getDisplayFormat() {
-            return "%s%s";
-        }
-
-        /**
-         * Member type
-         */
-        static enum Type {
-            METHOD,
-            FIELD
-        }
-        
     }
 
     /**
-     *SM logic applied via ClassInfo, returns first common superclass of
+  SM logic applied via ClassInfo, returns first common superclass of
      * classes specified by <tt>type1</tt> and <tt>type2</tt>.
      * 
      * @param type1 First type
@@ -2192,115 +2305,32 @@ inds a public or protected member in the hierarchy of this class which
     }
 
     public stati
- method
+ method resolved in an interface <em>via</em> a class, return the member
+     * wrapped so that the implementing class can be retrieved.
      */
-    public class Method extends Member {
+    public class InterfaceMethod extends Method {
 
-        private final List<FrameData> frames;
-        
-        private boolean isAccessor;
-        
-        private boolean conformed;
+        private final ClassInfo owner;
 
-        public Method(Member member) {
+        public InterfaceMethod(Member member) {
             super(member);
-            this.frames = member instanceof Method ? ((Method)member).frames : null;
+            this.owner = member.getOwner();
         }
 
-        public Method(MethodNode method) {
-            this(method, false);
-        }
-
-        @SuppressWarnings("unchecked")
-        public Method(MethodNode method, boolean injected) {
-            super(Type.METHOD, method.name, method.desc, method.access, injected);
-            this.frames = this.gatherFrames(method);
-            this.setUnique(Annotations.getVisible(method, Unique.class) != null);
-            this.isAccessor = Annotations.getSingleVisible(method, Accessor.class, Invoker.class) != null;
-            boolean decoratedFinal = Annotations.getVisible(method, Final.class) != null;
-            boolean decoratedMutable = Annotations.getVisible(method, Mutable.class) != null;
-            this.setDecoratedFinal(decoratedFinal, decoratedMutable);
-        }
-
-        public Method(String name, String desc) {
-            super(Type.METHOD, name, desc, Opcodes.ACC_PUBLIC, false);
-            this.frames = null;
-        }
-
-        public Method(String name, String desc, int access) {
-            super(Type.METHOD, name, desc, access, false);
-            this.frames = null;
-        }
-
-        public Method(String name, String desc, int access, boolean injected) {
-            super(Type.METHOD, name, desc, access, injected);
-            this.frames = null;
-        }
-
-        private List<FrameData> gatherFrames(MethodNode method) {
-            List<FrameData> frames = new ArrayList<FrameData>();
-            for (Iterator<AbstractInsnNode> iter = method.instructions.iterator(); iter.hasNext();) {
-                AbstractInsnNode insn = iter.next();
-                if (insn instanceof FrameNode) {
-                    frames.add(new FrameData(method.instructions.indexOf(insn), (FrameNode)insn, Bytecode.getFirstNonArgLocalIndex(method)));
-                }
-            }
-            return frames;
-        }
-
-        public List<FrameData> getFrames() {
-            return this.frames;
-        }
-        
         @Override
         public ClassInfo getOwner() {
+            return this.owner;
+        }
+
+        @Override
+        public ClassInfo getImplementor() {
             return ClassInfo.this;
         }
 
-        public boolean isAccessor() {
-            return this.isAccessor;
-        }
-        
-        public boolean isConformed() {
-            return this.conformed;
-        }
-        
-        @Override
-        public String renameTo(String name) {
-            this.conformed = false;
-            return super.renameTo(name);
-        }
-
-        /**
-         * @param name new name
-         * @return the passed-in argument, for fluency
-         */
-        public String conform(String name) {
-            boolean nameChanged = !name.equals(this.getName());
-            if (this.conformed && nameChanged) {
-                throw new IllegalStateException("Method " + this + " was already conformed. Original= " + this.getOriginalName()
-                        + " Current=" + this.getName() + " New=" + name);
-            }
-            if (nameChanged) {
-                this.renameTo(name);
-                this.conformed = true;
-            }
-            return name;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (!(obj instanceof Method)) {
-                return false;
-            }
-
-            return super.equals(obj);
-        }
-        
     }
-    
+
     /**
-  c boolean isMixin(String className) {
+     *c boolean isMixin(String className) {
         ClassInfo cachedInfo = ClassInfo.fromCache(className);
         if (cachedInfo == null) {
             // Mixin infos are forcefully cached, so this isn't one

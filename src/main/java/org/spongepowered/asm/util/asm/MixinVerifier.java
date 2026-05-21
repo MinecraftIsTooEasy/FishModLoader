@@ -41,66 +41,6 @@ public class MixinVerifier extends SimpleVerifier {
         super(api, currentClass, currentSuperClass, currentClassInterfaces, isInterface);
     }
 
-    private static Type getCommonSupertype(Type type1, Type type2) {
-        if (type1.equals(type2) || type2.equals(NULL_TYPE)) {
-            return type1;
-        }
-        if (type1.equals(NULL_TYPE)) {
-            return type2;
-        }
-        if (type1.getSort() < Type.ARRAY || type2.getSort() < Type.ARRAY) {
-            // We know they're not the same, so they must be incompatible.
-            return null;
-        }
-        if (type1.getSort() == Type.ARRAY && type2.getSort() == Type.ARRAY) {
-            int dim1 = type1.getDimensions();
-            Type elem1 = type1.getElementType();
-            int dim2 = type2.getDimensions();
-            Type elem2 = type2.getElementType();
-            if (dim1 == dim2) {
-                Type commonSupertype;
-                if (elem1.equals(elem2)) {
-                    commonSupertype = elem1;
-                } else if (elem1.getSort() == Type.OBJECT && elem2.getSort() == Type.OBJECT) {
-                    commonSupertype = getCommonSupertype(elem1, elem2);
-                } else {
-                    return arrayType(OBJECT_TYPE, dim1 - 1);
-                }
-                return arrayType(commonSupertype, dim1);
-            }
-            Type smaller;
-            int shared;
-            if (dim1 < dim2) {
-                smaller = elem1;
-                shared = dim1 - 1;
-            } else {
-                smaller = elem2;
-                shared = dim2 - 1;
-            }
-            if (smaller.getSort() == Type.OBJECT) {
-                shared++;
-            }
-            return arrayType(OBJECT_TYPE, shared);
-        }
-        if (type1.getSort() == Type.ARRAY && type2.getSort() == Type.OBJECT || type2.getSort() == Type.ARRAY && type1.getSort() == Type.OBJECT) {
-            return OBJECT_TYPE;
-        }
-        return ClassInfo.getCommonSuperClass(type1, type2).getType();
-    }
-
-    private static Type arrayType(final Type type, final int dimensions) {
-        if (dimensions == 0) {
-            return type;
-        } else {
-            StringBuilder descriptor = new StringBuilder();
-            for (int i = 0; i < dimensions; ++i) {
-                descriptor.append('[');
-            }
-            descriptor.append(type.getDescriptor());
-            return Type.getType(descriptor.toString());
-        }
-    }
-
     @Override
     protected boolean isInterface(Type type) {
         if (type.getSort() != Type.OBJECT) {
@@ -170,6 +110,66 @@ public class MixinVerifier extends SimpleVerifier {
         }
         Type supertype = getCommonSupertype(value1.getType(), value2.getType());
         return newValue(supertype);
+    }
+
+    private static Type getCommonSupertype(Type type1, Type type2) {
+        if (type1.equals(type2) || type2.equals(NULL_TYPE)) {
+            return type1;
+        }
+        if (type1.equals(NULL_TYPE)) {
+            return type2;
+        }
+        if (type1.getSort() < Type.ARRAY || type2.getSort() < Type.ARRAY) {
+            // We know they're not the same, so they must be incompatible.
+            return null;
+        }
+        if (type1.getSort() == Type.ARRAY && type2.getSort() == Type.ARRAY) {
+            int dim1 = type1.getDimensions();
+            Type elem1 = type1.getElementType();
+            int dim2 = type2.getDimensions();
+            Type elem2 = type2.getElementType();
+            if (dim1 == dim2) {
+                Type commonSupertype;
+                if (elem1.equals(elem2)) {
+                    commonSupertype = elem1;
+                } else if (elem1.getSort() == Type.OBJECT && elem2.getSort() == Type.OBJECT) {
+                    commonSupertype = getCommonSupertype(elem1, elem2);
+                } else {
+                    return arrayType(OBJECT_TYPE, dim1 - 1);
+                }
+                return arrayType(commonSupertype, dim1);
+            }
+            Type smaller;
+            int shared;
+            if (dim1 < dim2) {
+                smaller = elem1;
+                shared = dim1 - 1;
+            } else {
+                smaller = elem2;
+                shared = dim2 - 1;
+            }
+            if (smaller.getSort() == Type.OBJECT) {
+                shared++;
+            }
+            return arrayType(OBJECT_TYPE, shared);
+        }
+        if (type1.getSort() == Type.ARRAY && type2.getSort() == Type.OBJECT || type2.getSort() == Type.ARRAY && type1.getSort() == Type.OBJECT) {
+            return OBJECT_TYPE;
+        }
+        return ClassInfo.getCommonSuperClass(type1, type2).getType();
+    }
+
+    private static Type arrayType(final Type type, final int dimensions) {
+        if (dimensions == 0) {
+            return type;
+        } else {
+            StringBuilder descriptor = new StringBuilder();
+            for (int i = 0; i < dimensions; ++i) {
+                descriptor.append('[');
+            }
+            descriptor.append(type.getDescriptor());
+            return Type.getType(descriptor.toString());
+        }
     }
 
     @Override

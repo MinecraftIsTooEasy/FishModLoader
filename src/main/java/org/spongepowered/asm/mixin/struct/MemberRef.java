@@ -183,84 +183,6 @@ public abstract class MemberRef {
     }
 
     /**
-     * Whether this member is a field.
-     *
-     * @return If this member is a field, else it is a method
-     */
-    public abstract boolean isField();
-
-    /**
-     * The opcode of the invocation.
-     *
-     * @return The opcode of the invocation
-     */
-    public abstract int getOpcode();
-
-    /**
-     * Set the opcode of the invocation.
-     *
-     * @param opcode new opcode
-     */
-    public abstract void setOpcode(int opcode);
-
-    /**
-     * The internal name for the owner of this member.
-     *
-     * @return The owners name
-     */
-    public abstract String getOwner();
-
-    /**
-     * Changes the owner of this
-     *
-     * @param owner New owner
-     */
-    public abstract void setOwner(String owner);
-
-    /**
-     * Name of this member.
-     *
-     * @return Name of this member.
-     */
-    public abstract String getName();
-
-    /**
-     * Rename this member.
-     *
-     * @param name New name for this member.
-     */
-    public abstract void setName(String name);
-    
-    /**
-     * Descriptor of this member.
-     *
-     * @return Descriptor of this member
-     */
-    public abstract String getDesc();
-
-    /**
-     * Changes the descriptor of this member
-     *
-     * @param desc New descriptor of this member
-     */
-    public abstract void setDesc(String desc);
-
-    /**
-     * Whether the owner of this member is a mixin.
-     * @return Whether the owner of this member is a mixin.
-     */
-    public boolean ownerIsMixin() {
-        String owner = getOwner();
-        return !owner.startsWith("[") && ClassInfo.isMixin(owner);
-    }
-
-    @Override
-    public String toString() {
-        return String.format("%s for %s.%s%s%s", Bytecode.getOpcodeName(this.getOpcode()), this.getOwner(), this.getName(), this.isField() ? ":" : "",
-                this.getDesc());
-    }
-
-    /**
      * A reference to a field or method backed by a method handle
      */
     public static final class Handle extends MemberRef {
@@ -344,6 +266,84 @@ public abstract class MemberRef {
             this.handle = new org.objectweb.asm.Handle(tag, owner, name, desc, isInterface);
         }
 
+    }
+
+    /**
+     * Whether this member is a field.
+     *
+     * @return If this member is a field, else it is a method
+     */
+    public abstract boolean isField();
+
+    /**
+     * The opcode of the invocation.
+     *
+     * @return The opcode of the invocation
+     */
+    public abstract int getOpcode();
+
+    /**
+     * Set the opcode of the invocation.
+     * 
+     * @param opcode new opcode
+     */
+    public abstract void setOpcode(int opcode);
+
+    /**
+     * The internal name for the owner of this member.
+     *
+     * @return The owners name
+     */
+    public abstract String getOwner();
+
+    /**
+     * Changes the owner of this
+     *
+     * @param owner New owner
+     */
+    public abstract void setOwner(String owner);
+
+    /**
+     * Name of this member.
+     *
+     * @return Name of this member.
+     */
+    public abstract String getName();
+    
+    /**
+     * Rename this member.
+     *
+     * @param name New name for this member.
+     */
+    public abstract void setName(String name);
+
+    /**
+     * Descriptor of this member.
+     *
+     * @return Descriptor of this member
+     */
+    public abstract String getDesc();
+
+    /**
+     * Changes the descriptor of this member
+     *
+     * @param desc New descriptor of this member
+     */
+    public abstract void setDesc(String desc);
+
+    /**
+     * Whether the owner of this member is a mixin.
+     * @return Whether the owner of this member is a mixin.
+     */
+    public boolean ownerIsMixin() {
+        String owner = getOwner();
+        return !owner.startsWith("[") && ClassInfo.isMixin(owner);
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%s for %s.%s%s%s", Bytecode.getOpcodeName(this.getOpcode()), this.getOwner(), this.getName(), this.isField() ? ":" : "",
+                this.getDesc());
     }
 
     @Override

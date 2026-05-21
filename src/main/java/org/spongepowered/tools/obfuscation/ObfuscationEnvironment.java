@@ -24,26 +24,27 @@
  */
 package org.spongepowered.tools.obfuscation;
 
+import java.io.File;
+import java.util.Collection;
+import java.util.List;
+
+import javax.annotation.processing.Filer;
+import javax.annotation.processing.Messager;
+import javax.tools.Diagnostic.Kind;
+
 import org.spongepowered.asm.mixin.injection.selectors.ITargetSelectorRemappable;
 import org.spongepowered.asm.obfuscation.mapping.common.MappingField;
 import org.spongepowered.asm.obfuscation.mapping.common.MappingMethod;
 import org.spongepowered.asm.util.ObfuscationUtil;
 import org.spongepowered.asm.util.ObfuscationUtil.IClassRemapper;
-import org.spongepowered.tools.obfuscation.interfaces.IMessagerEx.MessageType;
-import org.spongepowered.tools.obfuscation.interfaces.IMixinAnnotationProcessor;
-import org.spongepowered.tools.obfuscation.interfaces.IObfuscationEnvironment;
 import org.spongepowered.tools.obfuscation.mapping.IMappingConsumer;
-import org.spongepowered.tools.obfuscation.mapping.IMappingConsumer.MappingSet;
 import org.spongepowered.tools.obfuscation.mapping.IMappingProvider;
 import org.spongepowered.tools.obfuscation.mapping.IMappingWriter;
+import org.spongepowered.tools.obfuscation.mapping.IMappingConsumer.MappingSet;
 import org.spongepowered.tools.obfuscation.mirror.TypeHandle;
-
-import javax.annotation.processing.Filer;
-import javax.annotation.processing.Messager;
-import javax.tools.Diagnostic.Kind;
-import java.io.File;
-import java.util.Collection;
-import java.util.List;
+import org.spongepowered.tools.obfuscation.interfaces.IObfuscationEnvironment;
+import org.spongepowered.tools.obfuscation.interfaces.IMessagerEx.MessageType;
+import org.spongepowered.tools.obfuscation.interfaces.IMixinAnnotationProcessor;
 
 /**
  * Provides access to information relevant to a particular obfuscation

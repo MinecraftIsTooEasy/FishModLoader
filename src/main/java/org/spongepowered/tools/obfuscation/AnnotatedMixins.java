@@ -24,16 +24,41 @@
  */
 package org.spongepowered.tools.obfuscation;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableList.Builder;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Properties;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import javax.annotation.processing.Filer;
+import javax.annotation.processing.ProcessingEnvironment;
+import javax.annotation.processing.RoundEnvironment;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.AnnotationValue;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.PackageElement;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.Elements;
+import javax.tools.Diagnostic.Kind;
+import javax.tools.FileObject;
+import javax.tools.StandardLocation;
+
 import org.objectweb.asm.Type;
 import org.spongepowered.asm.launch.MixinBootstrap;
-import org.spongepowered.asm.mixin.Implements;
 import org.spongepowered.asm.mixin.Overwrite;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.gen.Accessor;
 import org.spongepowered.asm.mixin.gen.Invoker;
-import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.util.ITokenProvider;
 import org.spongepowered.asm.util.VersionNumber;
 import org.spongepowered.asm.util.logging.MessageRouter;
@@ -53,34 +78,8 @@ import org.spongepowered.tools.obfuscation.struct.InjectorRemap;
 import org.spongepowered.tools.obfuscation.validation.ParentValidator;
 import org.spongepowered.tools.obfuscation.validation.TargetValidator;
 
-import javax.annotation.processing.Filer;
-import javax.annotation.processing.ProcessingEnvironment;
-import javax.annotation.processing.RoundEnvironment;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.AnnotationValue;
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.PackageElement;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.TypeMirror;
-import javax.lang.model.util.Elements;
-import javax.tools.Diagnostic.Kind;
-import javax.tools.FileObject;
-import javax.tools.StandardLocation;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Properties;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList.Builder;
 
 /**
  * Mixin info manager, stores all of the mixin info during processing and also
@@ -386,7 +385,7 @@ final class AnnotatedMixins implements IMixinAnnotationProcessor, ITokenProvider
     }
 
     /**
-     * Register an {@link Accessor} method
+     * Register an {@link org.spongepowered.asm.mixin.gen.Accessor} method
      *
      * @param mixinType Mixin class
      * @param method Accessor method
@@ -403,7 +402,7 @@ final class AnnotatedMixins implements IMixinAnnotationProcessor, ITokenProvider
     }
 
     /**
-     * Register an {@link Accessor} method
+     * Register an {@link org.spongepowered.asm.mixin.gen.Accessor} method
      *
      * @param mixinType Mixin class
      * @param method Accessor method
@@ -420,7 +419,7 @@ final class AnnotatedMixins implements IMixinAnnotationProcessor, ITokenProvider
     }
 
     /**
-     * Register an {@link Overwrite} method
+     * Register an {@link org.spongepowered.asm.mixin.Overwrite} method
      *
      * @param mixinType Mixin class
      * @param method Overwrite method
@@ -437,11 +436,11 @@ final class AnnotatedMixins implements IMixinAnnotationProcessor, ITokenProvider
     }
 
     /**
-     * Register a {@link Shadow} field
+     * Register a {@link org.spongepowered.asm.mixin.Shadow} field
      *
      * @param mixinType Mixin class
      * @param field Shadow field
-     * @param shadow {@link Shadow} annotation
+     * @param shadow {@link org.spongepowered.asm.mixin.Shadow} annotation
      */
     public void registerShadow(TypeElement mixinType, VariableElement field, AnnotationHandle shadow) {
         AnnotatedMixin mixinClass = this.getMixin(mixinType);
@@ -454,11 +453,11 @@ final class AnnotatedMixins implements IMixinAnnotationProcessor, ITokenProvider
     }
 
     /**
-     * Register a {@link Shadow} method
+     * Register a {@link org.spongepowered.asm.mixin.Shadow} method
      *
      * @param mixinType Mixin class
      * @param method Shadow method
-     * @param shadow {@link Shadow} annotation
+     * @param shadow {@link org.spongepowered.asm.mixin.Shadow} annotation
      */
     public void registerShadow(TypeElement mixinType, ExecutableElement method, AnnotationHandle shadow) {
         AnnotatedMixin mixinClass = this.getMixin(mixinType);
@@ -471,11 +470,11 @@ final class AnnotatedMixins implements IMixinAnnotationProcessor, ITokenProvider
     }
 
     /**
-     * Register a {@link Inject} method
+     * Register a {@link org.spongepowered.asm.mixin.injection.Inject} method
      *
      * @param mixinType Mixin class
      * @param method Injector method
-     * @param inject {@link Inject}
+     * @param inject {@link org.spongepowered.asm.mixin.injection.Inject}
      *      annotation
      */
     public void registerInjector(TypeElement mixinType, ExecutableElement method, AnnotationHandle inject) {
@@ -491,12 +490,12 @@ final class AnnotatedMixins implements IMixinAnnotationProcessor, ITokenProvider
     }
 
     /**
-     * Register an {@link Implements} declaration on
+     * Register an {@link org.spongepowered.asm.mixin.Implements} declaration on
      * a mixin class
      *
      * @param mixin Annotated mixin
      * @param implementsAnnotation
-     *      {@link Implements} annotation
+     *      {@link org.spongepowered.asm.mixin.Implements} annotation
      */
     public void registerSoftImplements(TypeElement mixin, AnnotationHandle implementsAnnotation) {
         AnnotatedMixin mixinClass = this.getMixin(mixin);

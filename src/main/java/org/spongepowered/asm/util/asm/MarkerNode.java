@@ -39,7 +39,7 @@ public class MarkerNode extends LabelNode {
     public static final int INITIALISER_TAIL = 1;
     
     /**
-     * Marks the initial of the body in a constructor
+     * Marks the start of the body in a constructor
      */
     public static final int BODY_START = 2;
     

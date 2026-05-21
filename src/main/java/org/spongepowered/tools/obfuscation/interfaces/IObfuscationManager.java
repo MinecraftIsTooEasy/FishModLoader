@@ -24,10 +24,10 @@
  */
 package org.spongepowered.tools.obfuscation.interfaces;
 
+import java.util.List;
+
 import org.spongepowered.tools.obfuscation.ObfuscationEnvironment;
 import org.spongepowered.tools.obfuscation.mapping.IMappingConsumer;
-
-import java.util.List;
 
 /**
  * Manages obfuscation things

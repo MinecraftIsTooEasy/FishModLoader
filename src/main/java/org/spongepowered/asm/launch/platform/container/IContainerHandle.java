@@ -24,9 +24,9 @@
  */
 package org.spongepowered.asm.launch.platform.container;
 
-import org.spongepowered.asm.mixin.extensibility.IMixinConfigSource;
-
 import java.util.Collection;
+
+import org.spongepowered.asm.mixin.extensibility.IMixinConfigSource;
 
 /**
  * Interface for container handles. Previously resources considered by Mixin

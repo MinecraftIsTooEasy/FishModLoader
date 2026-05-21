@@ -24,10 +24,10 @@
  */
 package org.spongepowered.asm.mixin.injection.code;
 
+import java.util.ListIterator;
+
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.InsnList;
-
-import java.util.ListIterator;
 
 /**
  * Read-only wrapper for InsnList, defensively passed to InjectionPoint

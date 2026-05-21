@@ -24,9 +24,9 @@
  */
 package org.spongepowered.asm.mixin.extensibility;
 
-import org.spongepowered.asm.mixin.MixinEnvironment;
-
 import java.util.Set;
+
+import org.spongepowered.asm.mixin.MixinEnvironment;
 
 /**
  * Interface for loaded mixin configurations

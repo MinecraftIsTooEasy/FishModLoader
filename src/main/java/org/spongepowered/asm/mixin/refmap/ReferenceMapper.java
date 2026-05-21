@@ -24,22 +24,24 @@
  */
 package org.spongepowered.asm.mixin.refmap;
 
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.io.Serializable;
+import java.util.TreeMap;
+import java.util.Map;
+
+import javax.tools.Diagnostic.Kind;
+
+import org.spongepowered.asm.service.IMixinService;
+import org.spongepowered.asm.service.MixinService;
+import org.spongepowered.asm.util.logging.MessageRouter;
+
 import com.google.common.collect.Maps;
 import com.google.common.io.Closeables;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonParseException;
-import org.spongepowered.asm.service.IMixinService;
-import org.spongepowered.asm.service.MixinService;
-import org.spongepowered.asm.util.logging.MessageRouter;
-
-import javax.tools.Diagnostic.Kind;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.io.Serializable;
-import java.util.Map;
-import java.util.TreeMap;
 
 /**
  * Stores runtime information allowing field, method and type references which

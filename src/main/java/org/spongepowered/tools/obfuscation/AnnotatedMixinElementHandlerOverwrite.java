@@ -24,6 +24,11 @@
  */
 package org.spongepowered.tools.obfuscation;
 
+import java.lang.reflect.Method;
+import java.util.Locale;
+
+import javax.lang.model.element.ExecutableElement;
+
 import org.spongepowered.asm.obfuscation.mapping.common.MappingMethod;
 import org.spongepowered.tools.obfuscation.Mappings.MappingConflictException;
 import org.spongepowered.tools.obfuscation.interfaces.IMessagerEx.MessageType;
@@ -31,10 +36,6 @@ import org.spongepowered.tools.obfuscation.interfaces.IMixinAnnotationProcessor;
 import org.spongepowered.tools.obfuscation.mirror.AnnotationHandle;
 import org.spongepowered.tools.obfuscation.mirror.MethodHandle;
 import org.spongepowered.tools.obfuscation.mirror.TypeHandle;
-
-import javax.lang.model.element.ExecutableElement;
-import java.lang.reflect.Method;
-import java.util.Locale;
 
 /**
  * A module for {@link AnnotatedMixin} which handles method overwrites

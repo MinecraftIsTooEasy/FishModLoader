@@ -24,6 +24,14 @@
  */
 package org.spongepowered.asm.mixin.injection.selectors;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Set;
+
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.AnnotationNode;
@@ -43,47 +51,7 @@ import org.spongepowered.asm.mixin.transformer.meta.MixinMerged;
 import org.spongepowered.asm.util.Annotations;
 import org.spongepowered.asm.util.Bytecode;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Set;
-
 public class TargetSelectors implements Iterable<TargetSelectors.SelectedMethod> {
-    
-    /**
-     * The selector context for these selectors, for example the injector which
-     * is running the selectors
-     */
-    private final ISelectorContext context;
-    /**
-     * The target class node within which targets can be resolved
-     */
-    private final ClassNode targetClassNode;
-    /**
-     * The mixin
-     */
-    private final IMixinContext mixin;
-    /**
-     * Annotated method, as MethodNode at runtime, or IAnnotatedElement during
-     * compile
-     */
-    private final Object method;
-    /**
-     * Whether the annotated method is static
-     */
-    private final boolean isStatic;
-    /**
-     * Root selectors
-     */
-    private final Set<ITargetSelector> selectors = new LinkedHashSet<ITargetSelector>();
-    /**
-     * Selected targets
-     */
-    private final List<SelectedMethod> targets = new ArrayList<SelectedMethod>();
-    private boolean doPermissivePass;
     
     public TargetSelectors(ISelectorContext context, ClassNode classNode) {
         this.context = context;
@@ -92,6 +60,45 @@ public class TargetSelectors implements Iterable<TargetSelectors.SelectedMethod>
         this.method = context.getMethod();
         this.isStatic = this.method instanceof MethodNode && Bytecode.isStatic((MethodNode)this.method);
     }
+    
+    /**
+     * The selector context for these selectors, for example the injector which
+     * is running the selectors
+     */
+    private final ISelectorContext context;
+    
+    /**
+     * The target class node within which targets can be resolved
+     */
+    private final ClassNode targetClassNode;
+    
+    /**
+     * The mixin
+     */
+    private final IMixinContext mixin;
+    
+    /**
+     * Annotated method, as MethodNode at runtime, or IAnnotatedElement during
+     * compile
+     */
+    private final Object method;
+
+    /**
+     * Whether the annotated method is static
+     */
+    private final boolean isStatic;
+    
+    /**
+     * Root selectors
+     */
+    private final Set<ITargetSelector> selectors = new LinkedHashSet<ITargetSelector>();
+    
+    /**
+     * Selected targets
+     */
+    private final List<SelectedMethod> targets = new ArrayList<SelectedMethod>();
+    
+    private boolean doPermissivePass;
 
     /**
      * Print the names of the specified members as a human-readable list
@@ -318,19 +325,19 @@ public class TargetSelectors implements Iterable<TargetSelectors.SelectedMethod>
      * Selected target method, paired with the selector which identified it
      */
     public static class SelectedMethod {
-        
+
         /**
          * The parent target of this target. If this target is a lambda then
          * this will be the selector for the enclosing method. Parent is null
          * for the outermost method.
          */
         private final SelectedMethod parent;
-        
+
         /**
          * The target selector which selected this target
          */
         private final ITargetSelector selector;
-        
+
         /**
          * The selected target method
          */
@@ -341,20 +348,20 @@ public class TargetSelectors implements Iterable<TargetSelectors.SelectedMethod>
             this.selector = selector;
             this.method = method;
         }
-        
+
         SelectedMethod(ITargetSelector selector, MethodNode method) {
             this(null, selector, method);
         }
-        
+
         @Override
         public String toString() {
             return this.method.name + this.method.desc;
         }
-        
+
         public SelectedMethod getParent() {
             return this.parent;
         }
-        
+
         public ITargetSelector next() {
             return this.selector.next();
         }

@@ -24,21 +24,22 @@
  */
 package org.spongepowered.tools.obfuscation;
 
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.struct.InjectionInfo;
-import org.spongepowered.tools.obfuscation.interfaces.IMessagerEx.MessageType;
-import org.spongepowered.tools.obfuscation.mirror.AnnotationHandle;
-import org.spongepowered.tools.obfuscation.mirror.TypeUtils;
+import java.lang.annotation.Annotation;
+import java.util.HashSet;
+import java.util.Set;
 
 import javax.annotation.processing.RoundEnvironment;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
-import java.lang.annotation.Annotation;
-import java.util.HashSet;
-import java.util.Set;
+
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.struct.InjectionInfo;
+import org.spongepowered.tools.obfuscation.interfaces.IMessagerEx.MessageType;
+import org.spongepowered.tools.obfuscation.mirror.AnnotationHandle;
+import org.spongepowered.tools.obfuscation.mirror.TypeUtils;
 
 /**
  * Annotation processor which finds injector annotations in mixin classes and

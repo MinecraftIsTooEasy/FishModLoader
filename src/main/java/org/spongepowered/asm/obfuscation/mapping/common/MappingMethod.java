@@ -24,9 +24,10 @@
  */
 package org.spongepowered.asm.obfuscation.mapping.common;
 
-import com.google.common.base.Objects;
 import org.spongepowered.asm.obfuscation.mapping.IMapping;
 import org.spongepowered.asm.util.Constants;
+
+import com.google.common.base.Objects;
 
 /**
  * Stores information about a method mapping during AP runs

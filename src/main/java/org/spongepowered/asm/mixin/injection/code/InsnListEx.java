@@ -24,16 +24,17 @@
  */
 package org.spongepowered.asm.mixin.injection.code;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.spongepowered.asm.mixin.injection.struct.Constructor;
 import org.spongepowered.asm.mixin.injection.struct.IChainedDecoration;
 import org.spongepowered.asm.mixin.injection.struct.Target;
+import org.spongepowered.asm.mixin.transformer.struct.Initialiser;
 import org.spongepowered.asm.mixin.transformer.struct.Initialiser.InjectionMode;
 import org.spongepowered.asm.util.Bytecode.DelegateInitialiser;
 import org.spongepowered.asm.util.Constants;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * InsnList with extensions, see {@link IInsnListEx}
@@ -142,7 +143,7 @@ public class InsnListEx extends InsnListReadOnly implements IInsnListEx {
             case INITIALISER_INJECTION_POINT:
                 if (this.target instanceof Constructor) {
                     // mode is always DEFAULT because we want to locate initialisers if possible
-                    InjectionMode mode = InjectionMode.DEFAULT;
+                    InjectionMode mode = Initialiser.InjectionMode.DEFAULT;
                     AbstractInsnNode initialiserInjectionPoint = ((Constructor)this.target).findInitialiserInjectionPoint(mode);
                     if (this.contains(initialiserInjectionPoint)) {
                         return initialiserInjectionPoint;

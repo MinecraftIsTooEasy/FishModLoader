@@ -24,18 +24,19 @@
  */
 package org.spongepowered.asm.mixin.transformer;
 
-import com.google.common.base.Strings;
-import org.objectweb.asm.tree.ClassNode;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.List;
+
 import org.spongepowered.asm.logging.ILogger;
+import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 import org.spongepowered.asm.mixin.throwables.CompanionPluginError;
 import org.spongepowered.asm.service.IMixinService;
 import org.spongepowered.asm.service.MixinService;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.util.List;
+import com.google.common.base.Strings;
 
 /**
  * Convenience wrapper for mixin config plugins

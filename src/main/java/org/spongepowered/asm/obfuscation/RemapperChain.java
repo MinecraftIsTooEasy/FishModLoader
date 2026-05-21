@@ -24,10 +24,10 @@
  */
 package org.spongepowered.asm.obfuscation;
 
-import org.spongepowered.asm.mixin.extensibility.IRemapper;
-
 import java.util.ArrayList;
 import java.util.List;
+
+import org.spongepowered.asm.mixin.extensibility.IRemapper;
 
 /**
  * Mixin environment remapper chain. Contains all remappers for the current

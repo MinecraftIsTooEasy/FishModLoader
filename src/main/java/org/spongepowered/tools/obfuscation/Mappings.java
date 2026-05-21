@@ -24,14 +24,14 @@
  */
 package org.spongepowered.tools.obfuscation;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.spongepowered.asm.obfuscation.mapping.IMapping;
 import org.spongepowered.asm.obfuscation.mapping.common.MappingField;
 import org.spongepowered.asm.obfuscation.mapping.common.MappingMethod;
 import org.spongepowered.tools.obfuscation.mapping.IMappingConsumer;
 import org.spongepowered.tools.obfuscation.mapping.IMappingConsumer.MappingSet.Pair;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Reference implementation of mapping consumer

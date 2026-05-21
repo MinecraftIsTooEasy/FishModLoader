@@ -24,16 +24,17 @@
  */
 package org.spongepowered.tools.obfuscation.interfaces;
 
-import org.spongepowered.tools.obfuscation.SupportedOptions;
-import org.spongepowered.tools.obfuscation.interfaces.IMixinAnnotationProcessor.CompilerEnvironment;
+import java.util.HashSet;
+import java.util.Set;
 
 import javax.annotation.processing.Messager;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
 import javax.tools.Diagnostic.Kind;
-import java.util.HashSet;
-import java.util.Set;
+
+import org.spongepowered.tools.obfuscation.SupportedOptions;
+import org.spongepowered.tools.obfuscation.interfaces.IMixinAnnotationProcessor.CompilerEnvironment;
 
 /**
  * An extended {@link Messager} which supports messages with configurable
@@ -88,13 +89,13 @@ public interface IMessagerEx extends Messager {
      * controlled at runtime.
      */
     public static enum MessageType {
-        
+
         /**
          * Level for NOTE messages which are informational and can be suppressed
          * by quiet
          */
         INFO(Kind.NOTE),
-        
+
         /** All other NOTE level messages */
         NOTE(Kind.NOTE),
 
@@ -103,28 +104,28 @@ public interface IMessagerEx extends Messager {
 
         /** Uncategorised (usually unexpected or important) WARNING messages */
         WARNING(Kind.WARNING),
-        
+
         /** &#64;Mixin annotation on a non class or interface, eg. package */
         MIXIN_ON_INVALID_TYPE(Kind.ERROR),
-        
+
         /** Soft target for mixin not found */
         MIXIN_SOFT_TARGET_NOT_FOUND(Kind.ERROR),
 
         /** Soft target for mixin not found, but imaginary type was returned */
         MIXIN_SOFT_TARGET_NOT_RESOLVED(Kind.WARNING),
-        
+
         /** Soft target for mixin is public */
         MIXIN_SOFT_TARGET_IS_PUBLIC(Kind.WARNING),
-        
+
         /** &#64;Mixin annotation doesn't specify any targets */
         MIXIN_NO_TARGETS(Kind.ERROR),
-        
+
         /** Errors raised by the parent validator */
         PARENT_VALIDATOR(Kind.ERROR),
 
         /** Errors raised by the target validator */
         TARGET_VALIDATOR(Kind.ERROR),
-        
+
         /** Unexpected error attaching accessor/invoker */
         ACCESSOR_ATTACH_ERROR(Kind.ERROR),
 
@@ -139,19 +140,19 @@ public interface IMessagerEx extends Messager {
          * annotation or using the inflector on the annoated method name
          */
         ACCESSOR_NAME_UNRESOLVED(Kind.WARNING),
- 
+
         /** Invoker uses a raw return type when the return type is generic */
         INVOKER_RAW_RETURN_TYPE(Kind.WARNING),
-        
+
         /** Generic args of factory invoker incompatible with return type */
         FACTORY_INVOKER_GENERIC_ARGS(Kind.ERROR),
 
         /** Return type of factory invoker does not match target type */
         FACTORY_INVOKER_RETURN_TYPE(Kind.ERROR),
-        
+
         /** Factory invoker is not declared as static */
         FACTORY_INVOKER_NONSTATIC(Kind.ERROR),
-        
+
         /** Constraint violation with supplied tokens */
         CONSTRAINT_VIOLATION(Kind.ERROR),
 
@@ -160,19 +161,19 @@ public interface IMessagerEx extends Messager {
 
         /** Mapping conflict encountered on accessor method */
         ACCESSOR_MAPPING_CONFLICT(Kind.ERROR),
-        
+
         /** Mapping conflict encountered on injector method */
         INJECTOR_MAPPING_CONFLICT(Kind.ERROR),
-        
+
         /** Mapping conflict encountered on overwrite method */
         OVERWRITE_MAPPING_CONFLICT(Kind.ERROR),
-        
+
         /** Mapping conflict encountered on shadow method */
         SHADOW_MAPPING_CONFLICT(Kind.ERROR),
-        
+
         /** Injector-annotated method encounterd in an interface */
         INJECTOR_IN_INTERFACE(Kind.ERROR),
-        
+
         /** Injector annotation encountered on element which is not a method */
         INJECTOR_ON_NON_METHOD_ELEMENT(Kind.WARNING),
 
@@ -196,59 +197,59 @@ public interface IMessagerEx extends Messager {
 
         /** Shadow annotation encountered on element which isn't in a mixin */
         SHADOW_ON_NON_MIXIN_ELEMENT(Kind.ERROR),
-        
+
         /** &#64;Implements annotation on a non- class or interface element */
         SOFT_IMPLEMENTS_ON_INVALID_TYPE(Kind.ERROR),
 
         /** &#64;Implements annotation on a non-mixin class or interface */
         SOFT_IMPLEMENTS_ON_NON_MIXIN(Kind.ERROR),
-        
+
         /** &#64;Implements annotation has no values */
         SOFT_IMPLEMENTS_EMPTY(Kind.WARNING),
 
         /** A target selector failed validation */
         TARGET_SELECTOR_VALIDATION(Kind.ERROR),
-        
+
         /** An injection point target is missing owner, descriptor, or both */
         INJECTOR_TARGET_NOT_FULLY_QUALIFIED(Kind.ERROR),
-        
+
         /**
          * A descriptor is missing on an injector target in a multi-target mixin
          */
         MISSING_INJECTOR_DESC_MULTITARGET(Kind.ERROR),
-        
+
         /**
          * A descriptor is missing on an injector target in a single-target
          * mixin but enclosing type information is unavailable (imaginary) or
          * could not be determined from the target class.
          */
         MISSING_INJECTOR_DESC_SINGLETARGET(Kind.WARNING),
-        
+
         /**
          * A descriptor is missing on an injector target in an &#64;Pseudo mixin
          */
         MISSING_INJECTOR_DESC_SIMULATED(Kind.OTHER),
-        
+
         /**
          * The target element of an injection could not be located in the target
          */
         TARGET_ELEMENT_NOT_FOUND(Kind.WARNING),
-        
+
         /** Mismatched visibility of overwrite with resolved target, warn */
         METHOD_VISIBILITY(Kind.WARNING),
-        
+
         /** Obf provider did not return a result for the accessor target */
         NO_OBFDATA_FOR_ACCESSOR(Kind.WARNING),
 
         /** Obf provider did not return a result for the specified class */
         NO_OBFDATA_FOR_CLASS(Kind.WARNING),
-        
+
         /**
          * Obf provider did not return a result for the injector target and the
          * target is a normal method
          */
         NO_OBFDATA_FOR_TARGET(Kind.ERROR),
-        
+
         /**
          * Obf provider did not return a result for the injector target but the
          * target is a constructor, warn
@@ -266,13 +267,13 @@ public interface IMessagerEx extends Messager {
          * the overwrite target is static, warn
          */
         NO_OBFDATA_FOR_STATIC_OVERWRITE(Kind.WARNING),
-        
+
         /** Obf provider did not return a result for the specified field */
         NO_OBFDATA_FOR_FIELD(Kind.WARNING),
 
         /** Obf provider did not return a result for the specified method */
         NO_OBFDATA_FOR_METHOD(Kind.WARNING),
-        
+
         /** Obf provider did not return a result for the shadow target */
         NO_OBFDATA_FOR_SHADOW(Kind.WARNING),
 
@@ -281,26 +282,26 @@ public interface IMessagerEx extends Messager {
          * enclosing type is simulated, warn
          */
         NO_OBFDATA_FOR_SIMULATED_SHADOW(Kind.WARNING),
-        
+
         /**
          * Obf provider did not return a result for the specified
          * soft-implemented method
          */
         NO_OBFDATA_FOR_SOFT_IMPLEMENTS(Kind.ERROR),
-        
+
         /**
          * A method in a multi-target mixin has conflicting descriptors so the
          * AP is storing the bare reference (name only) in the refmap, which has
          * resolvability issues.
          */
         BARE_REFERENCE(Kind.WARNING),
-        
+
         /**
          * All warnings related to overwrite javadoc contents, can be upgrade to
          * error by {@link SupportedOptions#OVERWRITE_ERROR_LEVEL}
          */
         OVERWRITE_DOCS(Kind.WARNING);
-        
+
         /**
          * Prefix applied to supported commandline options for message levels,
          * eg. <tt>INVALID_CONSTRAINT</tt> becomes
@@ -313,7 +314,7 @@ public interface IMessagerEx extends Messager {
          * to determine message origins.
          */
         private static boolean decorate = false;
-        
+
         /**
          * Global option, prefix for all annotation processor messages to make
          * them easier to differentiate from other messages
@@ -324,26 +325,40 @@ public interface IMessagerEx extends Messager {
          * The original message kind
          */
         private final Kind originalKind;
-        
+
         /**
          * The current message kind
          */
         private Kind kind;
-        
+
         /**
          * Whether this message is globally enabled or disabled
          */
         private boolean enabled = true;
-        
+
         /**
          * Whether this message kind has been specified manually by the user
          */
         private boolean setByUser = false;
-        
+
         private MessageType(Kind kind) {
             this.originalKind = this.kind = kind;
         }
-        
+
+        /**
+         * Get whether the message is treated as an error
+         */
+        public boolean isError() {
+            return this.kind == Kind.ERROR;
+        }
+
+        /**
+         * Get the current message kind
+         */
+        public Kind getKind() {
+            return this.kind;
+        }
+
         /**
          * Set whether development decoration of messages is enabled
          *
@@ -352,7 +367,7 @@ public interface IMessagerEx extends Messager {
         public static void setDecoration(boolean enabled) {
             MessageType.decorate = enabled;
         }
-        
+
         /**
          * Set the prefix for all messages, used to distinguish mixin AP
          * messages from other compiler messages in IDE for example
@@ -363,7 +378,35 @@ public interface IMessagerEx extends Messager {
         public static void setPrefix(String prefix) {
             MessageType.prefix = prefix;
         }
-        
+
+        /**
+         * Get whether this message type is enabled
+         */
+        public boolean isEnabled() {
+            return this.enabled;
+        }
+
+        /**
+         * Get all the available options for configuring message levels
+         */
+        public static Set<String> getSupportedOptions() {
+            Set<String> supportedOptions = new HashSet<String>();
+            for (MessageType type : MessageType.values()) {
+                supportedOptions.add(MessageType.OPTION_PREFIX + type.name());
+            }
+            return supportedOptions;
+        }
+
+        /**
+         * Reset the message kind to the original value and re-enable the
+         * message if it was disabled
+         */
+        public void reset() {
+            this.kind = this.originalKind;
+            this.enabled = true;
+            this.setByUser = false;
+        }
+
         /**
          * Apply options supplied to the AP which configure individual message
          * levels
@@ -374,10 +417,10 @@ public interface IMessagerEx extends Messager {
         public static void applyOptions(CompilerEnvironment env, IOptionProvider options) {
             // Enable decorations if the option is specified
             MessageType.setDecoration("true".equalsIgnoreCase(options.getOption(SupportedOptions.SHOW_MESSAGE_TYPES)));
-            
+
             // Apply the "quiet" option if specified, or if in dev env
             MessageType.INFO.setEnabled(!(env.isDevelopmentEnvironment() || "true".equalsIgnoreCase(options.getOption(SupportedOptions.QUIET))));
-            
+
             // Selectively enable injector-in-interface as an error based on user option
             MessageType.INJECTOR_IN_INTERFACE.setEnabled(options.getOption(SupportedOptions.DISABLE_INTERFACE_MIXINS, false));
 
@@ -392,7 +435,7 @@ public interface IMessagerEx extends Messager {
                 if (option == null) {
                     continue;
                 }
-                
+
                 if ("note".equalsIgnoreCase(option)) {
                     type.setKind(Kind.NOTE);
                 } else if ("warning".equalsIgnoreCase(option)) {
@@ -404,21 +447,7 @@ public interface IMessagerEx extends Messager {
                 }
             }
         }
-        
-        /**
-         * Get whether the message is treated as an error
-         */
-        public boolean isError() {
-            return this.kind == Kind.ERROR;
-        }
-        
-        /**
-         * Get the current message kind
-         */
-        public Kind getKind() {
-            return this.kind;
-        }
-        
+
         /**
          * Set the current kind
          *
@@ -428,7 +457,7 @@ public interface IMessagerEx extends Messager {
             this.kind = kind;
             this.setByUser = true;
         }
-        
+
         /**
          * Set the current kind to a lower kind, but only if the level has not
          * been set manually by the user. Used when an IDE is detected to
@@ -442,14 +471,7 @@ public interface IMessagerEx extends Messager {
                 this.kind = kind;
             }
         }
-        
-        /**
-         * Get whether this message type is enabled
-         */
-        public boolean isEnabled() {
-            return this.enabled;
-        }
-        
+
         /**
          * Set whether this message type is enabled
          *
@@ -459,28 +481,7 @@ public interface IMessagerEx extends Messager {
             this.enabled = enabled;
             this.setByUser = true;
         }
-        
-        /**
-         * Reset the message kind to the original value and re-enable the
-         * message if it was disabled
-         */
-        public void reset() {
-            this.kind = this.originalKind;
-            this.enabled = true;
-            this.setByUser = false;
-        }
 
-        /**
-         * Get all the available options for configuring message levels
-         */
-        public static Set<String> getSupportedOptions() {
-            Set<String> supportedOptions = new HashSet<String>();
-            for (MessageType type : MessageType.values()) {
-                supportedOptions.add(MessageType.OPTION_PREFIX + type.name());
-            }
-            return supportedOptions;
-        }
-        
         /**
          * Called when the message is passed to a real Messager, allows the
          * message to be decorated in development and other special situations
@@ -492,7 +493,7 @@ public interface IMessagerEx extends Messager {
         public CharSequence decorate(CharSequence msg) {
             return MessageType.decorate ? String.format("%s[%s] %s", MessageType.prefix, this.name(), msg) : MessageType.prefix + msg;
         }
-        
+
     }
 
 }

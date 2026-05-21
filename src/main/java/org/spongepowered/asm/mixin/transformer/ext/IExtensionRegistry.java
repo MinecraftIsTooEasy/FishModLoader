@@ -24,9 +24,9 @@
  */
 package org.spongepowered.asm.mixin.transformer.ext;
 
-import org.spongepowered.asm.service.ISyntheticClassRegistry;
-
 import java.util.List;
+
+import org.spongepowered.asm.service.ISyntheticClassRegistry;
 
 /**
  * Interface for the mixin Extensions registry

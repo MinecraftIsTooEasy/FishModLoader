@@ -24,12 +24,12 @@
  */
 package org.spongepowered.asm.mixin.gen;
 
-import org.spongepowered.asm.mixin.Shadow;
-
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+
+import org.spongepowered.asm.mixin.Shadow;
 
 /**
  * Defines an accessor method in a mixin, the method can be a getter (must

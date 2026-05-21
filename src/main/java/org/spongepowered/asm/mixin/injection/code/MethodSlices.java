@@ -24,13 +24,13 @@
  */
 package org.spongepowered.asm.mixin.injection.code;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.objectweb.asm.tree.AnnotationNode;
 import org.spongepowered.asm.mixin.injection.struct.InjectionInfo;
 import org.spongepowered.asm.mixin.injection.throwables.InvalidSliceException;
 import org.spongepowered.asm.util.Annotations;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Represents a collection of {@link MethodSlice}s, mapped by ID. Stored ids may

@@ -24,11 +24,11 @@
  */
 package org.spongepowered.asm.mixin.injection.selectors.dynamic;
 
+import java.util.List;
+
 import org.objectweb.asm.Type;
 import org.spongepowered.asm.util.Quantifier;
 import org.spongepowered.asm.util.asm.IAnnotationHandle;
-
-import java.util.List;
 
 /**
  * A resolved descriptor, or rather the result of resolving a descriptor. If the

@@ -25,14 +25,19 @@
 package org.spongepowered.asm.mixin.refmap;
 
 import org.objectweb.asm.Type;
+
 import org.spongepowered.asm.logging.ILogger;
 import org.spongepowered.asm.mixin.MixinEnvironment;
+
 import org.spongepowered.asm.mixin.extensibility.IRemapper;
 import org.spongepowered.asm.mixin.injection.struct.MemberInfo;
+import org.spongepowered.asm.mixin.transformer.ClassInfo;
 import org.spongepowered.asm.service.MixinService;
+import org.spongepowered.asm.util.ObfuscationUtil;
 import org.spongepowered.asm.util.Quantifier;
 
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.Map;
 
 /**
@@ -100,30 +105,6 @@ public final class RemappingReferenceMapper implements IClassReferenceMapper, IR
         return this.refMap.getContext();
     }
 
-    private static String remapMethodDescriptor(IRemapper remapper, String desc) {
-        StringBuilder newDesc = new StringBuilder();
-        newDesc.append('(');
-        for (Type arg : Type.getArgumentTypes(desc)) {
-            newDesc.append(remapper.mapDesc(arg.getDescriptor()));
-        }
-        return newDesc.append(')').append(remapper.mapDesc(Type.getReturnType(desc).getDescriptor())).toString();
-    }
-
-    /**
-     * Wrap the specified refmap in a remapping adapter using settings in the
-     * supplied environment
-     *
-     * @param env environment to read configuration from
-     * @param refMap refmap to wrap
-     * @return wrapped refmap or original refmap is srg data is not available
-     */
-    public static IReferenceMapper of(MixinEnvironment env, IReferenceMapper refMap) {
-        if (!refMap.isDefault()) {
-            return new RemappingReferenceMapper(env, refMap);
-        }
-        return refMap;
-    }
-
     /* (non-Javadoc)
      * @see org.spongepowered.asm.mixin.refmap.IReferenceMapper#setContext(
      *      java.lang.String)
@@ -141,7 +122,16 @@ public final class RemappingReferenceMapper implements IClassReferenceMapper, IR
     public String remap(String className, String reference) {
         return this.remapWithContext(getContext(), className, reference);
     }
-    
+
+    private static String remapMethodDescriptor(IRemapper remapper, String desc) {
+        StringBuilder newDesc = new StringBuilder();
+        newDesc.append('(');
+        for (Type arg : Type.getArgumentTypes(desc)) {
+            newDesc.append(remapper.mapDesc(arg.getDescriptor()));
+        }
+        return newDesc.append(')').append(remapper.mapDesc(Type.getReturnType(desc).getDescriptor())).toString();
+    }
+
     /* (non-Javadoc)
      * @see org.spongepowered.asm.mixin.refmap.IReferenceMapper
      *      #remapWithContext(java.lang.String, java.lang.String,
@@ -182,6 +172,21 @@ public final class RemappingReferenceMapper implements IClassReferenceMapper, IR
             mappedReferenceCache.put(origInfoString, remapped);
             return remapped;
         }
+    }
+    
+    /**
+     * Wrap the specified refmap in a remapping adapter using settings in the
+     * supplied environment
+     * 
+     * @param env environment to read configuration from
+     * @param refMap refmap to wrap
+     * @return wrapped refmap or original refmap is srg data is not available
+     */
+    public static IReferenceMapper of(MixinEnvironment env, IReferenceMapper refMap) {
+        if (!refMap.isDefault()) {
+            return new RemappingReferenceMapper(env, refMap);
+        }
+        return refMap;
     }
 
     @Override

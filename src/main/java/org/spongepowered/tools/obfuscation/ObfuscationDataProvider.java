@@ -24,6 +24,10 @@
  */
 package org.spongepowered.tools.obfuscation;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
 import org.spongepowered.asm.mixin.injection.selectors.ITargetSelectorRemappable;
 import org.spongepowered.asm.mixin.injection.struct.MemberInfo;
 import org.spongepowered.asm.obfuscation.mapping.IMapping;
@@ -33,10 +37,6 @@ import org.spongepowered.asm.obfuscation.mapping.common.MappingMethod;
 import org.spongepowered.tools.obfuscation.interfaces.IMixinAnnotationProcessor;
 import org.spongepowered.tools.obfuscation.interfaces.IObfuscationDataProvider;
 import org.spongepowered.tools.obfuscation.mirror.TypeHandle;
-
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 
 /**
  * Implementation of obfuscation provider which queries all obfuscation

@@ -24,11 +24,13 @@
  */
 package org.spongepowered.asm.mixin.transformer;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.MethodNode;
-import org.spongepowered.asm.mixin.Implements;
 import org.spongepowered.asm.mixin.Interface;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.transformer.ClassInfo.Method;
@@ -36,12 +38,9 @@ import org.spongepowered.asm.mixin.transformer.meta.MixinRenamed;
 import org.spongepowered.asm.mixin.transformer.throwables.InvalidMixinException;
 import org.spongepowered.asm.util.Annotations;
 
-import java.util.HashSet;
-import java.util.Set;
-
 /**
  * Information about an interface being runtime-patched onto a mixin target
- * class, see {@link Implements Implements}
+ * class, see {@link org.spongepowered.asm.mixin.Implements Implements}
  */
 final class InterfaceInfo {
     

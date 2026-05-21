@@ -24,12 +24,12 @@
  */
 package org.spongepowered.asm.mixin.transformer;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.spongepowered.asm.mixin.throwables.MixinError;
 import org.spongepowered.asm.service.ISyntheticClassInfo;
 import org.spongepowered.asm.service.ISyntheticClassRegistry;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Implementation of synthetic class registry. This exists to maintain a list of

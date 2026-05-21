@@ -24,13 +24,6 @@
  */
 package org.spongepowered.tools.obfuscation.service;
 
-import com.google.common.base.Joiner;
-import org.spongepowered.tools.obfuscation.ObfuscationType;
-import org.spongepowered.tools.obfuscation.SupportedOptions;
-import org.spongepowered.tools.obfuscation.interfaces.IMessagerEx.MessageType;
-import org.spongepowered.tools.obfuscation.interfaces.IMixinAnnotationProcessor;
-
-import javax.tools.Diagnostic.Kind;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -41,6 +34,16 @@ import java.util.Map.Entry;
 import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 import java.util.Set;
+
+import javax.tools.Diagnostic.Kind;
+
+import org.spongepowered.tools.obfuscation.ObfuscationType;
+import org.spongepowered.tools.obfuscation.SupportedOptions;
+import org.spongepowered.tools.obfuscation.interfaces.IMessagerEx.MessageType;
+
+import com.google.common.base.Joiner;
+
+import org.spongepowered.tools.obfuscation.interfaces.IMixinAnnotationProcessor;
 
 /**
  * Obfuscation service manager

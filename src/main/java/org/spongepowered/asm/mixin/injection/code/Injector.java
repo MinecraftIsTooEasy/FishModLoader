@@ -24,44 +24,6 @@
  */
 package org.spongepowered.asm.mixin.injection.code;
 
-import com.google.common.collect.ObjectArrays;
-import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
-import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.AnnotationNode;
-import org.objectweb.asm.tree.ClassNode;
-import org.objectweb.asm.tree.InsnList;
-import org.objectweb.asm.tree.InsnNode;
-import org.objectweb.asm.tree.LabelNode;
-import org.objectweb.asm.tree.LdcInsnNode;
-import org.objectweb.asm.tree.MethodInsnNode;
-import org.objectweb.asm.tree.MethodNode;
-import org.objectweb.asm.tree.TypeInsnNode;
-import org.objectweb.asm.tree.VarInsnNode;
-import org.spongepowered.asm.logging.ILogger;
-import org.spongepowered.asm.mixin.MixinEnvironment.Option;
-import org.spongepowered.asm.mixin.injection.Coerce;
-import org.spongepowered.asm.mixin.injection.InjectionPoint;
-import org.spongepowered.asm.mixin.injection.InjectionPoint.RestrictTargetLevel;
-import org.spongepowered.asm.mixin.injection.InjectionPoint.Specifier;
-import org.spongepowered.asm.mixin.injection.invoke.RedirectInjector;
-import org.spongepowered.asm.mixin.injection.struct.Constructor;
-import org.spongepowered.asm.mixin.injection.struct.InjectionInfo;
-import org.spongepowered.asm.mixin.injection.struct.InjectionNodes.InjectionNode;
-import org.spongepowered.asm.mixin.injection.struct.Target;
-import org.spongepowered.asm.mixin.injection.struct.Target.Extension;
-import org.spongepowered.asm.mixin.injection.throwables.InjectionError;
-import org.spongepowered.asm.mixin.injection.throwables.InvalidInjectionException;
-import org.spongepowered.asm.mixin.refmap.IMixinContext;
-import org.spongepowered.asm.mixin.transformer.ClassInfo;
-import org.spongepowered.asm.mixin.transformer.ClassInfo.Traversal;
-import org.spongepowered.asm.mixin.transformer.ClassInfo.TypeLookup;
-import org.spongepowered.asm.service.MixinService;
-import org.spongepowered.asm.util.Annotations;
-import org.spongepowered.asm.util.Bytecode;
-import org.spongepowered.asm.util.Bytecode.DelegateInitialiser;
-import org.spongepowered.asm.util.SignaturePrinter;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -71,6 +33,35 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+
+import org.spongepowered.asm.logging.ILogger;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
+import org.objectweb.asm.tree.*;
+import org.spongepowered.asm.mixin.MixinEnvironment.Option;
+import org.spongepowered.asm.mixin.injection.Coerce;
+import org.spongepowered.asm.mixin.injection.InjectionPoint;
+import org.spongepowered.asm.mixin.injection.InjectionPoint.RestrictTargetLevel;
+import org.spongepowered.asm.mixin.injection.InjectionPoint.Specifier;
+import org.spongepowered.asm.mixin.injection.invoke.RedirectInjector;
+import org.spongepowered.asm.mixin.injection.struct.Constructor;
+import org.spongepowered.asm.mixin.injection.struct.InjectionInfo;
+import org.spongepowered.asm.mixin.injection.struct.InjectionNodes.InjectionNode;
+import org.spongepowered.asm.mixin.injection.struct.Target.Extension;
+import org.spongepowered.asm.mixin.injection.struct.Target;
+import org.spongepowered.asm.mixin.injection.throwables.InjectionError;
+import org.spongepowered.asm.mixin.injection.throwables.InvalidInjectionException;
+import org.spongepowered.asm.mixin.refmap.IMixinContext;
+import org.spongepowered.asm.mixin.transformer.ClassInfo;
+import org.spongepowered.asm.mixin.transformer.ClassInfo.Traversal;
+import org.spongepowered.asm.mixin.transformer.ClassInfo.TypeLookup;
+import org.spongepowered.asm.service.MixinService;
+import org.spongepowered.asm.util.Annotations;
+import org.spongepowered.asm.util.Bytecode;
+import org.spongepowered.asm.util.SignaturePrinter;
+import org.spongepowered.asm.util.Bytecode.DelegateInitialiser;
+
+import com.google.common.collect.ObjectArrays;
 
 /**
  * Base class for bytecode injectors
@@ -192,13 +183,18 @@ public abstract class Injector {
 
         this.classNode = info.getTargetClassNode();
         this.methodNode = info.getMethod();
-        
+
         this.methodArgs = Type.getArgumentTypes(this.methodNode.desc);
         this.returnType = Type.getReturnType(this.methodNode.desc);
         this.isStatic = Bytecode.isStatic(this.methodNode);
         this.isInterface = Bytecode.hasFlag(this.classNode, Opcodes.ACC_INTERFACE);
     }
 
+    @Override
+    public String toString() {
+        return String.format("%s::%s", this.classNode.name, this.info.getMethodName());
+    }
+    
     /**
      * ...
      *
@@ -216,15 +212,6 @@ public abstract class Injector {
         }
         return myNodes;
     }
-    
-    @Override
-    public String toString() {
-        return String.format("%s::%s", this.classNode.name, this.info.getMethodName());
-    }
-
-    protected void addTargetNode(InjectorTarget injectorTarget, List<InjectionNode> myNodes, AbstractInsnNode node, Set<InjectionPoint> nominators) {
-        myNodes.add(injectorTarget.addInjectionNode(node));
-    }
 
     /**
      * Performs pre-injection checks and tasks on the specified target
@@ -236,6 +223,10 @@ public abstract class Injector {
         for (InjectionNode node : nodes) {
             this.preInject(target, node);
         }
+    }
+
+    protected void addTargetNode(InjectorTarget injectorTarget, List<InjectionNode> myNodes, AbstractInsnNode node, Set<InjectionPoint> nominators) {
+        myNodes.add(injectorTarget.addInjectionNode(node));
     }
     
     /**
@@ -254,7 +245,7 @@ public abstract class Injector {
             }
             this.inject(target, node);
         }
-        
+
         for (InjectionNode node : nodes) {
             this.postInject(target, node);
         }
@@ -273,10 +264,10 @@ public abstract class Injector {
         IMixinContext mixin = this.info.getMixin();
         Map<Integer, TargetNode> targetNodes = new TreeMap<Integer, TargetNode>();
         List<AbstractInsnNode> nodes = new ArrayList<AbstractInsnNode>(32);
-        
+
         for (InjectionPoint injectionPoint : injectionPoints) {
             nodes.clear();
-            
+
             if (injectorTarget.isMerged()
                     && !mixin.getClassName().equals(injectorTarget.getMergedBy())
                     && !injectionPoint.checkPriority(injectorTarget.getMergedPriority(), mixin.getPriority())) {
@@ -306,6 +297,12 @@ public abstract class Injector {
         return targetNodes.values();
     }
 
+    protected void sanityCheck(Target target, List<InjectionPoint> injectionPoints) {
+        if (target.classNode != this.classNode) {
+            throw new InvalidInjectionException(this.info, "Target class does not match injector class in " + this);
+        }
+    }
+
     protected void addTargetNode(InjectorTarget target, Map<Integer, TargetNode> targetNodes, InjectionPoint injectionPoint, AbstractInsnNode insn) {
         Integer key = target.getTarget().indexOf(insn);
         TargetNode targetNode = targetNodes.get(key);
@@ -318,6 +315,23 @@ public abstract class Injector {
 
     protected boolean findTargetNodes(InjectorTarget target, InjectionPoint injectionPoint, Collection<AbstractInsnNode> nodes) {
         return injectionPoint.find(target.getDesc(), target.getSlice(injectionPoint), nodes);
+    }
+
+    /**
+     * Check that the <tt>static</tt> modifier of the target method matches the
+     * handler
+     *
+     * @param target Target to check
+     * @param exactMatch True if static must match, false to only check if an
+     *      instance handler is targetting a static method
+     */
+    protected final void checkTargetModifiers(Target target, boolean exactMatch) {
+        if (exactMatch && target.isStatic != this.isStatic) {
+            throw new InvalidInjectionException(this.info, String.format("'static' modifier of handler method does not match target in %s", this));
+        } else if (!exactMatch && !this.isStatic && target.isStatic) {
+            throw new InvalidInjectionException(this.info,
+                    String.format("non-static callback method %s targets a static method which is not supported", this));
+        }
     }
 
     /**
@@ -339,12 +353,12 @@ public abstract class Injector {
                 throw new InvalidInjectionException(this.info, String.format("Found %s targetting a constructor in injector %s",
                         this.annotationType, this));
             }
-            
+
             DelegateInitialiser superCall = ctor.findDelegateInitNode();
             if (!superCall.isPresent) {
                 throw new InjectionError(String.format("Delegate constructor lookup failed for %s target on %s", this.annotationType, this.info));
             }
-            
+
             int superCallIndex = ctor.indexOf(superCall.insn);
             int targetIndex = ctor.indexOf(node.getCurrentTarget());
             if (targetIndex <= superCallIndex) {
@@ -352,7 +366,7 @@ public abstract class Injector {
                     throw new InvalidInjectionException(this.info, String.format("Found %s targetting a constructor before %s() in injector %s",
                             this.annotationType, superCall, this));
                 }
-                
+
                 if (!this.isStatic) {
                     throw new InvalidInjectionException(this.info, String.format("%s handler before %s() invocation must be static in injector %s",
                             this.annotationType, superCall, this));
@@ -360,35 +374,28 @@ public abstract class Injector {
                 return;
             }
         }
-        
+
         this.checkTargetModifiers(target, false);
     }
 
-    protected void sanityCheck(Target target, List<InjectionPoint> injectionPoints) {
-        if (target.classNode != this.classNode) {
-            throw new InvalidInjectionException(this.info, "Target class does not match injector class in " + this);
-        }
-    }
-
-    /**
-     * Check that the <tt>static</tt> modifier of the target method matches the
-     * handler
-     * 
-     * @param target Target to check
-     * @param exactMatch True if static must match, false to only check if an
-     *      instance handler is targetting a static method
-     */
-    protected final void checkTargetModifiers(Target target, boolean exactMatch) {
-        if (exactMatch && target.isStatic != this.isStatic) {
-            throw new InvalidInjectionException(this.info, String.format("'static' modifier of handler method does not match target in %s", this));
-        } else if (!exactMatch && !this.isStatic && target.isStatic) {
-            throw new InvalidInjectionException(this.info,
-                    String.format("non-static callback method %s targets a static method which is not supported", this));
-        }
-    }
+    protected abstract void inject(Target target, InjectionNode node);
 
     protected void preInject(Target target, InjectionNode node) {
         // stub
+    }
+
+    protected void postInject(Target target, InjectionNode node) {
+        // stub
+    }
+
+    /**
+     * Invoke the handler method
+     *
+     * @param insns Instruction list to inject into
+     * @return injected insn node
+     */
+    protected AbstractInsnNode invokeHandler(InsnList insns) {
+        return this.invokeHandler(insns, this.methodNode);
     }
 
     /**
@@ -411,25 +418,9 @@ public abstract class Injector {
         return insn;
     }
 
-    protected abstract void inject(Target target, InjectionNode node);
-
-    protected void postInject(Target target, InjectionNode node) {
-        // stub
-    }
-
-    /**
-     * Invoke the handler method
-     * 
-     * @param insns Instruction list to inject into
-     * @return injected insn node
-     */
-    protected AbstractInsnNode invokeHandler(InsnList insns) {
-        return this.invokeHandler(insns, this.methodNode);
-    }
-
     /**
      * Store args on the stack starting at the end and working back to position
-     * specified by initial, return the generated argMap
+     * specified by start, return the generated argMap
      *
      * @param target target method
      * @param args argument types
@@ -469,13 +460,13 @@ public abstract class Injector {
     
     /**
      * Store args on the stack starting at the end and working back to position
-     * specified by initial, return the generated argMap
+     * specified by start, return the generated argMap
      *
      * @param target target method
      * @param args argument types
      * @param insns instruction list to generate insns into
      * @param start Starting index
-     * @param from The label marking the initial of the region for the locals
+     * @param from The label marking the start of the region for the locals
      * @param to The label marking the end of the region for the stored locals
      * @return the generated argmap
      */
@@ -506,7 +497,7 @@ public abstract class Injector {
      * @param argMap generated argmap containing local indices for all args
      * @param start Starting index
      * @param end Ending index
-     * @param from The label marking the initial of the region for the locals
+     * @param from The label marking the start of the region for the locals
      * @param to The label marking the end of the region for the stored locals
      */
     protected void storeArgs(Target target, Type[] args, InsnList insns, int[] argMap, int start, int end, LabelNode from, LabelNode to) {
@@ -571,18 +562,18 @@ public abstract class Injector {
         int argIndex = 0;
         try {
             injector.coerceReturnType = this.checkCoerce(-1, returnType, description, injector.allowCoerceArgs);
-            
+
             for (Type arg : args) {
                 if (arg != null) {
                     this.checkCoerce(argIndex, arg, description, injector.allowCoerceArgs);
                     argIndex++;
                 }
             }
-            
+
             if (argIndex == this.methodArgs.length) {
                 return;
             }
-            
+
             for (int targetArg = 0; targetArg < injector.target.arguments.length && argIndex < this.methodArgs.length; targetArg++, argIndex++) {
                 this.checkCoerce(argIndex, injector.target.arguments[targetArg], description, true);
                 injector.captureTargetArgs++;
@@ -594,7 +585,7 @@ public abstract class Injector {
             throw new InvalidInjectionException(this.info, String.format("%s. Handler signature: %s Expected signature: %s", ex.getMessage(),
                     this.methodNode.desc, expected));
         }
-        
+
         if (argIndex < this.methodArgs.length) {
             Type[] extraArgs = Arrays.copyOfRange(this.methodArgs, argIndex, this.methodArgs.length);
             throw new InvalidInjectionException(this.info, String.format(
@@ -626,12 +617,12 @@ public abstract class Injector {
         }
 
         Type fromType = index < 0 ? this.returnType : this.methodArgs[index];
-        
+
         AnnotationNode coerce = Annotations.getInvisibleParameter(this.methodNode, Coerce.class, index);
         boolean isReturn = index < 0;
         String argType = isReturn ? "return" : "argument";
         Object argIndex = isReturn ? "" : " at index " + index;
-        
+
         if (fromType.equals(toType)) {
             if (coerce != null && this.info.getMixin().getOption(Option.DEBUG_VERBOSE)) {
                 Injector.logger.info("Possibly-redundant @Coerce on {} {} type{}, {} is identical to {}", description, argType, argIndex,
@@ -639,21 +630,21 @@ public abstract class Injector {
             }
             return false;
         }
-        
+
         if (coerce == null || !allowCoercion) {
             String coerceWarning = coerce != null ? ". @Coerce not allowed here" : "";
             throw new InvalidInjectionException(this.info, String.format(
                     "%s has an invalid signature. Found unexpected %s type %s%s, expected %s%s", description, argType,
                     SignaturePrinter.getTypeName(fromType), argIndex, SignaturePrinter.getTypeName(toType), coerceWarning));
         }
-        
+
         boolean canCoerce = Injector.canCoerce(fromType, toType);
         if (!canCoerce) {
             throw new InvalidInjectionException(this.info, String.format(
                     "%s has an invalid signature. Cannot @Coerce %s type %s%s to %s", description, argType,
                     SignaturePrinter.getTypeName(toType), argIndex, SignaturePrinter.getTypeName(fromType)));
         }
-        
+
         return true;
     }
     
@@ -678,37 +669,37 @@ public abstract class Injector {
      * A nominated target node
      */
     public static final class TargetNode {
-        
+
         final AbstractInsnNode insn;
-        
+
         final Set<InjectionPoint> nominators = new HashSet<InjectionPoint>();
 
         TargetNode(AbstractInsnNode insn) {
             this.insn = insn;
         }
-        
+
         public AbstractInsnNode getNode() {
             return this.insn;
         }
-        
+
         public Set<InjectionPoint> getNominators() {
             return Collections.<InjectionPoint>unmodifiableSet(this.nominators);
         }
-        
+
         @Override
         public boolean equals(Object obj) {
             if (obj == null || obj.getClass() != TargetNode.class) {
                 return false;
             }
-            
+
             return ((TargetNode)obj).insn == this.insn;
         }
-        
+
         @Override
         public int hashCode() {
             return this.insn.hashCode();
         }
-        
+
     }
     
     /**

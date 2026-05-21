@@ -24,9 +24,9 @@
  */
 package org.spongepowered.asm.util;
 
-import org.spongepowered.asm.mixin.Mixin;
-
 import java.io.File;
+
+import org.spongepowered.asm.mixin.Mixin;
 
 /**
  * Miscellaneous shared constants

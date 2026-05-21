@@ -24,17 +24,18 @@
  */
 package org.spongepowered.tools.obfuscation.mirror;
 
-import org.spongepowered.asm.mixin.injection.selectors.ITargetSelectorByName;
-import org.spongepowered.asm.obfuscation.mapping.common.MappingMethod;
-import org.spongepowered.asm.util.SignaturePrinter;
-import org.spongepowered.tools.obfuscation.interfaces.ITypeHandleProvider;
+import java.lang.annotation.Annotation;
 
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
-import java.lang.annotation.Annotation;
+
+import org.spongepowered.asm.mixin.injection.selectors.ITargetSelectorByName;
+import org.spongepowered.asm.obfuscation.mapping.common.MappingMethod;
+import org.spongepowered.asm.util.SignaturePrinter;
+import org.spongepowered.tools.obfuscation.interfaces.ITypeHandleProvider;
 
 /**
  * A simulated type handle, used with virtual (pseudo) mixins. For obfuscation
@@ -141,6 +142,24 @@ public class TypeHandleSimulated extends TypeHandle {
         return new MethodHandle(null, name, desc);
     }
     
+    /* (non-Javadoc)
+     * @see org.spongepowered.tools.obfuscation.mirror.TypeHandle
+     *      #getMappingMethod(java.lang.String, java.lang.String)
+     */
+    @Override
+    public MappingMethod getMappingMethod(String name, String desc) {
+        // Transform the MemberInfo descriptor into a signature
+        String signature = new SignaturePrinter(name, desc).setFullyQualified(true).toDescriptor();
+        String rawSignature = TypeUtils.stripGenerics(signature);
+        
+        // Try to locate a member anywhere in the hierarchy which matches
+        MethodHandle method = TypeHandleSimulated.findMethodRecursive(this, name, signature, rawSignature, true, this.typeProvider);
+        
+        // If we find one, return it otherwise just simulate the method
+        return method != null ? method.asMapping(true) : super.getMappingMethod(name, desc);
+
+    }
+
     private static MethodHandle findMethodRecursive(TypeHandle target, String name, String signature, String rawSignature, boolean matchCase,
             ITypeHandleProvider typeProvider) {
         TypeElement elem = target.getTargetElement();
@@ -174,24 +193,6 @@ public class TypeHandleSimulated extends TypeHandle {
             return null;
         }
         return TypeHandleSimulated.findMethodRecursive(typeProvider.getTypeHandle(target), name, signature, rawSignature, matchCase, typeProvider);
-    }
-
-    /* (non-Javadoc)
-     * @see org.spongepowered.tools.obfuscation.mirror.TypeHandle
-     *      #getMappingMethod(java.lang.String, java.lang.String)
-     */
-    @Override
-    public MappingMethod getMappingMethod(String name, String desc) {
-        // Transform the MemberInfo descriptor into a signature
-        String signature = new SignaturePrinter(name, desc).setFullyQualified(true).toDescriptor();
-        String rawSignature = TypeUtils.stripGenerics(signature);
-        
-        // Try to locate a member anywhere in the hierarchy which matches
-        MethodHandle method = TypeHandleSimulated.findMethodRecursive(this, name, signature, rawSignature, true, this.typeProvider);
-        
-        // If we find one, return it otherwise just simulate the method
-        return method != null ? method.asMapping(true) : super.getMappingMethod(name, desc);
-
     }
     
 }

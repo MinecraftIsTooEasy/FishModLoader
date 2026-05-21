@@ -24,12 +24,16 @@
  */
 package org.spongepowered.asm.mixin.injection.code;
 
-import com.google.common.base.Strings;
+import java.util.Deque;
+import java.util.LinkedList;
+import java.util.ListIterator;
+import java.util.NoSuchElementException;
+
+import org.spongepowered.asm.logging.ILogger;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.MethodNode;
-import org.spongepowered.asm.logging.ILogger;
 import org.spongepowered.asm.mixin.MixinEnvironment.Option;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.InjectionPoint;
@@ -42,10 +46,7 @@ import org.spongepowered.asm.mixin.injection.throwables.InvalidSliceException;
 import org.spongepowered.asm.service.MixinService;
 import org.spongepowered.asm.util.Annotations;
 
-import java.util.Deque;
-import java.util.LinkedList;
-import java.util.ListIterator;
-import java.util.NoSuchElementException;
+import com.google.common.base.Strings;
 
 /**
  * Stores information about a defined method slice for a particular injector.
@@ -53,43 +54,48 @@ import java.util.NoSuchElementException;
 public final class MethodSlice {
     
     /**
+     * Injection point which defines the start of this slice (inclusive), may be
+     * null as long as {@link #to} is not null
+     */
+    private final InjectionPoint from;
+    
+    /**
      * Make with the logging already
      */
     private static final ILogger logger = MixinService.getService().getLogger("mixin");
+
     /**
      * Owner of this slice
      */
     private final ISliceContext owner;
+    
     /**
      * Slice ID as declared, slice ID in the parent {@link MethodSlices}
      * collection may be different
      */
     private final String id;
     /**
-     * Injection point which defines the initial of this slice (inclusive), may be
-     * null as long as {@link #to} is not null
+     * Success counts for from and to injection points
      */
-    private final InjectionPoint from;
+    private int successCountFrom, successCountTo;
+    
     /**
      * Injection point which defines the end of this slice (inclusive), may be
      * null as long as {@link #from} is not null
      */
     private final InjectionPoint to;
+    
     /**
      * Descriptive name of the slice, used in exceptions
      */
     private final String name;
-    /**
-     * Success counts for from and to injection points
-     */
-    private int successCountFrom, successCountTo;
     
     /**
      * ctor
      *
      * @param owner owner
      * @param id declared id
-     * @param from initial point, may be null as long as {@link #to} is not null
+     * @param from start point, may be null as long as {@link #to} is not null
      * @param to end point, may be null as long as {@link #from} is not null
      */
     private MethodSlice(ISliceContext owner, String id, InjectionPoint from, InjectionPoint to) {
@@ -123,13 +129,13 @@ public final class MethodSlice {
      */
     public static MethodSlice parse(ISliceContext owner, Slice slice) {
         String id = slice.id();
-        
+
         At from = slice.from();
         At to = slice.to();
-        
+
         InjectionPoint fromPoint = from != null ? InjectionPoint.parse(owner, from) : null;
         InjectionPoint toPoint = to != null ? InjectionPoint.parse(owner, to) : null;
-        
+
         return new MethodSlice(owner, id, fromPoint, toPoint);
     }
 
@@ -147,90 +153,14 @@ public final class MethodSlice {
             coord += "." + id;
         }
         InjectionPointAnnotationContext sliceContext = new InjectionPointAnnotationContext(info, node, coord);
-        
+
         AnnotationNode from = Annotations.<AnnotationNode>getValue(node, "from");
         AnnotationNode to = Annotations.<AnnotationNode>getValue(node, "to");
-        
+
         InjectionPoint fromPoint = from != null ? InjectionPoint.parse(new InjectionPointAnnotationContext(sliceContext, from, "from"), from) : null;
         InjectionPoint toPoint = to != null ? InjectionPoint.parse(new InjectionPointAnnotationContext(sliceContext, to, "to"), to) : null;
-        
+
         return new MethodSlice(info, id, fromPoint, toPoint);
-    }
-
-    /**
-     * Get the <em>declared</em> id of this slice
-     */
-    public String getId() {
-        return this.id;
-    }
-
-    /**
-     * Get a sliced insn list based on the parameters specified in this slice
-     *
-     * @param target method to slice
-     * @return read only slice
-     */
-    public InsnListReadOnly getSlice(Target target) {
-        int max = target.insns.size() - 1;
-        int start = this.find(target, this.from, 0, 0, "from");
-        int end = this.find(target, this.to, max, start, "to");
-        
-        if (start > end) {
-            throw new InvalidSliceException(this.owner, String.format("%s is negative size. Range(%d -> %d)", this.describe(), start, end));
-        }
-        
-        if (start < 0 || end < 0 || start > max || end > max) {
-            throw new InjectionError("Unexpected critical error in " + this + ": out of bounds initial=" + start + " end=" + end + " lim=" + max);
-        }
-        
-        if (start == 0 && end == max) {
-            return new InsnListEx(target);
-        }
-        
-        return new InsnListSlice(target, start, end);
-    }
-
-    /**
-     * Runs the specified injection point as a query on the method and returns
-     * the index of the instruction matching the query. Returns the default
-     * value if the query returns zero results.
-     *
-     * @param target Method to query
-     * @param injectionPoint Query to run
-     * @param defaultValue Value to return if injection point is null (open
-     *      ended)
-     * @param failValue Value to use if query fails
-     * @param argument The name of the argument ("from" or "to") for debug msgs
-     * @return matching insn index
-     */
-    private int find(Target target, InjectionPoint injectionPoint, int defaultValue, int failValue, String argument) {
-        if (injectionPoint == null) {
-            return defaultValue;
-        }
-        
-        String description = String.format("%s(%s)", this.name, argument);
-        Deque<AbstractInsnNode> nodes = new LinkedList<AbstractInsnNode>();
-        InsnList insns = new InsnListEx(target);
-        boolean result = injectionPoint.find(target.getDesc(), insns, nodes);
-        Specifier specifier = injectionPoint.getSpecifier(Specifier.FIRST);
-        if (specifier == Specifier.ALL) {
-            throw new InvalidSliceException(this.owner, String.format("ALL is not a valid specifier for slice %s", this.describe(description)));
-        }
-        if (nodes.size() != 1 && specifier == Specifier.ONE) {
-            throw new InvalidSliceException(this.owner, String.format("%s requires 1 result but found %d", this.describe(description), nodes.size()));
-        }
-        
-        if (!result) {
-            return failValue;
-        }
-        
-        if ("from".equals(argument)) {
-            this.successCountFrom++;
-        } else {
-            this.successCountTo++;
-        }
-        
-        return target.indexOf(specifier == Specifier.FIRST ? nodes.getFirst() : nodes.getLast());
     }
 
     /**
@@ -264,25 +194,101 @@ public final class MethodSlice {
     }
 
     /**
+     * Get the <em>declared</em> id of this slice
+     */
+    public String getId() {
+        return this.id;
+    }
+
+    /**
+     * Get a sliced insn list based on the parameters specified in this slice
+     *
+     * @param target method to slice
+     * @return read only slice
+     */
+    public InsnListReadOnly getSlice(Target target) {
+        int max = target.insns.size() - 1;
+        int start = this.find(target, this.from, 0, 0, "from");
+        int end = this.find(target, this.to, max, start, "to");
+
+        if (start > end) {
+            throw new InvalidSliceException(this.owner, String.format("%s is negative size. Range(%d -> %d)", this.describe(), start, end));
+        }
+
+        if (start < 0 || end < 0 || start > max || end > max) {
+            throw new InjectionError("Unexpected critical error in " + this + ": out of bounds start=" + start + " end=" + end + " lim=" + max);
+        }
+
+        if (start == 0 && end == max) {
+            return new InsnListEx(target);
+        }
+
+        return new InsnListSlice(target, start, end);
+    }
+
+    /**
+     * Runs the specified injection point as a query on the method and returns
+     * the index of the instruction matching the query. Returns the default
+     * value if the query returns zero results.
+     *
+     * @param target Method to query
+     * @param injectionPoint Query to run
+     * @param defaultValue Value to return if injection point is null (open
+     *      ended)
+     * @param failValue Value to use if query fails
+     * @param argument The name of the argument ("from" or "to") for debug msgs
+     * @return matching insn index
+     */
+    private int find(Target target, InjectionPoint injectionPoint, int defaultValue, int failValue, String argument) {
+        if (injectionPoint == null) {
+            return defaultValue;
+        }
+
+        String description = String.format("%s(%s)", this.name, argument);
+        Deque<AbstractInsnNode> nodes = new LinkedList<AbstractInsnNode>();
+        InsnList insns = new InsnListEx(target);
+        boolean result = injectionPoint.find(target.getDesc(), insns, nodes);
+        Specifier specifier = injectionPoint.getSpecifier(Specifier.FIRST);
+        if (specifier == Specifier.ALL) {
+            throw new InvalidSliceException(this.owner, String.format("ALL is not a valid specifier for slice %s", this.describe(description)));
+        }
+        if (nodes.size() != 1 && specifier == Specifier.ONE) {
+            throw new InvalidSliceException(this.owner, String.format("%s requires 1 result but found %d", this.describe(description), nodes.size()));
+        }
+
+        if (!result) {
+            return failValue;
+        }
+
+        if ("from".equals(argument)) {
+            this.successCountFrom++;
+        } else {
+            this.successCountTo++;
+        }
+
+        return target.indexOf(specifier == Specifier.FIRST ? nodes.getFirst() : nodes.getLast());
+    }
+
+    /**
      * A read-only wrapper for an {@link InsnList} which only allows the segment
-     * identified by <tt>initial</tt> and <tt>end</tt> to be accessed. In essence
+     * identified by <tt>start</tt> and <tt>end</tt> to be accessed. In essence
      * this class provides a <em>view</em> of the underlying InsnList.
      */
     static final class InsnListSlice extends InsnListEx {
-    
+
         /**
          * Brackets
          */
         private final int start, end;
-    
+
         protected InsnListSlice(Target target, int start, int end) {
             super(target);
-            
+
             // Start and end are validated prior to construction
             this.start = start;
             this.end = end;
         }
-        
+
         /* (non-Javadoc)
          * @see org.spongepowered.asm.mixin.injection.code.ReadOnlyInsnList
          *      #iterator()
@@ -291,7 +297,7 @@ public final class MethodSlice {
         public ListIterator<AbstractInsnNode> iterator() {
             return this.iterator(0);
         }
-        
+
         /* (non-Javadoc)
          * @see org.spongepowered.asm.mixin.injection.code.ReadOnlyInsnList
          *      #iterator(int)
@@ -301,7 +307,7 @@ public final class MethodSlice {
             // Return the bracketed iterator
             return new SliceIterator(super.iterator(this.start + index), this.start, this.end, this.start + index);
         }
-        
+
         /* (non-Javadoc)
          * @see org.spongepowered.asm.mixin.injection.code.ReadOnlyInsnList
          *      #toArray()
@@ -390,7 +396,7 @@ public final class MethodSlice {
         public int realIndexOf(AbstractInsnNode insn) {
             return super.indexOf(insn);
         }
-        
+
         /**
          * ListIterator for the slice view, wraps an iterator returned by the
          * underlying {@link InsnList} and ensures that consumers can only
@@ -401,29 +407,29 @@ public final class MethodSlice {
          * the list via other means whilst this iterator is in use.</p>
          */
         static class SliceIterator implements ListIterator<AbstractInsnNode> {
-            
+
             /**
              * The underlying ListIterator returned by the parent list
              */
             private final ListIterator<AbstractInsnNode> iter;
-            
+
             /**
              * Brackets
              */
             private int start, end;
-            
+
             /**
              * Virtual index, used to keep track of bounds
              */
             private int index;
-    
+
             public SliceIterator(ListIterator<AbstractInsnNode> iter, int start, int end, int index) {
                 this.iter = iter;
                 this.start = start;
                 this.end = end;
                 this.index = index;
             }
-    
+
             /* (non-Javadoc)
              * @see java.util.ListIterator#hasNext()
              */
@@ -431,7 +437,7 @@ public final class MethodSlice {
             public boolean hasNext() {
                 return this.index <= this.end && this.iter.hasNext();
             }
-    
+
             /* (non-Javadoc)
              * @see java.util.ListIterator#next()
              */
@@ -443,7 +449,7 @@ public final class MethodSlice {
                 this.index++;
                 return this.iter.next();
             }
-    
+
             /* (non-Javadoc)
              * @see java.util.ListIterator#hasPrevious()
              */
@@ -451,7 +457,7 @@ public final class MethodSlice {
             public boolean hasPrevious() {
                 return this.index > this.start ;
             }
-    
+
             /* (non-Javadoc)
              * @see java.util.ListIterator#previous()
              */
@@ -463,7 +469,7 @@ public final class MethodSlice {
                 this.index--;
                 return this.iter.previous();
             }
-    
+
             /* (non-Javadoc)
              * @see java.util.ListIterator#nextIndex()
              */
@@ -471,7 +477,7 @@ public final class MethodSlice {
             public int nextIndex() {
                 return this.index - this.start;
             }
-    
+
             /* (non-Javadoc)
              * @see java.util.ListIterator#previousIndex()
              */
@@ -479,7 +485,7 @@ public final class MethodSlice {
             public int previousIndex() {
                 return this.index - this.start - 1;
             }
-    
+
             /* (non-Javadoc)
              * @see java.util.ListIterator#remove()
              */
@@ -487,7 +493,7 @@ public final class MethodSlice {
             public void remove() {
                 throw new UnsupportedOperationException("Cannot remove insn from slice");
             }
-    
+
             /* (non-Javadoc)
              * @see java.util.ListIterator#set(java.lang.Object)
              */
@@ -495,7 +501,7 @@ public final class MethodSlice {
             public void set(AbstractInsnNode e) {
                 throw new UnsupportedOperationException("Cannot set insn using slice");
             }
-    
+
             /* (non-Javadoc)
              * @see java.util.ListIterator#add(java.lang.Object)
              */
@@ -504,7 +510,7 @@ public final class MethodSlice {
                 throw new UnsupportedOperationException("Cannot add insn using slice");
             }
         }
-        
+
     }
 
 }

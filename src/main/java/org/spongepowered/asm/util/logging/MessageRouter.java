@@ -24,15 +24,15 @@
  */
 package org.spongepowered.asm.util.logging;
 
-import org.spongepowered.asm.logging.ILogger;
-import org.spongepowered.asm.logging.Level;
-import org.spongepowered.asm.service.MixinService;
-
 import javax.annotation.processing.Messager;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
 import javax.tools.Diagnostic.Kind;
+
+import org.spongepowered.asm.logging.Level;
+import org.spongepowered.asm.service.MixinService;
+import org.spongepowered.asm.logging.ILogger;
 
 /**
  * Logging router for objects which may need to log messages during standard

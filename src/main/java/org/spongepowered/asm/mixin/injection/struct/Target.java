@@ -24,6 +24,11 @@
  */
 package org.spongepowered.asm.mixin.injection.struct;
 
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+
+import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
@@ -41,10 +46,6 @@ import org.spongepowered.asm.util.Bytecode;
 import org.spongepowered.asm.util.Constants;
 import org.spongepowered.asm.util.Counter;
 import org.spongepowered.asm.util.Locals.SyntheticLocalVariableNode;
-
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
 
 /**
  * Information about the current injection target (method) which bundles common
@@ -273,13 +274,6 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
         return this.injectionNodes.get(node);
     }
     
-    public static Target of(ClassInfo classInfo, ClassNode classNode, MethodNode method) {
-        if (method.name.equals(Constants.CTOR)) {
-            return new Constructor(classInfo, classNode, method);
-        }
-        return new Target(classInfo, classNode, method);
-    }
-    
     /**
      * Get the target method name
      */
@@ -292,6 +286,13 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
      */
     public String getDesc() {
         return this.method.desc;
+    }
+    
+    public static Target of(ClassInfo classInfo, ClassNode classNode, MethodNode method) {
+        if (method.name.equals(Constants.CTOR)) {
+            return new Constructor(classInfo, classNode, method);
+        }
+        return new Target(classInfo, classNode, method);
     }
     
     /**
@@ -483,60 +484,6 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
     }
     
     /**
-     * Get the argument indices for this target, calculated on first use
-     * 
-     * @return argument indices for this target
-     */
-    public int[] getArgIndices() {
-        if (this.argIndices == null) {
-            this.argIndices = this.calcArgIndices(this.isStatic ? 0 : 1);
-        }
-        return this.argIndices;
-    }
-
-    private int[] calcArgIndices(int local) {
-        int[] argIndices = new int[this.arguments.length];
-        for (int arg = 0; arg < this.arguments.length; arg++) {
-            argIndices[arg] = local;
-            local += this.arguments[arg].getSize();
-        }
-        return argIndices;
-    }
-    
-    /**
-     * Get the CallbackInfo class used for this target, based on the target
-     * return type
-     * 
-     * @return CallbackInfo class name
-     */
-    public String getCallbackInfoClass() {
-        if (this.callbackInfoClass == null) {
-            this.callbackInfoClass = CallbackInfo.getCallInfoClassName(this.returnType);
-        }
-        return this.callbackInfoClass;
-    }
-    
-    /**
-     * Get "simple" callback descriptor (descriptor with only CallbackInfo)
-     * 
-     * @return generated descriptor
-     */
-    public String getSimpleCallbackDescriptor() {
-        return String.format("(L%s;)V", this.getCallbackInfoClass());
-    }
-    
-    /**
-     * Get the callback descriptor
-     * 
-     * @param locals Local variable types
-     * @param argumentTypes Argument types
-     * @return generated descriptor
-     */
-    public String getCallbackDescriptor(final Type[] locals, Type[] argumentTypes) {
-        return this.getCallbackDescriptor(false, locals, argumentTypes, 0, Short.MAX_VALUE);
-    }
-
-    /**
      * Allocates a local variable to be used for argmap. Since argmaps do not
      * overlap we can safely reuse local variables allocated for this purpose.
      * We do however need to deal with expanding the argmap allocation when
@@ -582,6 +529,60 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
         index.value++;
         return newLocal;
     }
+
+    /**
+     * Get the argument indices for this target, calculated on first use
+     *
+     * @return argument indices for this target
+     */
+    public int[] getArgIndices() {
+        if (this.argIndices == null) {
+            this.argIndices = this.calcArgIndices(this.isStatic ? 0 : 1);
+        }
+        return this.argIndices;
+    }
+    
+    private int[] calcArgIndices(int local) {
+        int[] argIndices = new int[this.arguments.length];
+        for (int arg = 0; arg < this.arguments.length; arg++) {
+            argIndices[arg] = local;
+            local += this.arguments[arg].getSize();
+        }
+        return argIndices;
+    }
+    
+    /**
+     * Get the CallbackInfo class used for this target, based on the target
+     * return type
+     *
+     * @return CallbackInfo class name
+     */
+    public String getCallbackInfoClass() {
+        if (this.callbackInfoClass == null) {
+            this.callbackInfoClass = CallbackInfo.getCallInfoClassName(this.returnType);
+        }
+        return this.callbackInfoClass;
+    }
+    
+    /**
+     * Get "simple" callback descriptor (descriptor with only CallbackInfo)
+     *
+     * @return generated descriptor
+     */
+    public String getSimpleCallbackDescriptor() {
+        return String.format("(L%s;)V", this.getCallbackInfoClass());
+    }
+
+    /**
+     * Get the callback descriptor
+     *
+     * @param locals Local variable types
+     * @param argumentTypes Argument types
+     * @return generated descriptor
+     */
+    public String getCallbackDescriptor(final Type[] locals, Type[] argumentTypes) {
+        return this.getCallbackDescriptor(false, locals, argumentTypes, 0, Short.MAX_VALUE);
+    }
     
     /**
      * Get the callback descriptor
@@ -589,7 +590,7 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
      * @param captureLocals True if the callback is capturing locals
      * @param locals Local variable types
      * @param argumentTypes Argument types
-     * @param startIndex local index to initial at
+     * @param startIndex local index to start at
      * @param extra extra locals to include
      * @return generated descriptor
      */
@@ -598,7 +599,7 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
             this.callbackDescriptor = String.format("(%sL%s;)V", this.getDesc().substring(1, this.getDesc().indexOf(')')),
                     this.getCallbackInfoClass());
         }
-        
+
         if (!captureLocals || locals == null) {
             return this.callbackDescriptor;
         }
@@ -848,34 +849,34 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
     }
 
     /**
-     * Add an entry to the target LVT between the specified initial and end labels
+     * Add an entry to the target LVT between the specified start and end labels
      *
      * @param index local variable index
      * @param name local variable name
      * @param desc local variable type
-     * @param from initial of range
+     * @param from start of range
      * @param to end of range
      */
     public void addLocalVariable(int index, String name, String desc, LabelNode from, LabelNode to) {
         if (from == null) {
             from = this.getStartLabel();
         }
-        
+
         if (to == null) {
             to = this.getEndLabel();
         }
-        
+
         if (this.method.localVariables == null) {
             this.method.localVariables = new ArrayList<LocalVariableNode>();
         }
-        
+
         for (Iterator<LocalVariableNode> iter = this.method.localVariables.iterator(); iter.hasNext();) {
             LocalVariableNode local = iter.next();
             if (local != null && local.index == index && from == local.start && to == local.end) {
                 iter.remove();
             }
         }
-        
+
         this.method.localVariables.add(new SyntheticLocalVariableNode(name, desc, null, from, to, index));
     }
 
@@ -890,7 +891,7 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
     }
 
     /**
-     * Get a label which marks the very initial of the method
+     * Get a label which marks the very start of the method
      */
     private LabelNode getStartLabel() {
         if (this.start == null) {

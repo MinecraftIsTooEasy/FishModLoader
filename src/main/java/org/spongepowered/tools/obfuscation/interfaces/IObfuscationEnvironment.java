@@ -24,12 +24,12 @@
  */
 package org.spongepowered.tools.obfuscation.interfaces;
 
+import java.util.Collection;
+
 import org.spongepowered.asm.mixin.injection.selectors.ITargetSelectorRemappable;
 import org.spongepowered.asm.obfuscation.mapping.common.MappingField;
 import org.spongepowered.asm.obfuscation.mapping.common.MappingMethod;
 import org.spongepowered.tools.obfuscation.mapping.IMappingConsumer;
-
-import java.util.Collection;
 
 /**
  * An obfuscation environment provides facilities to fetch obfuscation mappings

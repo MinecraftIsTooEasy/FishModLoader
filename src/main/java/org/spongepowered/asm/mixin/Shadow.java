@@ -24,18 +24,18 @@
  */
 package org.spongepowered.asm.mixin;
 
-import org.spongepowered.asm.mixin.transformer.throwables.InvalidMixinException;
-
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+import org.spongepowered.asm.mixin.transformer.throwables.InvalidMixinException;
+
 /**
  * Used to indicate a Mixin class member which is acting as a placeholder for a
  * method or field in the target class 
  */
-@Target({ ElementType.METHOD, ElementType.FIELD })
+@Target({ ElementType.METHOD, ElementType.FIELD, ElementType.CONSTRUCTOR })
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Shadow {
 
@@ -71,7 +71,7 @@ public @interface Shadow {
      *
      * <p>Note that specifying a <em>prefix</em> does not <b>enforce</b> use of
      * the prefix, the behaviour of <em>prefix</em> is such that the prefix will
-     * be stripped from the initial of the method name <em>as long as the method
+     * be stripped from the start of the method name <em>as long as the method
      * name actually starts with the prefix</em>! This has important
      * repercussions since if the annotation value does not match the method
      * prefix then <em>no renaming will take place</em> likey resulting in a

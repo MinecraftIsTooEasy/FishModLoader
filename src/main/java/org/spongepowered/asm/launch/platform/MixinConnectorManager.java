@@ -24,15 +24,15 @@
  */
 package org.spongepowered.asm.launch.platform;
 
-import org.spongepowered.asm.logging.ILogger;
-import org.spongepowered.asm.mixin.connect.IMixinConnector;
-import org.spongepowered.asm.service.IClassProvider;
-import org.spongepowered.asm.service.MixinService;
-
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+
+import org.spongepowered.asm.logging.ILogger;
+import org.spongepowered.asm.mixin.connect.IMixinConnector;
+import org.spongepowered.asm.service.IClassProvider;
+import org.spongepowered.asm.service.MixinService;
 
 /**
  * Manager for Mixin containers bootstrapping via {@link IMixinConnector}

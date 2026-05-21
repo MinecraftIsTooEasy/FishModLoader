@@ -24,17 +24,18 @@
  */
 package org.spongepowered.tools.obfuscation;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableList.Builder;
-import org.spongepowered.tools.obfuscation.interfaces.IMixinAnnotationProcessor;
-import org.spongepowered.tools.obfuscation.interfaces.IOptionProvider;
-import org.spongepowered.tools.obfuscation.service.ObfuscationTypeDescriptor;
-
 import java.lang.reflect.Constructor;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+
+import org.spongepowered.tools.obfuscation.interfaces.IMixinAnnotationProcessor;
+import org.spongepowered.tools.obfuscation.interfaces.IOptionProvider;
+import org.spongepowered.tools.obfuscation.service.ObfuscationTypeDescriptor;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList.Builder;
 
 /**
  * Obfuscation types supported by the annotation processor

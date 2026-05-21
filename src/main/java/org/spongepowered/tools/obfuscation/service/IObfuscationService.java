@@ -24,10 +24,10 @@
  */
 package org.spongepowered.tools.obfuscation.service;
 
-import org.spongepowered.tools.obfuscation.interfaces.IMixinAnnotationProcessor;
-
 import java.util.Collection;
 import java.util.Set;
+
+import org.spongepowered.tools.obfuscation.interfaces.IMixinAnnotationProcessor;
 
 /**
  * Service interface for obfuscation services

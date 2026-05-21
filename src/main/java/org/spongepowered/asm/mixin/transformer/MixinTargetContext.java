@@ -24,25 +24,17 @@
  */
 package org.spongepowered.asm.mixin.transformer;
 
-import com.google.common.collect.BiMap;
+import java.lang.annotation.Annotation;
+import java.util.*;
+import java.util.Map.Entry;
+
+import org.spongepowered.asm.logging.Level;
+import org.spongepowered.asm.logging.ILogger;
 import org.objectweb.asm.ConstantDynamic;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
-import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.AnnotationNode;
-import org.objectweb.asm.tree.ClassNode;
-import org.objectweb.asm.tree.FieldInsnNode;
-import org.objectweb.asm.tree.FieldNode;
-import org.objectweb.asm.tree.InvokeDynamicInsnNode;
-import org.objectweb.asm.tree.LdcInsnNode;
-import org.objectweb.asm.tree.LocalVariableNode;
-import org.objectweb.asm.tree.MethodInsnNode;
-import org.objectweb.asm.tree.MethodNode;
-import org.objectweb.asm.tree.TypeInsnNode;
-import org.objectweb.asm.tree.VarInsnNode;
-import org.spongepowered.asm.logging.ILogger;
-import org.spongepowered.asm.logging.Level;
+import org.objectweb.asm.tree.*;
 import org.spongepowered.asm.mixin.MixinEnvironment;
 import org.spongepowered.asm.mixin.MixinEnvironment.CompatibilityLevel;
 import org.spongepowered.asm.mixin.MixinEnvironment.Option;
@@ -62,6 +54,7 @@ import org.spongepowered.asm.mixin.refmap.IMixinContext;
 import org.spongepowered.asm.mixin.refmap.IReferenceMapper;
 import org.spongepowered.asm.mixin.struct.MemberRef;
 import org.spongepowered.asm.mixin.struct.SourceMap.File;
+import org.spongepowered.asm.mixin.throwables.ClassMetadataNotFoundException;
 import org.spongepowered.asm.mixin.transformer.ClassInfo.Field;
 import org.spongepowered.asm.mixin.transformer.ClassInfo.Method;
 import org.spongepowered.asm.mixin.transformer.ClassInfo.SearchType;
@@ -83,17 +76,7 @@ import org.spongepowered.asm.util.LanguageFeatures;
 import org.spongepowered.asm.util.asm.ASM;
 import org.spongepowered.asm.util.asm.ClassNodeAdapter;
 
-import java.lang.annotation.Annotation;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Deque;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
+import com.google.common.collect.BiMap;
 
 /**
  * This object keeps track of data for applying a mixin to a specific target
@@ -553,7 +536,7 @@ public class MixinTargetContext extends ClassContext implements IMixinContext {
                         + " is tagged with @SoftOverride but the method is PRIVATE");
             }
             
-            Method superMethod = this.targetClassInfo.findMethodInHierarchy(method.name, method.desc, SearchType.SUPER_CLASSES_ONLY,
+            ClassInfo.Method superMethod = this.targetClassInfo.findMethodInHierarchy(method.name, method.desc, SearchType.SUPER_CLASSES_ONLY,
                     Traversal.SUPER);
             if (superMethod == null || !superMethod.isInjected()) {
                 throw new InvalidMixinException(this, "Mixin method " + method.name + method.desc + " is tagged with @SoftOverride but no "
@@ -914,7 +897,7 @@ public class MixinTargetContext extends ClassContext implements IMixinContext {
             return;
         }
         
-        Method superMethod = this.targetClassInfo.findMethodInHierarchy(methodRef.getName(), methodRef.getDesc(),
+        ClassInfo.Method superMethod = this.targetClassInfo.findMethodInHierarchy(methodRef.getName(), methodRef.getDesc(),
                 traversal.getSearchType(), traversal);
         if (superMethod != null) {
             if (superMethod.getOwner().isMixin()) {
@@ -933,9 +916,6 @@ public class MixinTargetContext extends ClassContext implements IMixinContext {
      * @param field Field node to transform
      */
     void transformDescriptor(FieldNode field) {
-        if (!this.inheritsFromMixin && this.innerClasses.size() == 0) {
-            return;
-        }
         field.desc = this.transformSingleDescriptor(field.desc, false);
     }
     
@@ -945,9 +925,6 @@ public class MixinTargetContext extends ClassContext implements IMixinContext {
      * @param method Method node to transform
      */
     void transformDescriptor(MethodNode method) {
-        if (!this.inheritsFromMixin && this.innerClasses.size() == 0) {
-            return;
-        }
         method.desc = this.transformMethodDescriptor(method.desc);
     }
 
@@ -958,9 +935,6 @@ public class MixinTargetContext extends ClassContext implements IMixinContext {
      * @param member Reference to the method or field
      */
     void transformDescriptor(MemberRef member) {
-        if (!this.inheritsFromMixin && this.innerClasses.size() == 0) {
-            return;
-        }
         if (member.isField()) {
             member.setDesc(this.transformSingleDescriptor(member.getDesc(), false));
         } else {
@@ -974,9 +948,6 @@ public class MixinTargetContext extends ClassContext implements IMixinContext {
      * @param typeInsn Type instruction node to transform
      */
     void transformDescriptor(TypeInsnNode typeInsn) {
-        if (!this.inheritsFromMixin && this.innerClasses.size() == 0) {
-            return;
-        }
         typeInsn.desc = this.transformSingleDescriptor(typeInsn.desc, true);
     }
 

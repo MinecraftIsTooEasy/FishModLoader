@@ -24,12 +24,13 @@
  */
 package org.spongepowered.tools.obfuscation.mirror;
 
-import com.google.common.base.Strings;
+import javax.lang.model.element.ExecutableElement;
+
 import org.spongepowered.asm.obfuscation.mapping.common.MappingMethod;
 import org.spongepowered.asm.util.Bytecode.Visibility;
 import org.spongepowered.tools.obfuscation.mirror.mapping.MappingMethodResolvable;
 
-import javax.lang.model.element.ExecutableElement;
+import com.google.common.base.Strings;
 
 /**
  * Retrieved from a {@link TypeHandle} when searching for methods

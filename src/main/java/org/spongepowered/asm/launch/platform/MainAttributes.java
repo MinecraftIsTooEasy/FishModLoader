@@ -24,10 +24,6 @@
  */
 package org.spongepowered.asm.launch.platform;
 
-import com.google.common.io.ByteSource;
-import org.spongepowered.asm.util.Files;
-import org.spongepowered.asm.util.JavaVersion;
-
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.IOException;
@@ -43,6 +39,11 @@ import java.util.jar.Attributes;
 import java.util.jar.Attributes.Name;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
+
+import org.spongepowered.asm.util.Files;
+import org.spongepowered.asm.util.JavaVersion;
+
+import com.google.common.io.ByteSource;
 
 /**
  * "Main" attribute cache for a URI container, mainly to avoid constantly
@@ -65,6 +66,31 @@ public final class MainAttributes {
         this.attributes = MainAttributes.getAttributes(codeSource);
     }
 
+    /**
+     * Create a MainAttributes instance for the supplied jar file
+     *
+     * @param jar jar file
+     * @return MainAttributes instance
+     */
+    public static MainAttributes of(File jar) {
+        return MainAttributes.of(jar.toURI());
+    }
+    
+    /**
+     * Create a MainAttributes instance for the supplied jar file
+     *
+     * @param uri jar file location
+     * @return MainAttributes instance
+     */
+    public static MainAttributes of(URI uri) {
+        MainAttributes attributes = MainAttributes.instances.get(uri);
+        if (attributes == null) {
+            attributes = new MainAttributes(uri);
+            MainAttributes.instances.put(uri, attributes);
+        }
+        return attributes;
+    }
+    
     private static Attributes getAttributes(URI codeSource) {
         if (codeSource == null) {
             return null;
@@ -94,7 +120,7 @@ public final class MainAttributes {
         
         return new Attributes();
     }
-    
+
     private static Attributes getJarAttributes(File jar) {
         JarFile jarFile = null;
         try {
@@ -141,7 +167,7 @@ public final class MainAttributes {
         
         return null;
     }
-
+    
     private static Attributes getNioAttributes(URI uri) {
         try {
             Path manifestPath = Paths.get(uri).resolve(JarFile.MANIFEST_NAME);
@@ -169,31 +195,6 @@ public final class MainAttributes {
         }
         
         return null;
-    }
-    
-    /**
-     * Create a MainAttributes instance for the supplied jar file
-     *
-     * @param jar jar file
-     * @return MainAttributes instance
-     */
-    public static MainAttributes of(File jar) {
-        return MainAttributes.of(jar.toURI());
-    }
-    
-    /**
-     * Create a MainAttributes instance for the supplied jar file
-     *
-     * @param uri jar file location
-     * @return MainAttributes instance
-     */
-    public static MainAttributes of(URI uri) {
-        MainAttributes attributes = MainAttributes.instances.get(uri);
-        if (attributes == null) {
-            attributes = new MainAttributes(uri);
-            MainAttributes.instances.put(uri, attributes);
-        }
-        return attributes;
     }
 
     /**

@@ -24,11 +24,20 @@
  */
 package org.spongepowered.asm.mixin.transformer;
 
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedSet;
+
+import org.spongepowered.asm.logging.ILogger;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.MethodNode;
-import org.spongepowered.asm.logging.ILogger;
 import org.spongepowered.asm.mixin.Debug;
 import org.spongepowered.asm.mixin.MixinEnvironment;
 import org.spongepowered.asm.mixin.MixinEnvironment.Option;
@@ -46,15 +55,6 @@ import org.spongepowered.asm.util.ClassSignature;
 import org.spongepowered.asm.util.Constants;
 import org.spongepowered.asm.util.perf.Profiler;
 import org.spongepowered.asm.util.perf.Profiler.Section;
-
-import java.util.ArrayList;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.SortedSet;
 
 /**
  * Struct for containing target class information during mixin application
@@ -455,6 +455,9 @@ final class TargetClassContext extends ClassContext implements ITargetClassConte
     }
 
     private MixinApplicatorStandard createApplicator() {
+        if (this.classInfo.isEnum()) {
+            return new MixinApplicatorEnum(this);
+        }
         if (this.classInfo.isInterface()) {
             return new MixinApplicatorInterface(this);
         }

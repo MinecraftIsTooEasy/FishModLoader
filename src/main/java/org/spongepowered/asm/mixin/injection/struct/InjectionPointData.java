@@ -24,9 +24,14 @@
  */
 package org.spongepowered.asm.mixin.injection.struct;
 
-import com.google.common.base.Joiner;
-import com.google.common.base.Strings;
-import com.google.common.primitives.Ints;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.MethodNode;
@@ -49,16 +54,12 @@ import org.spongepowered.asm.util.Bytecode;
 import org.spongepowered.asm.util.IMessageSink;
 import org.spongepowered.asm.util.asm.IAnnotationHandle;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import com.google.common.base.Joiner;
+import com.google.common.base.Strings;
+import com.google.common.primitives.Ints;
 
 /**
- * Data read from an {@link At} annotation
+ * Data read from an {@link org.spongepowered.asm.mixin.injection.At} annotation
  * and passed into an InjectionPoint ctor
  */
 public class InjectionPointData {
@@ -189,28 +190,30 @@ public class InjectionPointData {
         return this.type;
     }
     
-    private static Pattern createPattern() {
-        return Pattern.compile(String.format("^(.+?)(:(%s))?$", Joiner.on('|').join(Specifier.values())));
-    }
-
-    private static Specifier parseSpecifier(Matcher matcher) {
-        return matcher.matches() && matcher.group(3) != null ? Specifier.valueOf(matcher.group(3)) : Specifier.DEFAULT;
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T extends Enum<T>> T parseEnum(String string, T defaultValue) {
-        try {
-            return (T)Enum.valueOf(defaultValue.getClass(), string);
-        } catch (Exception ex) {
-            return defaultValue;
-        }
-    }
-    
     /**
      * Get the specifier value parsed from the injector
      */
     public Specifier getSpecifier() {
         return this.specifier;
+    }
+
+    private static Pattern createPattern() {
+        return Pattern.compile(String.format("^(.+?)(:(%s))?$", Joiner.on('|').join(Specifier.values())));
+    }
+
+    /**
+     * Parse a constructor type from the supplied <tt>at</tt> string
+     *
+     * @param at at to parse
+     * @return parsed constructor type
+     */
+    public static String parseType(String at) {
+        Matcher matcher = InjectionPointData.AT_PATTERN.matcher(at);
+        return InjectionPointData.parseType(matcher, at);
+    }
+    
+    private static String parseType(Matcher matcher, String at) {
+        return matcher.matches() ? matcher.group(1) : at;
     }
     
     /**
@@ -227,11 +230,8 @@ public class InjectionPointData {
         return Type.getReturnType(this.getMethod().desc);
     }
     
-    /**
-     * Get the target restriction specified in the annotation
-     */
-    public RestrictTargetLevel getTargetRestriction() {
-        return this.targetRestriction;
+    private static Specifier parseSpecifier(Matcher matcher) {
+        return matcher.matches() && matcher.group(3) != null ? Specifier.valueOf(matcher.group(3)) : Specifier.DEFAULT;
     }
     
     /**
@@ -282,104 +282,20 @@ public class InjectionPointData {
         return InjectionPointData.parseBoolean(this.get(key, String.valueOf(defaultValue)), defaultValue);
     }
     
-    /**
-     * Get the injection point context
-     */
-    public IInjectionPointContext getContext() {
-        return this.context;
-    }
-
-    /**
-     * Get the mixin context
-     */
-    public IMixinContext getMixin() {
-        return this.context.getMixin();
-    }
-    
-    /**
-     * Get the root annotation (eg. {@link Inject})
-     */
-    public AnnotationNode getParent() {
-        return this.context.getAnnotationNode();
-    }
-
-    /**
-     * Get the supplied value from the named args, return defaultValue if the
-     * arg is not set
-     *
-     * @param <T> enum type
-     * @param key argument name
-     * @param defaultValue value to return if the arg is not set
-     * @return argument value or default if not set
-     */
-    public <T extends Enum<T>> T get(String key, T defaultValue) {
-        return InjectionPointData.<T>parseEnum(this.get(key, defaultValue.name()), defaultValue);
-    }
-
-    /**
-     * Get the ordinal specified on the injection point
-     */
-    public int getOrdinal() {
-        return this.ordinal;
-    }
-    
-    /**
-     * Get the opcode specified on the injection point
-     */
-    public int getOpcode() {
-        return this.opcode;
-    }
-    
-    /**
-     * Get the opcode specified on the injection point or return the default if
-     * no opcode was specified
-     * 
-     * @param defaultOpcode opcode to return if none specified
-     * @return opcode or default
-     */
-    public int getOpcode(int defaultOpcode) {
-        return this.opcode > 0 ? this.opcode : defaultOpcode;
-    }
-    
-    /**
-     * Get the opcode specified on the injection point or return the default if
-     * no opcode was specified or if the specified opcode does not appear in the
-     * supplied list of valid opcodes
-     * 
-     * @param defaultOpcode opcode to return if none specified
-     * @param validOpcodes valid opcodes
-     * @return opcode or default
-     */
-    public int getOpcode(int defaultOpcode, int... validOpcodes) {
-        for (int validOpcode : validOpcodes) {
-            if (this.opcode == validOpcode) {
-                return this.opcode;
-            }
-        }
-        return defaultOpcode;
-    }
-
-    /**
-     * Get the supplied value from the named args as a target selector,
-     * throws an exception if the argument cannot be parsed as a target selector
-     *
-     * @param key argument name
-     * @return argument value as a target selector
-     */
-    public ITargetSelector get(String key) {
+    @SuppressWarnings("unchecked")
+    private static <T extends Enum<T>> T parseEnum(String string, T defaultValue) {
         try {
-            return TargetSelector.parseAndValidate(this.get(key, ""), this.context);
-        } catch (InvalidSelectorException ex) {
-            throw new InvalidInjectionPointException(this.getMixin(), ex, "Failed parsing @At(\"%s\").%s \"%s\" on %s",
-                    this.at, key, this.target, this.getDescription());
+            return (T)Enum.valueOf(defaultValue.getClass(), string);
+        } catch (Exception ex) {
+            return defaultValue;
         }
     }
 
     /**
-     * Get the id specified on the injection point (or null if not specified)
+     * Get the target restriction specified in the annotation
      */
-    public String getId() {
-        return this.id;
+    public RestrictTargetLevel getTargetRestriction() {
+        return this.targetRestriction;
     }
     
     /**
@@ -403,11 +319,6 @@ public class InjectionPointData {
                     this.at, this.target, this.getDescription());
         }
     }
-    
-    @Override
-    public String toString() {
-        return this.type;
-    }
 
     /**
      * Get a description of this injector for use in error messages
@@ -417,18 +328,96 @@ public class InjectionPointData {
     }
 
     /**
-     * Parse a constructor type from the supplied <tt>at</tt> string
-     * 
-     * @param at at to parse
-     * @return parsed constructor type
+     * Get the injection point context
      */
-    public static String parseType(String at) {
-        Matcher matcher = InjectionPointData.AT_PATTERN.matcher(at);
-        return InjectionPointData.parseType(matcher, at);
+    public IInjectionPointContext getContext() {
+        return this.context;
+    }
+    
+    /**
+     * Get the mixin context
+     */
+    public IMixinContext getMixin() {
+        return this.context.getMixin();
+    }
+    
+    /**
+     * Get the root annotation (eg. {@link Inject})
+     */
+    public AnnotationNode getParent() {
+        return this.context.getAnnotationNode();
+    }
+    
+    /**
+     * Get the supplied value from the named args, return defaultValue if the
+     * arg is not set
+     *
+     * @param <T> enum type
+     * @param key argument name
+     * @param defaultValue value to return if the arg is not set
+     * @return argument value or default if not set
+     */
+    public <T extends Enum<T>> T get(String key, T defaultValue) {
+        return InjectionPointData.<T>parseEnum(this.get(key, defaultValue.name()), defaultValue);
     }
 
-    private static String parseType(Matcher matcher, String at) {
-        return matcher.matches() ? matcher.group(1) : at;
+    /**
+     * Get the supplied value from the named args as a target selector,
+     * throws an exception if the argument cannot be parsed as a target selector
+     *
+     * @param key argument name
+     * @return argument value as a target selector
+     */
+    public ITargetSelector get(String key) {
+        try {
+            return TargetSelector.parseAndValidate(this.get(key, ""), this.context);
+        } catch (InvalidSelectorException ex) {
+            throw new InvalidInjectionPointException(this.getMixin(), ex, "Failed parsing @At(\"%s\").%s \"%s\" on %s",
+                    this.at, key, this.target, this.getDescription());
+        }
+    }
+
+    /**
+     * Get the ordinal specified on the injection point
+     */
+    public int getOrdinal() {
+        return this.ordinal;
+    }
+    
+    /**
+     * Get the opcode specified on the injection point
+     */
+    public int getOpcode() {
+        return this.opcode;
+    }
+    
+    /**
+     * Get the opcode specified on the injection point or return the default if
+     * no opcode was specified
+     *
+     * @param defaultOpcode opcode to return if none specified
+     * @return opcode or default
+     */
+    public int getOpcode(int defaultOpcode) {
+        return this.opcode > 0 ? this.opcode : defaultOpcode;
+    }
+
+    /**
+     * Get the opcode specified on the injection point or return the default if
+     * no opcode was specified or if the specified opcode does not appear in the
+     * supplied list of valid opcodes
+     *
+     * @param defaultOpcode opcode to return if none specified
+     * @param validOpcodes valid opcodes
+     * @return opcode or default
+     */
+    public int getOpcode(int defaultOpcode, int... validOpcodes) {
+        for (int validOpcode : validOpcodes) {
+            if (this.opcode == validOpcode) {
+                return this.opcode;
+            }
+        }
+        return defaultOpcode;
     }
 
     /**
@@ -448,7 +437,7 @@ public class InjectionPointData {
         if (value == null) {
             return defaultValue;
         }
-        
+
         Set<Integer> parsed = new TreeSet<Integer>();
         String[] values = value.split("[ ,;]");
         for (String strOpcode : values) {
@@ -457,8 +446,22 @@ public class InjectionPointData {
                 parsed.add(opcode);
             }
         }
-        
+
         return Ints.toArray(parsed);
+    }
+
+    /**
+     * Get the id specified on the injection point (or null if not specified)
+     */
+    public String getId() {
+        return this.id;
+    }
+
+    /**
+     * Get whether the <tt>unsafe</tt> option is set on the injection point
+     */
+    public boolean isUnsafe() {
+        return (this.flags & InjectionPoint.Flags.UNSAFE) != 0;
     }
     
     private static int parseInt(String string, int defaultValue) {
@@ -477,10 +480,8 @@ public class InjectionPointData {
         }
     }
 
-    /**
-     * Get whether the <tt>unsafe</tt> option is set on the injection point
-     */
-    public boolean isUnsafe() {
-        return (this.flags & InjectionPoint.Flags.UNSAFE) != 0;
+    @Override
+    public String toString() {
+        return this.type;
     }
 }

@@ -56,23 +56,23 @@ public interface IMixinPlatformAgent {
      * Result type returned from {@link IMixinPlatformAgent#accept}
      */
     public enum AcceptResult {
-        
+
         /**
          * The container was accepted
          */
         ACCEPTED,
-        
+
         /**
          * The container was rejected
          */
         REJECTED,
-        
+
         /**
          * The agent encountered an error and no further containers should be
          * offered
          */
         INVALID;
-        
+
     }
 
     /**

@@ -24,16 +24,17 @@
  */
 package org.spongepowered.asm.mixin.transformer;
 
-import com.google.common.base.Strings;
-import org.spongepowered.asm.launch.MixinInitialisationError;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.spongepowered.asm.logging.ILogger;
+import org.spongepowered.asm.launch.MixinInitialisationError;
 import org.spongepowered.asm.mixin.MixinEnvironment;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfig;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigSource;
 import org.spongepowered.asm.service.MixinService;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.google.common.base.Strings;
 
 /**
  * Handle for marshalling mixin configs outside of the transformer package

@@ -24,6 +24,10 @@
  */
 package org.spongepowered.tools.obfuscation;
 
+import java.util.List;
+
+import javax.lang.model.type.DeclaredType;
+
 import org.spongepowered.asm.mixin.Interface.Remap;
 import org.spongepowered.asm.obfuscation.mapping.common.MappingMethod;
 import org.spongepowered.asm.util.asm.IAnnotationHandle;
@@ -32,9 +36,6 @@ import org.spongepowered.tools.obfuscation.interfaces.IMixinAnnotationProcessor;
 import org.spongepowered.tools.obfuscation.mirror.AnnotationHandle;
 import org.spongepowered.tools.obfuscation.mirror.MethodHandle;
 import org.spongepowered.tools.obfuscation.mirror.TypeHandle;
-
-import javax.lang.model.type.DeclaredType;
-import java.util.List;
 
 /**
  * A module for {@link AnnotatedMixin} whic handles soft-implements clauses

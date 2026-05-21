@@ -24,6 +24,10 @@
  */
 package org.spongepowered.asm.util;
 
+import java.lang.reflect.Field;
+import java.util.List;
+import java.util.ListIterator;
+
 import org.objectweb.asm.ConstantDynamic;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -33,10 +37,6 @@ import org.objectweb.asm.tree.MethodNode;
 import org.spongepowered.asm.util.Bytecode.Visibility;
 import org.spongepowered.asm.util.asm.ASM;
 import org.spongepowered.asm.util.asm.ClassNodeAdapter;
-
-import java.lang.reflect.Field;
-import java.util.List;
-import java.util.ListIterator;
 
 /**
  * Bitmask values for language features supported. Contains utility methods for

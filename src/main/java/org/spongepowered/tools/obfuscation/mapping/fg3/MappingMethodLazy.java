@@ -24,11 +24,11 @@
  */
 package org.spongepowered.tools.obfuscation.mapping.fg3;
 
-import org.spongepowered.asm.obfuscation.mapping.common.MappingMethod;
-import org.spongepowered.tools.obfuscation.mapping.IMappingProvider;
-
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import org.spongepowered.asm.obfuscation.mapping.common.MappingMethod;
+import org.spongepowered.tools.obfuscation.mapping.IMappingProvider;
 
 /**
  * A MappingMethod which computes transformed descriptor on demand using the

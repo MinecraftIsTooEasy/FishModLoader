@@ -80,13 +80,13 @@ public @interface Interface {
      * interface.
      */
     public enum Remap {
-        
+
         /**
          * Attempt to remap all members of this interface which are declared in
          * the annotated mixin, including non-prefixed methods which match.
          */
         ALL,
-        
+
         /**
          * Attempt to remap all members of this interface which are declared in
          * the annotated mixin, including non-prefixed methods which match. <b>
@@ -94,37 +94,37 @@ public @interface Interface {
          * error.</b>
          */
         FORCE(true),
-        
+
         /**
          * Remap only methods in the annotated mixin which are prefixed with the
          * declared prefix. Note that if no prefix is defined, this has the same
          * effect as {@link #NONE}
          */
         ONLY_PREFIXED,
-        
+
         /**
          * Do not remap members matching this interface. (Equivalent to <tt>
          * remap=false</tt> on other remappable annotations)
          */
         NONE;
-        
+
         private final boolean forceRemap;
 
         private Remap() {
             this(false);
         }
-        
+
         private Remap(boolean forceRemap) {
             this.forceRemap = forceRemap;
         }
-        
+
         /**
          * Returns whether this remap type should force remapping
          */
         public boolean forceRemap() {
             return this.forceRemap;
         }
-        
+
     }
     
 }

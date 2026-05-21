@@ -24,12 +24,12 @@
  */
 package org.spongepowered.asm.mixin.transformer;
 
+import java.util.List;
+
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.MixinEnvironment;
 import org.spongepowered.asm.mixin.transformer.ext.IExtensionRegistry;
 import org.spongepowered.asm.service.ILegacyClassTransformer;
-
-import java.util.List;
 
 /**
  * Transformation engine

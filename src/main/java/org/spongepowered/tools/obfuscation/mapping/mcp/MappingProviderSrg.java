@@ -24,21 +24,23 @@
  */
 package org.spongepowered.tools.obfuscation.mapping.mcp;
 
-import com.google.common.base.Strings;
-import com.google.common.collect.BiMap;
-import com.google.common.io.Files;
-import com.google.common.io.LineProcessor;
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.Charset;
+
+import javax.annotation.processing.Filer;
+import javax.annotation.processing.Messager;
+
 import org.spongepowered.asm.mixin.throwables.MixinException;
 import org.spongepowered.asm.obfuscation.mapping.common.MappingField;
 import org.spongepowered.asm.obfuscation.mapping.common.MappingMethod;
 import org.spongepowered.asm.obfuscation.mapping.mcp.MappingFieldSrg;
 import org.spongepowered.tools.obfuscation.mapping.common.MappingProvider;
 
-import javax.annotation.processing.Filer;
-import javax.annotation.processing.Messager;
-import java.io.File;
-import java.io.IOException;
-import java.nio.charset.Charset;
+import com.google.common.base.Strings;
+import com.google.common.collect.BiMap;
+import com.google.common.io.Files;
+import com.google.common.io.LineProcessor;
 
 /**
  * Ported from <strong>Srg2Source</strong> (

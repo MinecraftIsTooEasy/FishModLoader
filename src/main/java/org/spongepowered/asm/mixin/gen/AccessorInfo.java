@@ -24,9 +24,15 @@
  */
 package org.spongepowered.asm.mixin.gen;
 
-import com.google.common.base.Joiner;
-import com.google.common.base.Strings;
-import com.google.common.collect.ImmutableSet;
+import java.lang.annotation.Annotation;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.MethodNode;
@@ -35,8 +41,8 @@ import org.spongepowered.asm.mixin.gen.throwables.InvalidAccessorException;
 import org.spongepowered.asm.mixin.injection.selectors.ElementNode;
 import org.spongepowered.asm.mixin.injection.selectors.ISelectorContext;
 import org.spongepowered.asm.mixin.injection.selectors.ITargetSelector;
-import org.spongepowered.asm.mixin.injection.selectors.ITargetSelector.Configure;
 import org.spongepowered.asm.mixin.injection.selectors.TargetSelector;
+import org.spongepowered.asm.mixin.injection.selectors.ITargetSelector.Configure;
 import org.spongepowered.asm.mixin.injection.selectors.TargetSelector.Result;
 import org.spongepowered.asm.mixin.injection.struct.MemberInfo;
 import org.spongepowered.asm.mixin.struct.SpecialMethodInfo;
@@ -46,14 +52,9 @@ import org.spongepowered.asm.util.Annotations;
 import org.spongepowered.asm.util.Bytecode;
 import org.spongepowered.asm.util.asm.MethodNodeEx;
 
-import java.lang.annotation.Annotation;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import com.google.common.base.Joiner;
+import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableSet;
 
 /**
  * Information about an accessor
@@ -456,7 +457,7 @@ public class AccessorInfo extends SpecialMethodInfo {
                 return new AccessorGeneratorFieldGetter(info);
             }
         },
-        
+
         /**
          * A field setter, accessor must accept single arg of the field type and
          * return void
@@ -467,7 +468,7 @@ public class AccessorInfo extends SpecialMethodInfo {
                 return new AccessorGeneratorFieldSetter(info);
             }
         },
-        
+
         /**
          * An invoker (proxy) method
          */
@@ -477,7 +478,7 @@ public class AccessorInfo extends SpecialMethodInfo {
                 return new AccessorGeneratorMethodProxy(info);
             }
         },
-        
+
         /**
          * An invoker (proxy) method
          */
@@ -487,13 +488,13 @@ public class AccessorInfo extends SpecialMethodInfo {
                 return new AccessorGeneratorObjectFactory(info);
             }
         };
-        
+
         private final Set<String> expectedPrefixes;
-        
+
         private AccessorType(Set<String> expectedPrefixes) {
             this.expectedPrefixes = expectedPrefixes;
         }
-        
+
         /**
          * Returns true if the supplied prefix string is an allowed prefix for
          * this accessor type
@@ -504,7 +505,7 @@ public class AccessorInfo extends SpecialMethodInfo {
         public boolean isExpectedPrefix(String prefix) {
             return this.expectedPrefixes.contains(prefix);
         }
-        
+
         /**
          * Returns all the expected prefixes for this accessor type as a string
          * for debugging/error message purposes
@@ -515,9 +516,9 @@ public class AccessorInfo extends SpecialMethodInfo {
         public Set<String> getExpectedPrefixes() {
             return Collections.<String>unmodifiableSet(this.expectedPrefixes);
         }
-        
+
         abstract AccessorGenerator getGenerator(AccessorInfo info);
-    
+
     }
     
     /**

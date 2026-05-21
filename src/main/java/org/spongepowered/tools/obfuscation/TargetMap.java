@@ -24,15 +24,6 @@
  */
 package org.spongepowered.tools.obfuscation;
 
-import com.google.common.io.Files;
-import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonPrimitive;
-import org.spongepowered.tools.obfuscation.mirror.TypeHandle;
-import org.spongepowered.tools.obfuscation.mirror.TypeReference;
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -47,6 +38,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
+import org.spongepowered.tools.obfuscation.mirror.TypeHandle;
+import org.spongepowered.tools.obfuscation.mirror.TypeReference;
+
+import com.google.common.io.Files;
+import com.google.gson.*;
 
 /**
  * Serialisable map of classes to their associated mixins, used so that we can

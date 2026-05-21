@@ -24,7 +24,13 @@
  */
 package org.spongepowered.tools.obfuscation;
 
-import org.spongepowered.asm.mixin.Shadow;
+import java.util.Locale;
+
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.VariableElement;
+
 import org.spongepowered.asm.obfuscation.mapping.IMapping;
 import org.spongepowered.asm.obfuscation.mapping.IMapping.Type;
 import org.spongepowered.asm.obfuscation.mapping.common.MappingField;
@@ -35,11 +41,6 @@ import org.spongepowered.tools.obfuscation.interfaces.IMixinAnnotationProcessor;
 import org.spongepowered.tools.obfuscation.interfaces.IObfuscationDataProvider;
 import org.spongepowered.tools.obfuscation.mirror.AnnotationHandle;
 import org.spongepowered.tools.obfuscation.mirror.TypeHandle;
-
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.VariableElement;
-import java.util.Locale;
 
 /**
  * A module for {@link AnnotatedMixin} which handles shadowed fields and methods
@@ -124,24 +125,18 @@ class AnnotatedMixinElementHandlerShadow extends AnnotatedMixinElementHandler {
     }
     
     /**
-     * Shadow method element
+     * Register a {@link org.spongepowered.asm.mixin.Shadow} field or method
      */
-    class AnnotatedElementShadowMethod extends AnnotatedElementShadow<ExecutableElement, MappingMethod> {
+    public void registerShadow(AnnotatedElementShadow<?, ?> elem) {
+        this.validateTarget(elem.getElement(), elem.getAnnotation(), elem.getName(), "@Shadow");
 
-        public AnnotatedElementShadowMethod(ExecutableElement element, AnnotationHandle annotation, boolean shouldRemap) {
-            super(element, annotation, shouldRemap, Type.METHOD);
-        }
-        
-        @Override
-        public MappingMethod getMapping(TypeHandle owner, String name, String desc) {
-            return owner.getMappingMethod(name, desc);
-        }
-        
-        @Override
-        public void addMapping(ObfuscationType type, IMapping<?> remapped) {
-            AnnotatedMixinElementHandlerShadow.this.addMethodMapping(type, this.setObfuscatedName(remapped), this.getDesc(), remapped.getDesc());
+        if (!elem.shouldRemap()) {
+            return;
         }
 
+        for (TypeHandle target : this.mixin.getTargets()) {
+            this.registerShadowForTarget(elem, target);
+        }
     }
 
     AnnotatedMixinElementHandlerShadow(IMixinAnnotationProcessor ap, AnnotatedMixin mixin) {
@@ -149,18 +144,29 @@ class AnnotatedMixinElementHandlerShadow extends AnnotatedMixinElementHandler {
     }
 
     /**
-     * Register a {@link Shadow} field or method
+     * Shadow method element
      */
-    public void registerShadow(AnnotatedElementShadow<?, ?> elem) {
-        this.validateTarget(elem.getElement(), elem.getAnnotation(), elem.getName(), "@Shadow");
-        
-        if (!elem.shouldRemap()) {
-            return;
+    class AnnotatedElementShadowMethod extends AnnotatedElementShadow<ExecutableElement, MappingMethod> {
+
+        public AnnotatedElementShadowMethod(ExecutableElement element, AnnotationHandle annotation, boolean shouldRemap) {
+            super(element, annotation, shouldRemap, Type.METHOD);
         }
-        
-        for (TypeHandle target : this.mixin.getTargets()) {
-            this.registerShadowForTarget(elem, target);
+
+        @Override
+        public boolean shouldRemap() {
+            return super.shouldRemap() && this.element.getKind() != ElementKind.CONSTRUCTOR;
         }
+
+        @Override
+        public MappingMethod getMapping(TypeHandle owner, String name, String desc) {
+            return owner.getMappingMethod(name, desc);
+        }
+
+        @Override
+        public void addMapping(ObfuscationType type, IMapping<?> remapped) {
+            AnnotatedMixinElementHandlerShadow.this.addMethodMapping(type, this.setObfuscatedName(remapped), this.getDesc(), remapped.getDesc());
+        }
+
     }
 
     private void registerShadowForTarget(AnnotatedElementShadow<?, ?> elem, TypeHandle target) {

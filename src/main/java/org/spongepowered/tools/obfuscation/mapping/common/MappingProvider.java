@@ -24,14 +24,15 @@
  */
 package org.spongepowered.tools.obfuscation.mapping.common;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
+import javax.annotation.processing.Filer;
+import javax.annotation.processing.Messager;
+
 import org.spongepowered.asm.obfuscation.mapping.common.MappingField;
 import org.spongepowered.asm.obfuscation.mapping.common.MappingMethod;
 import org.spongepowered.tools.obfuscation.mapping.IMappingProvider;
 
-import javax.annotation.processing.Filer;
-import javax.annotation.processing.Messager;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
 
 /**
  * Base class for mapping providers

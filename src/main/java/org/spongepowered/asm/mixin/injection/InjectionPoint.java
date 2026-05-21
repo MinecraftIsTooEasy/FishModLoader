@@ -24,41 +24,6 @@
  */
 package org.spongepowered.asm.mixin.injection;
 
-import com.google.common.base.Joiner;
-import com.google.common.base.Strings;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableList.Builder;
-import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.AnnotationNode;
-import org.objectweb.asm.tree.InsnList;
-import org.objectweb.asm.tree.MethodNode;
-import org.spongepowered.asm.mixin.FabricUtil;
-import org.spongepowered.asm.mixin.MixinEnvironment;
-import org.spongepowered.asm.mixin.MixinEnvironment.Option;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInjector;
-import org.spongepowered.asm.mixin.injection.modify.AfterStoreLocal;
-import org.spongepowered.asm.mixin.injection.modify.BeforeLoadLocal;
-import org.spongepowered.asm.mixin.injection.points.AfterInvoke;
-import org.spongepowered.asm.mixin.injection.points.BeforeConstant;
-import org.spongepowered.asm.mixin.injection.points.BeforeFieldAccess;
-import org.spongepowered.asm.mixin.injection.points.BeforeFinalReturn;
-import org.spongepowered.asm.mixin.injection.points.BeforeInvoke;
-import org.spongepowered.asm.mixin.injection.points.BeforeNew;
-import org.spongepowered.asm.mixin.injection.points.BeforeReturn;
-import org.spongepowered.asm.mixin.injection.points.BeforeStringInvoke;
-import org.spongepowered.asm.mixin.injection.points.ConstructorHead;
-import org.spongepowered.asm.mixin.injection.points.JumpInsnPoint;
-import org.spongepowered.asm.mixin.injection.points.MethodHead;
-import org.spongepowered.asm.mixin.injection.struct.InjectionPointAnnotationContext;
-import org.spongepowered.asm.mixin.injection.struct.InjectionPointData;
-import org.spongepowered.asm.mixin.injection.throwables.InvalidInjectionException;
-import org.spongepowered.asm.mixin.refmap.IMixinContext;
-import org.spongepowered.asm.mixin.struct.AnnotatedMethodInfo;
-import org.spongepowered.asm.mixin.transformer.MixinTargetContext;
-import org.spongepowered.asm.service.MixinService;
-import org.spongepowered.asm.util.Annotations;
-import org.spongepowered.asm.util.IMessageSink;
-
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -75,6 +40,32 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Locale;
 import java.util.Map;
+
+import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.tree.AnnotationNode;
+import org.objectweb.asm.tree.InsnList;
+import org.objectweb.asm.tree.MethodNode;
+import org.spongepowered.asm.mixin.FabricUtil;
+import org.spongepowered.asm.mixin.MixinEnvironment;
+import org.spongepowered.asm.mixin.MixinEnvironment.Option;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInjector;
+import org.spongepowered.asm.mixin.injection.modify.AfterStoreLocal;
+import org.spongepowered.asm.mixin.injection.modify.BeforeLoadLocal;
+import org.spongepowered.asm.mixin.injection.points.*;
+import org.spongepowered.asm.mixin.injection.struct.InjectionPointAnnotationContext;
+import org.spongepowered.asm.mixin.injection.struct.InjectionPointData;
+import org.spongepowered.asm.mixin.injection.throwables.InvalidInjectionException;
+import org.spongepowered.asm.mixin.refmap.IMixinContext;
+import org.spongepowered.asm.mixin.struct.AnnotatedMethodInfo;
+import org.spongepowered.asm.mixin.transformer.MixinTargetContext;
+import org.spongepowered.asm.service.MixinService;
+import org.spongepowered.asm.util.Annotations;
+import org.spongepowered.asm.util.IMessageSink;
+
+import com.google.common.base.Joiner;
+import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList.Builder;
 
 /**
  * <p>Base class for injection point discovery classes. Each subclass describes
@@ -216,7 +207,7 @@ public abstract class InjectionPoint {
         
     }
     
-    private final Specifier specifier;
+    private final String slice;
     
     /**
      * Initial limit on the value of {@link At#by} which triggers warning/error
@@ -228,35 +219,10 @@ public abstract class InjectionPoint {
      * Hard limit on the value of {@link At#by} which triggers error
      */
     public static final int MAX_ALLOWED_SHIFT_BY = 5;
-    private RestrictTargetLevel targetRestriction;
-    
-    protected InjectionPoint() {
-        this("", Specifier.DEFAULT, null);
-    }
-    
-    private final String slice;
-    protected InjectionPoint(InjectionPointData data) {
-        this(data.getSlice(), data.getSpecifier(), data.getId(), data.getMessageSink(), data.getTargetRestriction());
-    }
+    private final Specifier specifier;
     private final String id;
     private final IMessageSink messageSink;
-    
-    public InjectionPoint(String slice, Specifier specifier, String id) {
-        this(slice, specifier, id, null);
-    }
-    
-    public InjectionPoint(String slice, Specifier specifier, String id, IMessageSink messageSink) {
-        this(slice, specifier, id, messageSink, RestrictTargetLevel.METHODS_ONLY);
-    }
-    
-    public InjectionPoint(String slice, Specifier specifier, String id, IMessageSink messageSink, RestrictTargetLevel targetRestriction) {
-        this.slice = slice;
-        this.specifier = specifier;
-        this.id = id;
-        this.messageSink = messageSink;
-        this.targetRestriction = targetRestriction;
-    }
-    
+
     /**
      * Returns a composite injection point which returns the intersection of
      * nodes from all component injection points
@@ -265,7 +231,7 @@ public abstract class InjectionPoint {
      * @return adjusted InjectionPoint
      */
     public static InjectionPoint and(InjectionPoint... operands) {
-        return new Intersection(operands);
+        return new InjectionPoint.Intersection(operands);
     }
 
     /**
@@ -276,9 +242,9 @@ public abstract class InjectionPoint {
      * @return adjusted InjectionPoint
      */
     public static InjectionPoint or(InjectionPoint... operands) {
-        return new Union(operands);
+        return new InjectionPoint.Union(operands);
     }
-    
+
     /**
      * Returns an injection point which returns all insns immediately following
      * insns from the supplied injection point
@@ -287,7 +253,33 @@ public abstract class InjectionPoint {
      * @return adjusted InjectionPoint
      */
     public static InjectionPoint after(InjectionPoint point) {
-        return new Shift(point, 1);
+        return new InjectionPoint.Shift(point, 1);
+    }
+    
+    private RestrictTargetLevel targetRestriction;
+    
+    protected InjectionPoint() {
+        this("", Specifier.DEFAULT, null);
+    }
+    
+    protected InjectionPoint(InjectionPointData data) {
+        this(data.getSlice(), data.getSpecifier(), data.getId(), data.getMessageSink(), data.getTargetRestriction());
+    }
+    
+    public InjectionPoint(String slice, Specifier specifier, String id) {
+        this(slice, specifier, id, null);
+    }
+
+    public InjectionPoint(String slice, Specifier specifier, String id, IMessageSink messageSink) {
+        this(slice, specifier, id, messageSink, RestrictTargetLevel.METHODS_ONLY);
+    }
+    
+    public InjectionPoint(String slice, Specifier specifier, String id, IMessageSink messageSink, RestrictTargetLevel targetRestriction) {
+        this.slice = slice;
+        this.specifier = specifier;
+        this.id = id;
+        this.messageSink = messageSink;
+        this.targetRestriction = targetRestriction;
     }
     
     public String getSlice() {
@@ -302,7 +294,7 @@ public abstract class InjectionPoint {
      * @return adjusted InjectionPoint
      */
     public static InjectionPoint before(InjectionPoint point) {
-        return new Shift(point, -1);
+        return new InjectionPoint.Shift(point, -1);
     }
     
     public String getId() {
@@ -348,28 +340,23 @@ public abstract class InjectionPoint {
      * @return adjusted InjectionPoint
      */
     public static InjectionPoint shift(InjectionPoint point, int count) {
-        return new Shift(point, count);
+        return new InjectionPoint.Shift(point, count);
     }
     
     /**
      * Parse a collection of InjectionPoints from the supplied {@link At}
      * annotations
      *
-     * @param context Data for the mixin containing the annotation, used to obtain
-     *      the refmap, amongst other things
+     * @param context Data for the mixin containing the annotation, used to
+     *      obtain the refmap, amongst other things
+     * @param method The annotated handler method
+     * @param parent The parent annotation which owns this {@link At} annotation
      * @param ats {@link At} annotations to parse information from
      * @return InjectionPoint parsed from the supplied data or null if parsing
      *      failed
      */
-    public static List<InjectionPoint> parse(IInjectionPointContext context, List<AnnotationNode> ats) {
-        Builder<InjectionPoint> injectionPoints = ImmutableList.<InjectionPoint>builder();
-        for (AnnotationNode at : ats) {
-            InjectionPoint injectionPoint = InjectionPoint.parse(new InjectionPointAnnotationContext(context, at, "at"), at);
-            if (injectionPoint != null) {
-                injectionPoints.add(injectionPoint);
-            }
-        }
-        return injectionPoints.build();
+    public static List<InjectionPoint> parse(IMixinContext context, MethodNode method, AnnotationNode parent, List<AnnotationNode> ats) {
+        return InjectionPoint.parse(new AnnotatedMethodInfo(context, method, parent), ats);
     }
 
     /**
@@ -411,6 +398,27 @@ public abstract class InjectionPoint {
     }
 
     /**
+     * Parse a collection of InjectionPoints from the supplied {@link At}
+     * annotations
+     *
+     * @param context Data for the mixin containing the annotation, used to obtain
+     *      the refmap, amongst other things
+     * @param ats {@link At} annotations to parse information from
+     * @return InjectionPoint parsed from the supplied data or null if parsing
+     *      failed
+     */
+    public static List<InjectionPoint> parse(IInjectionPointContext context, List<AnnotationNode> ats) {
+        Builder<InjectionPoint> injectionPoints = ImmutableList.<InjectionPoint>builder();
+        for (AnnotationNode at : ats) {
+            InjectionPoint injectionPoint = InjectionPoint.parse(new InjectionPointAnnotationContext(context, at, "at"), at);
+            if (injectionPoint != null) {
+                injectionPoints.add(injectionPoint);
+            }
+        }
+        return injectionPoints.build();
+    }
+
+    /**
      * Parse an InjectionPoint from the supplied {@link At} annotation
      *
      * @param context Data for the mixin containing the annotation, used to obtain
@@ -421,7 +429,7 @@ public abstract class InjectionPoint {
      */
     public static InjectionPoint parse(IInjectionPointContext context, At at) {
         return InjectionPoint.parse(context, at.value(), at.shift(), at.by(),
-                Arrays.asList(at.args()), at.target(), at.slice(), at.ordinal(), at.opcode(), at.id(), Flags.parse(at));
+                Arrays.asList(at.args()), at.target(), at.slice(), at.ordinal(), at.opcode(), at.id(), InjectionPoint.Flags.parse(at));
     }
 
     /**
@@ -437,7 +445,7 @@ public abstract class InjectionPoint {
      */
     public static InjectionPoint parse(IMixinContext context, MethodNode method, AnnotationNode parent, At at) {
         return InjectionPoint.parse(new AnnotatedMethodInfo(context, method, parent), at.value(), at.shift(), at.by(), Arrays.asList(at.args()),
-                at.target(), at.slice(), at.ordinal(), at.opcode(), at.id(), Flags.parse(at));
+                at.target(), at.slice(), at.ordinal(), at.opcode(), at.id(), InjectionPoint.Flags.parse(at));
     }
 
     /**
@@ -476,8 +484,8 @@ public abstract class InjectionPoint {
         int ordinal = Annotations.<Integer>getValue(at, "ordinal", Integer.valueOf(-1));
         int opcode = Annotations.<Integer>getValue(at, "opcode", Integer.valueOf(0));
         String id = Annotations.<String>getValue(at, "id");
-        int flags = Flags.parse(at);
-        
+        int flags = InjectionPoint.Flags.parse(at);
+
         if (args == null) {
             args = ImmutableList.<String>of();
         }
@@ -538,95 +546,77 @@ public abstract class InjectionPoint {
         return InjectionPoint.shift(context, point, shift, by);
     }
 
-    private static InjectionPoint create(IMixinContext context, InjectionPointData data, Class<? extends InjectionPoint> ipClass) {
-        Constructor<? extends InjectionPoint> ipCtor = null;
-        try {
-            ipCtor = ipClass.getDeclaredConstructor(InjectionPointData.class);
-            ipCtor.setAccessible(true);
-        } catch (NoSuchMethodException ex) {
-            throw new InvalidInjectionException(context, ipClass.getName() + " must contain a constructor which accepts an InjectionPointData", ex);
+    @SuppressWarnings("unchecked")
+    private static Class<? extends InjectionPoint> findClass(IMixinContext context, InjectionPointData data) {
+        String type = data.getType();
+        Class<? extends InjectionPoint> ipClass = InjectionPoint.types.get(type.toUpperCase(Locale.ROOT));
+        if (ipClass == null) {
+            if (type.matches("^([A-Za-z_][A-Za-z0-9_]*[\\.\\$])+[A-Za-z_][A-Za-z0-9_]*$")) {
+                try {
+                    ipClass = (Class<? extends InjectionPoint>)MixinService.getService().getClassProvider().findClass(type);
+                    InjectionPoint.types.put(type, ipClass);
+                } catch (Exception ex) {
+                    throw new InvalidInjectionException(context, data + " could not be loaded or is not a valid InjectionPoint", ex);
+                }
+            } else {
+                throw new InvalidInjectionException(context, data + " is not a valid injection point specifier");
+            }
         }
-
-        InjectionPoint point = null;
-        try {
-            point = ipCtor.newInstance(data);
-        } catch (InvocationTargetException ex) {
-            throw new InvalidInjectionException(context, "Error whilst instancing injection point " + ipClass.getName() + " for " + data.getAt(), ex.getCause());
-        } catch (Exception ex) {
-            throw new InvalidInjectionException(context, "Error whilst instancing injection point " + ipClass.getName() + " for " + data.getAt(), ex);
-        }
-        
-        return point;
+        return ipClass;
     }
 
     private static InjectionPoint shift(IInjectionPointContext context, InjectionPoint point,
             At.Shift shift, int by) {
 
         int fabricCompatibility = FabricUtil.getCompatibility(context);
-        
+
         if (point != null) {
             if (shift == At.Shift.BEFORE) {
-                return new Shift(point, -1, fabricCompatibility);
+                return new InjectionPoint.Shift(point, -1, fabricCompatibility);
             } else if (shift == At.Shift.AFTER) {
-                return new Shift(point, 1, fabricCompatibility);
+                return new InjectionPoint.Shift(point, 1, fabricCompatibility);
             } else if (shift == At.Shift.BY) {
                 InjectionPoint.validateByValue(context.getMixin(), context.getMethod(), context.getAnnotationNode(), point, by);
-                return new Shift(point, by, fabricCompatibility);
+                return new InjectionPoint.Shift(point, by, fabricCompatibility);
             }
         }
 
         return point;
     }
-
+    
     private static void validateByValue(IMixinContext context, MethodNode method, AnnotationNode parent, InjectionPoint point, int by) {
         MixinEnvironment env = context.getMixin().getConfig().getEnvironment();
         ShiftByViolationBehaviour err = env.<ShiftByViolationBehaviour>getOption(Option.SHIFT_BY_VIOLATION_BEHAVIOUR, ShiftByViolationBehaviour.WARN);
         if (err == ShiftByViolationBehaviour.IGNORE) {
             return;
         }
-        
+
         String limitBreached = "the maximum allowed value: ";
         String advice = "Increase the value of maxShiftBy to suppress this warning.";
         int allowed = InjectionPoint.DEFAULT_ALLOWED_SHIFT_BY;
         if (context instanceof MixinTargetContext) {
             allowed = ((MixinTargetContext)context).getMaxShiftByValue();
         }
-        
+
         if (by <= allowed) {
             return;
         }
-        
+
         if (by > InjectionPoint.MAX_ALLOWED_SHIFT_BY) {
             limitBreached = "MAX_ALLOWED_SHIFT_BY=";
             advice = "You must use an alternate query or a custom injection point.";
             allowed = InjectionPoint.MAX_ALLOWED_SHIFT_BY;
         }
-        
+
         String message = String.format("@%s(%s) Shift.BY=%d on %s::%s exceeds %s%d. %s", Annotations.getSimpleName(parent), point,
                 by, context, method.name, limitBreached, allowed, advice);
-        
+
         if (err == ShiftByViolationBehaviour.WARN && allowed < InjectionPoint.MAX_ALLOWED_SHIFT_BY) {
             MixinService.getService().getLogger("mixin").warn(message);
             return;
         }
 
         throw new InvalidInjectionException(context, message);
-    }
-    
-    /**
-     * Parse a collection of InjectionPoints from the supplied {@link At}
-     * annotations
-     * 
-     * @param context Data for the mixin containing the annotation, used to
-     *      obtain the refmap, amongst other things
-     * @param method The annotated handler method
-     * @param parent The parent annotation which owns this {@link At} annotation
-     * @param ats {@link At} annotations to parse information from
-     * @return InjectionPoint parsed from the supplied data or null if parsing
-     *      failed
-     */
-    public static List<InjectionPoint> parse(IMixinContext context, MethodNode method, AnnotationNode parent, List<AnnotationNode> ats) {
-        return InjectionPoint.parse(new AnnotatedMethodInfo(context, method, parent), ats);
     }
     
     /**
@@ -652,12 +642,12 @@ public abstract class InjectionPoint {
         if (code == null) {
             throw new IllegalArgumentException("Injection point class " + type + " is not annotated with @AtCode");
         }
-        
+
         String annotationNamespace = code.namespace();
         if (!Strings.isNullOrEmpty(annotationNamespace)) {
             namespace = annotationNamespace;
         }
-        
+
         Class<? extends InjectionPoint> existing = InjectionPoint.types.get(code.value());
         if (existing != null && !existing.equals(type)) {
             MixinService.getService().getLogger("mixin").debug("Overriding InjectionPoint {} with {} (previously {})", code.value(), type.getName(),
@@ -666,12 +656,12 @@ public abstract class InjectionPoint {
             MixinService.getService().getLogger("mixin").warn("Registration of InjectionPoint {} with {} without specifying namespace is deprecated.",
                     code.value(), type.getName());
         }
-        
+
         String id = code.value().toUpperCase(Locale.ROOT);
         if (!Strings.isNullOrEmpty(namespace)) {
             id = namespace.toUpperCase(Locale.ROOT) + ":" + id;
         }
-        
+
         InjectionPoint.types.put(id, type);
     }
 
@@ -715,25 +705,6 @@ public abstract class InjectionPoint {
         return code == null ? this.getClass().getName() : code.value().toUpperCase();
     }
     
-    @SuppressWarnings("unchecked")
-    private static Class<? extends InjectionPoint> findClass(IMixinContext context, InjectionPointData data) {
-        String type = data.getType();
-        Class<? extends InjectionPoint> ipClass = InjectionPoint.types.get(type.toUpperCase(Locale.ROOT));
-        if (ipClass == null) {
-            if (type.matches("^([A-Za-z_][A-Za-z0-9_]*[\\.\\$])+[A-Za-z_][A-Za-z0-9_]*$")) {
-                try {
-                    ipClass = (Class<? extends InjectionPoint>)MixinService.getService().getClassProvider().findClass(type);
-                    InjectionPoint.types.put(type, ipClass);
-                } catch (Exception ex) {
-                    throw new InvalidInjectionException(context, data + " could not be loaded or is not a valid InjectionPoint", ex);
-                }
-            } else {
-                throw new InvalidInjectionException(context, data + " is not a valid injection point specifier");
-            }
-        }
-        return ipClass;
-    }
-    
     /**
      * Additional specifier for injection points. <tt>Specifiers</tt> can be
      * supplied in {@link At} annotations by including a colon (<tt>:</tt>)
@@ -742,35 +713,56 @@ public abstract class InjectionPoint {
      * <blockquote><pre>&#064;At(value = "INVOKE:LAST", ... )</pre></blockquote>
      */
     public enum Specifier {
-        
+
         /**
          * Use all instructions from the query result.
          */
         ALL,
-        
+
         /**
          * Use the <em>first</em> instruction from the query result.
          */
         FIRST,
-        
+
         /**
          * Use the <em>last</em> instruction from the query result.
          */
         LAST,
-        
+
         /**
          * The query <b>must return exactly one</b> instruction, if it returns
          * more than one instruction this should be considered a fail-fast error
          * state and a runtime exception will be thrown.
          */
         ONE,
-        
+
         /**
          * Use the default setting as defined by the consumer. For slices this
          * is {@link #FIRST}, for all other consumers this is {@link #ALL}
          */
         DEFAULT;
+
+    }
+    
+    private static InjectionPoint create(IMixinContext context, InjectionPointData data, Class<? extends InjectionPoint> ipClass) {
+        Constructor<? extends InjectionPoint> ipCtor = null;
+        try {
+            ipCtor = ipClass.getDeclaredConstructor(InjectionPointData.class);
+            ipCtor.setAccessible(true);
+        } catch (NoSuchMethodException ex) {
+            throw new InvalidInjectionException(context, ipClass.getName() + " must contain a constructor which accepts an InjectionPointData", ex);
+        }
+
+        InjectionPoint point = null;
+        try {
+            point = ipCtor.newInstance(data);
+        } catch (InvocationTargetException ex) {
+            throw new InvalidInjectionException(context, "Error whilst instancing injection point " + ipClass.getName() + " for " + data.getAt(), ex.getCause());
+        } catch (Exception ex) {
+            throw new InvalidInjectionException(context, "Error whilst instancing injection point " + ipClass.getName() + " for " + data.getAt(), ex);
+        }
         
+        return point;
     }
 
     /**
@@ -779,7 +771,7 @@ public abstract class InjectionPoint {
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE)
     public @interface AtCode {
-        
+
         /**
          * Namespace for this code. Final selectors will be specified as
          * <tt>&lt;namespace&gt;:&lt;code&gt;</tt> in order to avoid overlaps
@@ -787,14 +779,14 @@ public abstract class InjectionPoint {
          * parent config if not specified.
          */
         public String namespace() default "";
-        
+
         /**
          * The string code used to specify the annotated injection point in At
          * annotations, prefixed with namespace from the annotation or from the
          * declaring configuration.
          */
         public String value();
-        
+
     }
 
     /**
@@ -802,12 +794,12 @@ public abstract class InjectionPoint {
      * booleans in the future
      */
     public static final class Flags {
-        
+
         /**
          * Change the default target restriction from METHODS_ONLY to ALLOW_ALL
          */
         public static final int UNSAFE = 1;
-        
+
         public static int parse(At at) {
             int flags = 0;
             if (at.unsafe()) {
@@ -819,11 +811,11 @@ public abstract class InjectionPoint {
         public static int parse(AnnotationNode at) {
             int flags = 0;
             if (Annotations.<Boolean>getValue(at, "unsafe", Boolean.TRUE)) {
-                flags |= Flags.UNSAFE;
+                flags |= InjectionPoint.Flags.UNSAFE;
             }
             return flags;
         }
-        
+
     }
     
     /**
@@ -840,7 +832,7 @@ public abstract class InjectionPoint {
 
             this.components = components;
         }
-        
+
         @Override
         public RestrictTargetLevel getTargetRestriction(IInjectionPointContext context) {
             RestrictTargetLevel level = RestrictTargetLevel.METHODS_ONLY;
@@ -866,7 +858,7 @@ public abstract class InjectionPoint {
      * Intersection of several injection points, returns common nodes that
      * appear in all children
      */
-    static final class Intersection extends CompositeInjectionPoint {
+    static final class Intersection extends InjectionPoint.CompositeInjectionPoint {
 
         public Intersection(InjectionPoint... points) {
             super(points);
@@ -911,7 +903,7 @@ public abstract class InjectionPoint {
      * Union of several injection points, returns all insns returned from all
      * injections
      */
-    static final class Union extends CompositeInjectionPoint {
+    static final class Union extends InjectionPoint.CompositeInjectionPoint {
 
         public Union(InjectionPoint... points) {
             super(points);
@@ -962,7 +954,7 @@ public abstract class InjectionPoint {
         public String toString() {
             return "InjectionPoint(" + this.getClass().getSimpleName() + ")[" + this.input + "]";
         }
-        
+
         @Override
         public RestrictTargetLevel getTargetRestriction(IInjectionPointContext context) {
             return this.input.getTargetRestriction(context);
@@ -973,16 +965,16 @@ public abstract class InjectionPoint {
             List<AbstractInsnNode> list = (nodes instanceof List) ? (List<AbstractInsnNode>) nodes : new ArrayList<AbstractInsnNode>(nodes);
 
             this.input.find(desc, insns, nodes);
-            
+
             for (ListIterator<AbstractInsnNode> iter = list.listIterator(); iter.hasNext();) {
                 int sourceIndex = insns.indexOf(iter.next());
                 int newIndex = sourceIndex + this.shift;
                 if (newIndex >= 0 && newIndex < insns.size()) {
                     iter.set(insns.get(newIndex));
                 } else {
-                    // Shifted beyond the initial or end of the insnlist, into the dark void
+                    // Shifted beyond the start or end of the insnlist, into the dark void
                     iter.remove();
-                    
+
                     // Decorate the injector with the info in case it fails
                     int absShift = Math.abs(this.shift);
                     char operator = absShift != this.shift ? '-' : '+';

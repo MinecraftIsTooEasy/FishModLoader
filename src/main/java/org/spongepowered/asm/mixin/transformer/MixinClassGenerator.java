@@ -24,8 +24,10 @@
  */
 package org.spongepowered.asm.mixin.transformer;
 
-import org.objectweb.asm.tree.ClassNode;
+import java.util.Locale;
+
 import org.spongepowered.asm.logging.ILogger;
+import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.MixinEnvironment;
 import org.spongepowered.asm.mixin.transformer.ext.Extensions;
 import org.spongepowered.asm.mixin.transformer.ext.IClassGenerator;
@@ -33,8 +35,6 @@ import org.spongepowered.asm.service.IMixinAuditTrail;
 import org.spongepowered.asm.service.MixinService;
 import org.spongepowered.asm.util.perf.Profiler;
 import org.spongepowered.asm.util.perf.Profiler.Section;
-
-import java.util.Locale;
 
 /**
  * Handles delegation of class generation tasks to the extensions

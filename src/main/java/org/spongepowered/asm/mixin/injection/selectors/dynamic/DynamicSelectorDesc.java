@@ -24,7 +24,8 @@
  */
 package org.spongepowered.asm.mixin.injection.selectors.dynamic;
 
-import com.google.common.base.Strings;
+import java.util.List;
+
 import org.objectweb.asm.Type;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Desc;
@@ -44,7 +45,7 @@ import org.spongepowered.asm.util.Quantifier;
 import org.spongepowered.asm.util.SignaturePrinter;
 import org.spongepowered.asm.util.asm.IAnnotationHandle;
 
-import java.util.List;
+import com.google.common.base.Strings;
 
 /**
  * A {@link ITargetSelector Target Selector} which matches candidates using
@@ -113,7 +114,7 @@ import java.util.List;
  * &nbsp; &nbsp; }
  * </code></blockquote>
  * 
- * <p>As the resolver widens its search it adds new components to the initial of
+ * <p>As the resolver widens its search it adds new components to the start of
  * the implicit coordinate which match the element, separated by dots. For
  * example {@link At &#064;At} annotations inside a {@link Slice &#064;Slice}
  * will first resolve as (local coordinate) <tt>from</tt>, followed by
@@ -222,6 +223,24 @@ public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelec
      */
     private final List<IAnnotationHandle> next;
     
+    /**
+     * Parse a descriptor selector from the supplied input. The input is treated
+     * as a descriptor id to be resolved, or if empty uses implicit coordinates
+     * from the selection context
+     *
+     * @param input ID string, can be empty
+     * @param context Selector context
+     * @return parsed selector
+     */
+    public static DynamicSelectorDesc parse(String input, ISelectorContext context) {
+        IResolvedDescriptor descriptor = DescriptorResolver.resolve(input, context);
+        if (!descriptor.isResolved() && !descriptor.isDebug()) {
+            String extra = input.length() == 0 ? ". " + descriptor.getResolutionInfo() : "";
+            return new DynamicSelectorDesc(new InvalidSelectorException("Could not resolve @Desc(" + input + ") for " + context + extra));
+        }
+        return DynamicSelectorDesc.of(descriptor);
+    }
+    
     private DynamicSelectorDesc(IResolvedDescriptor desc) {
         this(null, desc.getId(), desc.getOwner(), desc.getName(), desc.getArgs(), desc.getReturnType(), desc.getMatches(),
                 desc.getNext(), desc.isDebug());
@@ -252,24 +271,6 @@ public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelec
         this.matches = matches;
         this.next = next;
         this.disabled = disabled;
-    }
-    
-    /**
-     * Parse a descriptor selector from the supplied input. The input is treated
-     * as a descriptor id to be resolved, or if empty uses implicit coordinates
-     * from the selection context
-     *
-     * @param input ID string, can be empty
-     * @param context Selector context
-     * @return parsed selector
-     */
-    public static DynamicSelectorDesc parse(String input, ISelectorContext context) {
-        IResolvedDescriptor descriptor = DescriptorResolver.resolve(input, context);
-        if (!descriptor.isResolved() && !descriptor.isDebug()) {
-            String extra = input.length() == 0 ? ". " + descriptor.getResolutionInfo() : "";
-            return new DynamicSelectorDesc(new InvalidSelectorException("Could not resolve @Desc(" + input + ") for " + context + extra));
-        }
-        return DynamicSelectorDesc.of(descriptor);
     }
     
     /**
@@ -327,6 +328,16 @@ public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelec
         return new DynamicSelectorDesc(desc);
     }
     
+    protected ITargetSelector next(int index) {
+        if (index >= 0 && index < this.next.size()) {
+            IAnnotationHandle nextAnnotation = this.next.get(index);
+            IResolvedDescriptor descriptor = DescriptorResolver.resolve(nextAnnotation, null);
+            return new Next(index, descriptor);
+        }
+
+        return null;
+    }
+    
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder("@Desc(");
@@ -368,16 +379,6 @@ public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelec
         
         sb.append(")");
         return sb.toString();
-    }
-    
-    protected ITargetSelector next(int index) {
-        if (index >= 0 && index < this.next.size()) {
-            IAnnotationHandle nextAnnotation = this.next.get(index);
-            IResolvedDescriptor descriptor = DescriptorResolver.resolve(nextAnnotation, null);
-            return new Next(index, descriptor);
-        }
-        
-        return null;
     }
     
     public String getId() {
@@ -491,19 +492,19 @@ public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelec
      * Next selector
      */
     final class Next extends DynamicSelectorDesc {
-        
+
         private final int index;
-        
+
         Next(int index, IResolvedDescriptor next) {
             super(null, null, next.getOwner(), next.getName(), next.getArgs(), next.getReturnType(), next.getMatches(), null, next.isDebug());
             this.index = index;
         }
-        
+
         @Override
         public ITargetSelector next() {
             return DynamicSelectorDesc.this.next(this.index + 1);
         }
-        
+
     }
     
     private MatchResult matches(String owner, String name, String desc, String compareWithDesc) {

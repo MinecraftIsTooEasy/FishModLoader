@@ -24,6 +24,8 @@
  */
 package org.spongepowered.asm.mixin.injection.invoke;
 
+import java.util.List;
+
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.spongepowered.asm.mixin.injection.InjectionPoint;
 import org.spongepowered.asm.mixin.injection.code.Injector;
@@ -31,8 +33,6 @@ import org.spongepowered.asm.mixin.injection.struct.InjectionInfo;
 import org.spongepowered.asm.mixin.injection.struct.InjectionNodes.InjectionNode;
 import org.spongepowered.asm.mixin.injection.struct.Target;
 import org.spongepowered.asm.mixin.injection.throwables.InvalidInjectionException;
-
-import java.util.List;
 
 /**
  * Base class for injectors which inject at method invokes

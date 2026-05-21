@@ -24,11 +24,15 @@
  */
 package org.spongepowered.asm.mixin.injection.modify;
 
+import java.util.Collection;
+import java.util.List;
+
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.VarInsnNode;
+import org.spongepowered.asm.mixin.FabricUtil;
 import org.spongepowered.asm.mixin.injection.InjectionPoint;
 import org.spongepowered.asm.mixin.injection.InjectionPoint.RestrictTargetLevel;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
@@ -48,9 +52,6 @@ import org.spongepowered.asm.util.Bytecode;
 import org.spongepowered.asm.util.PrettyPrinter;
 import org.spongepowered.asm.util.SignaturePrinter;
 
-import java.util.Collection;
-import java.util.List;
-
 /**
  * A bytecode injector which allows a single local variable in the target method
  * to be captured and altered. See also {@link LocalVariableDiscriminator} and
@@ -61,6 +62,56 @@ public class ModifyVariableInjector extends Injector {
     private static final String KEY_INFO = "mv.info";
     private static final String KEY_TARGET = "mv.target";
 
+    /**
+     * True to consider only method args
+     */
+    private final LocalVariableDiscriminator discriminator;
+    
+    /**
+     * @param info Injection info
+     * @param discriminator discriminator
+     */
+    public ModifyVariableInjector(InjectionInfo info, LocalVariableDiscriminator discriminator) {
+        super(info, "@ModifyVariable");
+        this.discriminator = discriminator;
+    }
+    
+    /* (non-Javadoc)
+     * @see org.spongepowered.asm.mixin.injection.callback.BytecodeInjector
+     *      #sanityCheck(org.spongepowered.asm.mixin.injection.callback.Target,
+     *      java.util.List)
+     */
+    @Override
+    protected void sanityCheck(Target target, List<InjectionPoint> injectionPoints) {
+        super.sanityCheck(target, injectionPoints);
+
+        int ordinal = this.discriminator.getOrdinal();
+        if (ordinal < -1) {
+            throw new InvalidInjectionException(this.info, "Invalid ordinal " + ordinal + " specified in " + this);
+        }
+
+        if (this.discriminator.getIndex() == 0 && !target.isStatic) {
+            throw new InvalidInjectionException(this.info, "Invalid index 0 specified in non-static variable modifier " + this);
+        }
+    }
+    
+    /**
+     * Generate a key which uniquely identifies the combination of return type,
+     * frame type and target injection node so that injectors targetting the
+     * same instruction still get unique contexts.
+     *
+     * @param target Target method
+     * @param node Target node
+     * @return Key for storing/retrieving the injector context decoration
+     */
+    protected String getTargetNodeKey(Target target, InjectionNode node) {
+        return String.format(
+                "localcontext(%s,%s,#%s,%s)",
+                this.returnType, this.discriminator.isArgsOnly() ? "argsOnly" : "fullFrame", node.getId(),
+                FabricUtil.getCompatibility(this.info)
+        );
+    }
+    
     @Override
     protected boolean findTargetNodes(InjectorTarget target, InjectionPoint injectionPoint, Collection<AbstractInsnNode> nodes) {
         InsnListEx slice = (InsnListEx)target.getSlice(injectionPoint);
@@ -78,32 +129,51 @@ public class ModifyVariableInjector extends Injector {
         
         return found;
     }
-    
+
     /**
-     * Generate a key which uniquely identifies the combination of return type,
-     * frame type and target injection node so that injectors targetting the
-     * same instruction still get unique contexts.
-     *
-     * @param target Target method
-     * @param node Target node
-     * @return Key for storing/retrieving the injector context decoration
+     * Target context information
      */
-    protected String getTargetNodeKey(Target target, InjectionNode node) {
-        return String.format("localcontext(%s,%s,#%s)", this.returnType, this.discriminator.isArgsOnly() ? "argsOnly" : "fullFrame", node.getId());
+    static class Context extends LocalVariableDiscriminator.Context {
+
+        /**
+         * Instructions to inject
+         */
+        final InsnList insns = new InsnList();
+
+        public Context(InjectionInfo info, Type returnType, boolean argsOnly, Target target, AbstractInsnNode node) {
+            super(info, returnType, argsOnly, target, node);
+        }
+
     }
     
     /**
-     * True to consider only method args
+     * Specialised injection point which uses a target-aware search pattern
      */
-    private final LocalVariableDiscriminator discriminator;
-    
-    /**
-     * @param info Injection info
-     * @param discriminator discriminator
-     */
-    public ModifyVariableInjector(InjectionInfo info, LocalVariableDiscriminator discriminator) {
-        super(info, "@ModifyVariable");
-        this.discriminator = discriminator;
+    abstract static class LocalVariableInjectionPoint extends InjectionPoint {
+
+        protected final IMixinContext mixin;
+
+        LocalVariableInjectionPoint(InjectionPointData data) {
+            super(data);
+            this.mixin = data.getMixin();
+        }
+
+        @Override
+        public boolean find(String desc, InsnList insns, Collection<AbstractInsnNode> nodes) {
+            if (insns instanceof IInsnListEx) {
+                IInsnListEx xinsns = (IInsnListEx)insns;
+                Target target = xinsns.<Target>getDecoration(ModifyVariableInjector.KEY_TARGET);
+                if (target != null) {
+                    // Info is not actually used internally so we don't especially care if it's null
+                    return this.find(xinsns.<InjectionInfo>getDecoration(ModifyVariableInjector.KEY_INFO), insns, nodes, target);
+                }
+            }
+
+            throw new InvalidInjectionException(this.mixin, this.getAtCode() + " injection point must be used in conjunction with @ModifyVariable");
+        }
+
+        abstract boolean find(InjectionInfo info, InsnList insns, Collection<AbstractInsnNode> nodes, Target target);
+
     }
     
     @Override
@@ -114,25 +184,6 @@ public class ModifyVariableInjector extends Injector {
         }
         Context context = new Context(this.info, this.returnType, this.discriminator.isArgsOnly(), target, node.getCurrentTarget());
         node.<Context>decorate(key, context);
-    }
-
-    /* (non-Javadoc)
-     * @see org.spongepowered.asm.mixin.injection.callback.BytecodeInjector
-     *      #sanityCheck(org.spongepowered.asm.mixin.injection.callback.Target,
-     *      java.util.List)
-     */
-    @Override
-    protected void sanityCheck(Target target, List<InjectionPoint> injectionPoints) {
-        super.sanityCheck(target, injectionPoints);
-        
-        int ordinal = this.discriminator.getOrdinal();
-        if (ordinal < -1) {
-            throw new InvalidInjectionException(this.info, "Invalid ordinal " + ordinal + " specified in " + this);
-        }
-        
-        if (this.discriminator.getIndex() == 0 && !target.isStatic) {
-            throw new InvalidInjectionException(this.info, "Invalid index 0 specified in non-static variable modifier " + this);
-        }
     }
     
     /**
@@ -193,52 +244,6 @@ public class ModifyVariableInjector extends Injector {
         
         extraStack.apply();
         target.insns.insertBefore(context.node, context.insns);
-    }
-    
-    /**
-     * Target context information
-     */
-    static class Context extends LocalVariableDiscriminator.Context {
-        
-        /**
-         * Instructions to inject
-         */
-        final InsnList insns = new InsnList();
-
-        public Context(InjectionInfo info, Type returnType, boolean argsOnly, Target target, AbstractInsnNode node) {
-            super(info, returnType, argsOnly, target, node);
-        }
-        
-    }
-    
-    /**
-     * Specialised injection point which uses a target-aware search pattern
-     */
-    abstract static class LocalVariableInjectionPoint extends InjectionPoint {
-        
-        protected final IMixinContext mixin;
-        
-        LocalVariableInjectionPoint(InjectionPointData data) {
-            super(data);
-            this.mixin = data.getMixin();
-        }
-
-        @Override
-        public boolean find(String desc, InsnList insns, Collection<AbstractInsnNode> nodes) {
-            if (insns instanceof IInsnListEx) {
-                IInsnListEx xinsns = (IInsnListEx)insns;
-                Target target = xinsns.<Target>getDecoration(ModifyVariableInjector.KEY_TARGET);
-                if (target != null) {
-                    // Info is not actually used internally so we don't especially care if it's null
-                    return this.find(xinsns.<InjectionInfo>getDecoration(ModifyVariableInjector.KEY_INFO), insns, nodes, target);
-                }
-            }
-            
-            throw new InvalidInjectionException(this.mixin, this.getAtCode() + " injection point must be used in conjunction with @ModifyVariable");
-        }
-        
-        abstract boolean find(InjectionInfo info, InsnList insns, Collection<AbstractInsnNode> nodes, Target target);
-
     }
 
     /**

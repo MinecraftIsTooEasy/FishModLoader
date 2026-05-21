@@ -24,13 +24,13 @@
  */
 package org.spongepowered.asm.launch.platform.container;
 
-import org.spongepowered.asm.launch.platform.MainAttributes;
-import org.spongepowered.asm.util.Files;
-
 import java.io.File;
 import java.net.URI;
 import java.util.Collection;
 import java.util.Collections;
+
+import org.spongepowered.asm.launch.platform.MainAttributes;
+import org.spongepowered.asm.util.Files;
 
 /**
  * Container handle which directly replaces the use of classpath location URIs

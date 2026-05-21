@@ -24,13 +24,13 @@
  */
 package org.spongepowered.asm.launch.platform;
 
-import org.spongepowered.asm.launch.platform.container.IContainerHandle;
+import java.lang.reflect.Method;
+
 import org.spongepowered.asm.logging.ILogger;
+import org.spongepowered.asm.launch.platform.container.IContainerHandle;
 import org.spongepowered.asm.mixin.MixinEnvironment.Phase;
 import org.spongepowered.asm.service.MixinService;
 import org.spongepowered.asm.util.IConsumer;
-
-import java.lang.reflect.Method;
 
 /**
  * Platform agent base class

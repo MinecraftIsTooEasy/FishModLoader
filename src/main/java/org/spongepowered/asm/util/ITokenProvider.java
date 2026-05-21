@@ -26,7 +26,7 @@ package org.spongepowered.asm.util;
 
 /**
  * Agent which can supply token values to a
- * {@link ConstraintParser.Constraint}.
+ * {@link org.spongepowered.asm.util.ConstraintParser.Constraint}.
  */
 public interface ITokenProvider {
 

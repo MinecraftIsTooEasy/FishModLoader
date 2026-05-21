@@ -24,11 +24,6 @@
  */
 package org.spongepowered.asm.service;
 
-import com.google.common.base.Joiner;
-import com.google.common.collect.ObjectArrays;
-import org.spongepowered.asm.logging.ILogger;
-import org.spongepowered.asm.logging.LoggerAdapterConsole;
-
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -36,6 +31,12 @@ import java.util.List;
 import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 import java.util.Set;
+
+import org.spongepowered.asm.logging.ILogger;
+import org.spongepowered.asm.logging.LoggerAdapterConsole;
+
+import com.google.common.base.Joiner;
+import com.google.common.collect.ObjectArrays;
 
 /**
  * Provides access to the service layer which connects the mixin transformer to
@@ -105,7 +106,42 @@ public final class MixinService {
         return MixinService.getInstance().getServiceInstance();
     }
 
-    private synchronized IMixinService getServiceInstance() {
+    priv
+ate void runBootServices() {
+     // bypass service loader if the mixin.bootstrapService system property yields the desired IMixinServiceBootstrap implementation directly
+        String serviceCls = System.getProperty("mixin.bootstrapService");
+
+        if (serviceCls != null) {
+            try {
+                IMixinServiceBootstrap bootService = (IMixinServiceBootstrap) Class.forName(serviceCls).getConstructor().newInstance();
+                bootService.bootstrap();
+                bootedServices.add(bootService.getServiceClassName());
+
+                return;
+            } catch (ReflectiveOperationException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        this.bootstrapServiceLoader = ServiceLoader.<IMixinServiceBootstrap>load(IMixinServiceBootstrap.class, this.getClass().getClassLoader());
+        Iterator<IMixinServiceBootstrap> iter = this.bootstrapServiceLoader.iterator();
+        while (iter.hasNext()) {
+            try {
+                IMixinServiceBootstrap bootService = iter.next();
+                bootService.bootstrap();
+                this.bootedServices.add(bootService.getServiceClassName());
+            } catch (ServiceInitialisationException ex) {
+                // Expected if service cannot start
+                MixinService.logBuffer.debug("Mixin bootstrap service {} is not available: {}", ex.getStackTrace()[0].getClassName(),
+                        ex.getMessage());
+            } catch (Throwable th) {
+                MixinService.logBuffer.debug("Catching {}:{} initialising service", th.getClass().getName(), th.getMessage(), th);
+            }
+        }
+    }
+
+    /*iv
+ate synchronized IMixinService getServiceInstance() {
         if (this.service == null) {
             try {
                 this.service = this.initService();
@@ -121,59 +157,25 @@ public final class MixinService {
         return this.service;
     }
 
-    priv
-ate void runBootServices() {
-     // bypass service loader if the mixin.bootstrapService system property yields the desired IMixinServiceBootstrap implementation directly
-        String serviceCls = System.getProperty("mixin.bootstrapService");
-        
-        if (serviceCls != null) {
-            try {
-                IMixinServiceBootstrap bootService = (IMixinServiceBootstrap) Class.forName(serviceCls).getConstructor().newInstance();
-                bootService.bootstrap();
-                bootedServices.add(bootService.getServiceClassName());
-                
-                return;
-            } catch (ReflectiveOperationException e) {
-                throw new RuntimeException(e);
-            }
-        }
-        
-        this.bootstrapServiceLoader = ServiceLoader.<IMixinServiceBootstrap>load(IMixinServiceBootstrap.class, this.getClass().getClassLoader());
-        Iterator<IMixinServiceBootstrap> iter = this.bootstrapServiceLoader.iterator();
-        while (iter.hasNext()) {
-            try {
-                IMixinServiceBootstrap bootService = iter.next();
-                bootService.bootstrap();
-                this.bootedServices.add(bootService.getServiceClassName());
-            } catch (ServiceInitialisationException ex) {
-                // Expected if service cannot initial
-                MixinService.logBuffer.debug("Mixin bootstrap service {} is not available: {}", ex.getStackTrace()[0].getClassName(),
-                        ex.getMessage());
-            } catch (Throwable th) {
-                MixinService.logBuffer.debug("Catching {}:{} initialising service", th.getClass().getName(), th.getMessage(), th);
-            }
-        }
-    }
-
-    /**
+    pr*
 
 ate IMixinService initService() {
         // bypass service loader if the mixin.service system property yields the desired IMixinService implementation directly
         String serviceCls = System.getProperty("mixin.service"); // FIXME: there is overlap with bootedServices, may just use that directly?
-        
+
         if (serviceCls != null) {
             try {
                 IMixinService service = (IMixinService) Class.forName(serviceCls).getConstructor().newInstance();
                 if (!service.isValid()) {
                     throw new RuntimeException("invalid service " + serviceCls + " configured via system property");
                 }
-                
+
                 return service;
             } catch (ReflectiveOperationException e) {
                 throw new RuntimeException(e);
             }
         }
-        
+
         this.serviceLoader = ServiceLoader.<IMixinService>load(IMixinService.class, this.getClass().getClassLoader());
         Iterator<IMixinService> iter = this.serviceLoader.iterator();
         List<String> badServices = new ArrayList<String>();
@@ -201,7 +203,7 @@ ate IMixinService initService() {
 //                th.printStackTrace();
             }
         }
-        
+
         String brokenServiceNote = brokenServiceCount == 0 ? "" : " and " + brokenServiceCount + " other invalid services.";
         throw new ServiceNotAvailableError("No mixin host service is available. Services: " + Joiner.on(", ").join(badServices) + brokenServiceNote);
     }
@@ -252,10 +254,10 @@ ate IGlobalPropertyService initPropertyService() {
      * logger itself if startup succeeds, or into the console if startup fails.
      */
     static class LogBuffer {
-        
+
         private final List<LogEntry> buffer = new ArrayList<LogEntry>();
         private ILogger logger;
-        
+
         synchronized void debug(String message, Object... params) {
             if (this.logger != null) {
                 this.logger.debug(message, params);
@@ -288,17 +290,17 @@ ate IGlobalPropertyService initPropertyService() {
         }
 
         public static class LogEntry {
-            
+
             public String message;
             public Object[] params;
             public Throwable t;
-            
+
             public LogEntry(String message, Object[] params, Throwable t) {
                 this.message = message;
                 this.params = params;
                 this.t = t;
             }
-            
+
         }
 
     }

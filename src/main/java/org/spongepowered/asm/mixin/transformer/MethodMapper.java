@@ -24,11 +24,15 @@
  */
 package org.spongepowered.asm.mixin.transformer;
 
-import com.google.common.base.Strings;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import com.google.common.primitives.Chars;
+import org.spongepowered.asm.logging.ILogger;
 import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.MethodNode;
-import org.spongepowered.asm.logging.ILogger;
 import org.spongepowered.asm.mixin.FabricUtil;
 import org.spongepowered.asm.mixin.MixinEnvironment;
 import org.spongepowered.asm.mixin.injection.struct.InjectionInfo;
@@ -36,12 +40,9 @@ import org.spongepowered.asm.mixin.transformer.ClassInfo.Method;
 import org.spongepowered.asm.mixin.transformer.MixinInfo.MixinMethodNode;
 import org.spongepowered.asm.service.MixinService;
 import org.spongepowered.asm.util.Counter;
-import org.spongepowered.asm.util.asm.MethodNodeEx;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import com.google.common.base.Strings;
+import org.spongepowered.asm.util.asm.MethodNodeEx;
 
 /**
  * Maintains method remaps for a target class
@@ -77,6 +78,14 @@ class MethodMapper {
     }
 
     /**
+     * Resets the counters to prepare for application, which can happen multiple times due to hotswap.
+     */
+    public void reset() {
+        this.nextUniqueMethodIndex = 0;
+        this.nextUniqueFieldIndex = 0;
+    }
+
+    /**
      * Get clean sourceId from mixin
      *
      * @param mixin mixin info
@@ -96,14 +105,6 @@ class MethodMapper {
         }
         return String.format("%s%s", sourceId, separator);
     }
-
-    /**
-     * Resets the counters to prepare for application, which can happen multiple times due to hotswap.
-     */
-    public void reset() {
-        this.nextUniqueMethodIndex = 0;
-        this.nextUniqueFieldIndex = 0;
-    }
     
     /**
      * Conforms an injector handler method
@@ -116,16 +117,16 @@ class MethodMapper {
         if (!(handler instanceof MixinMethodNode) || !((MixinMethodNode)handler).isInjector()) {
             return;
         }
-        
+
         if (method.isUnique()) {
             MethodMapper.logger.warn("Redundant @Unique on injector method {} in {}. Injectors are implicitly unique", method, mixin);
         }
-        
+
         if (method.isRenamed()) {
             handler.name = method.getName();
             return;
         }
-        
+
         String handlerName = this.getHandlerName(mixin, (MixinMethodNode)handler);
         handler.name = method.conform(handlerName);
     }

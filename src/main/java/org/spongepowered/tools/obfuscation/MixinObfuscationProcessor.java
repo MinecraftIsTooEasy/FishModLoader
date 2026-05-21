@@ -24,8 +24,7 @@
  */
 package org.spongepowered.tools.obfuscation;
 
-import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.tools.obfuscation.interfaces.IMessagerEx.MessageType;
+import java.util.Set;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.ProcessingEnvironment;
@@ -34,7 +33,9 @@ import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.TypeElement;
-import java.util.Set;
+
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.tools.obfuscation.interfaces.IMessagerEx.MessageType;
 
 /**
  * Base class for mixin annotation processor modules
@@ -65,7 +66,7 @@ abstract class MixinObfuscationProcessor extends AbstractProcessor {
         this.mixins.onPassStarted();
         
         for (Element elem : roundEnv.getElementsAnnotatedWith(Mixin.class)) {
-            if (elem.getKind() == ElementKind.CLASS || elem.getKind() == ElementKind.INTERFACE) {
+            if (elem.getKind() == ElementKind.CLASS || elem.getKind() == ElementKind.INTERFACE || elem.getKind() == ElementKind.ENUM) {
                 this.mixins.registerMixin((TypeElement)elem);
             } else {
                 this.mixins.printMessage(MessageType.MIXIN_ON_INVALID_TYPE,

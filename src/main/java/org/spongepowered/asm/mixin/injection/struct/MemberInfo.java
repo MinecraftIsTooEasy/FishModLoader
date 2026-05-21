@@ -24,8 +24,6 @@
  */
 package org.spongepowered.asm.mixin.injection.struct;
 
-import com.google.common.base.Objects;
-import com.google.common.base.Strings;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.FieldInsnNode;
@@ -47,6 +45,9 @@ import org.spongepowered.asm.util.Constants;
 import org.spongepowered.asm.util.Quantifier;
 import org.spongepowered.asm.util.SignaturePrinter;
 import org.spongepowered.asm.util.asm.ASM;
+
+import com.google.common.base.Objects;
+import com.google.common.base.Strings;
 
 /**
  * <p>Struct which defines an <b>Explcit Target selector</b>,  See
@@ -424,7 +425,7 @@ public final class MemberInfo implements ITargetSelectorRemappable, ITargetSelec
         String owner = null;
         String name = Strings.nullToEmpty(input).replaceAll("\\s", "");
         String tail = null;
-        
+
         int arrowPos = name.indexOf(MemberInfo.ARROW);
         if (arrowPos > -1) {
             tail = name.substring(arrowPos + 2);
@@ -444,7 +445,7 @@ public final class MemberInfo implements ITargetSelectorRemappable, ITargetSelec
             desc = name.substring(colonPos + 1);
             name = name.substring(0, colonPos);
         }
-        
+
         int lastDotPos = name.lastIndexOf('.');
         int semiColonPos = name.indexOf(';');
         if (lastDotPos > -1) {
@@ -454,12 +455,12 @@ public final class MemberInfo implements ITargetSelectorRemappable, ITargetSelec
             owner = name.substring(1, semiColonPos).replace('.', '/');
             name = name.substring(semiColonPos + 1);
         }
-        
+
         if ((name.indexOf('/') > -1 || name.indexOf('.') > -1) && owner == null) {
             owner = name;
             name = "";
         }
-        
+
         // Use default quantifier with negative max value. Used to indicate that
         // an explicit quantifier was not parsed from the selector string, this
         // allows us to provide backward-compatible behaviour for injection
@@ -488,11 +489,11 @@ public final class MemberInfo implements ITargetSelectorRemappable, ITargetSelec
         } else if (name.indexOf("{") >= 0) {
             quantifier = Quantifier.NONE; // Probably incomplete quantifier
         }
-        
+
         if (name.isEmpty()) {
             name = null;
         }
-        
+
         return new MemberInfo(name, owner, desc, quantifier, tail, input);
     }
     
@@ -689,7 +690,7 @@ public final class MemberInfo implements ITargetSelectorRemappable, ITargetSelec
         if (this.input == null) {
             return null;
         }
-        
+
         String returnType = this.getReturnType();
         if (returnType != null) {
             return returnType;
@@ -720,7 +721,7 @@ public final class MemberInfo implements ITargetSelectorRemappable, ITargetSelec
         if (this.getMaxMatchCount() == 0) {
             throw new InvalidMemberDescriptorException(this.input, "Malformed quantifier in selector: " + this.input);
         }
-        
+
         // Extremely naive class name validation, just to spot really egregious errors
         if (this.owner != null) {
             if (!this.owner.matches("(?i)^[\\w\\p{Sc}/]+$")) {
@@ -735,12 +736,12 @@ public final class MemberInfo implements ITargetSelectorRemappable, ITargetSelec
                         + "; to suppress this error");
             }
         }
-        
+
         // Also naive validation, we're looking for stupid errors here
         if (this.name != null && !this.name.matches("(?i)^<?[\\w\\p{Sc}]+>?$")) {
             throw new InvalidMemberDescriptorException(this.input, "Invalid name: " + this.name);
         }
-        
+
         if (this.desc != null) {
             if (!this.desc.matches("^(\\([\\w\\p{Sc}\\[/;]*\\))?\\[*[\\w\\p{Sc}/;]+$")) {
                 throw new InvalidMemberDescriptorException(this.input, "Invalid descriptor: " + this.desc);
@@ -765,7 +766,7 @@ public final class MemberInfo implements ITargetSelectorRemappable, ITargetSelec
                 } catch (Exception ex) {
                     throw new InvalidMemberDescriptorException(this.input, "Invalid descriptor: " + this.desc);
                 }
-    
+
                 String retString = this.desc.substring(this.desc.indexOf(')') + 1);
                 try {
                     Type retType = Type.getType(retString);
@@ -783,7 +784,7 @@ public final class MemberInfo implements ITargetSelectorRemappable, ITargetSelec
                 }
             }
         }
-        
+
         return this;
     }
     
@@ -883,11 +884,11 @@ public final class MemberInfo implements ITargetSelectorRemappable, ITargetSelec
         if (obj == null || !(obj instanceof ITargetSelectorByName)) {
             return false;
         }
-        
+
         ITargetSelectorByName other = (ITargetSelectorByName)obj;
         boolean otherForceField = other instanceof MemberInfo ? ((MemberInfo)other).forceField
                 : other instanceof ITargetSelectorRemappable ? ((ITargetSelectorRemappable)other).isField() : false;
-        
+
         return this.compareMatches(other) && this.forceField == otherForceField
                 && Objects.equal(this.owner, other.getOwner())
                 && Objects.equal(this.name, other.getName())

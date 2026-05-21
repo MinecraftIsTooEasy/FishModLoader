@@ -24,17 +24,18 @@
  */
 package org.spongepowered.tools.obfuscation.mapping.common;
 
-import org.spongepowered.tools.obfuscation.interfaces.IMessagerEx;
-import org.spongepowered.tools.obfuscation.interfaces.IMessagerEx.MessageType;
-import org.spongepowered.tools.obfuscation.mapping.IMappingWriter;
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintWriter;
 
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Messager;
 import javax.tools.FileObject;
 import javax.tools.StandardLocation;
-import java.io.File;
-import java.io.IOException;
-import java.io.PrintWriter;
+
+import org.spongepowered.tools.obfuscation.interfaces.IMessagerEx;
+import org.spongepowered.tools.obfuscation.interfaces.IMessagerEx.MessageType;
+import org.spongepowered.tools.obfuscation.mapping.IMappingWriter;
 
 /**
  * Writer for mappings

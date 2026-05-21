@@ -24,11 +24,11 @@
  */
 package org.spongepowered.tools.obfuscation.mapping;
 
-import org.spongepowered.asm.obfuscation.mapping.common.MappingField;
-import org.spongepowered.asm.obfuscation.mapping.common.MappingMethod;
-
 import java.io.File;
 import java.io.IOException;
+
+import org.spongepowered.asm.obfuscation.mapping.common.MappingField;
+import org.spongepowered.asm.obfuscation.mapping.common.MappingMethod;
 
 /**
  * A mapping provider stores raw mapping information for use by the AP, access

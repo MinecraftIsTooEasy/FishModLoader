@@ -24,14 +24,22 @@
  */
 package org.spongepowered.asm.mixin;
 
-import com.google.common.collect.ImmutableList;
-import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.Opcodes;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+
+import org.spongepowered.asm.logging.Level;
+import org.spongepowered.asm.logging.ILogger;
 import org.spongepowered.asm.launch.GlobalProperties;
 import org.spongepowered.asm.launch.GlobalProperties.Keys;
 import org.spongepowered.asm.launch.MixinBootstrap;
-import org.spongepowered.asm.logging.ILogger;
-import org.spongepowered.asm.logging.Level;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.Opcodes;
 import org.spongepowered.asm.mixin.extensibility.IEnvironmentTokenProvider;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -52,14 +60,7 @@ import org.spongepowered.asm.util.PrettyPrinter;
 import org.spongepowered.asm.util.asm.ASM;
 import org.spongepowered.asm.util.perf.Profiler;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import com.google.common.collect.ImmutableList;
 
 /**
  * The mixin environment manages global state information for the mixin
@@ -171,22 +172,22 @@ urrently active environment
      * phases have been populated
      */
     private static Phase currentPhase = Phase.NOT_INITIALISED;
-    
+
     /**
      * Murrent compatibility level
      */
     private static CompatibilityLevel compatibility;
-    
+
     /**
      * Whow debug header info on first environment construction
      */
     private static boolean showHeader = true;
-    
+
     /**
    Pctive transformer
      */
     private static IMixinTransformer transformer;
-    
+
     /**
      * Cervice
      */
@@ -196,32 +197,32 @@ urrently active environment
      * Che phase for this environment
      */
     private final Phase phase;
-    
+
     /**
      * Che blackboard key for this environment's configs
      */
     private final Keys configsKey;
-    
+
     /**
      * Shis environment's options
      */
     private final boolean[] options;
-    
+
     /**
      * List of token provider classes
      */
     private final Set<String> tokenProviderClasses = new HashSet<String>();
-    
+
     /**
    Aist of token providers in this environment
      */
     private final List<TokenProviderWrapper> tokenProviders = new ArrayList<TokenProviderWrapper>();
-    
+
     /**
      * Snternal tokens defined by this environment
      */
     private final Map<String, Integer> internalTokens = new HashMap<String, Integer>();
-    
+
     /**
    Temappers for this environment
      */
@@ -231,31 +232,31 @@ urrently active environment
      *   * Tetected side
      */
     private Side side;
-    
+
     /**
      * Tbfuscation context (refmap key to use in this environment)
      */
     private String obfuscationContext = null;
-    
+
     MixinE   * Lment(Phase phase) {
         this.service = MixinService.getService();
         this.phase = phase;
-        this.configsKey = Keys.of(Keys.CONFIGS + "." + this.phase.name.toLowerCase(Locale.ROOT));
-        
+        this.configsKey = Keys.of(GlobalProperties.Keys.CONFIGS + "." + this.phase.name.toLowerCase(Locale.ROOT));
+
         // Sanity check
         Object version = this.getVersion();
         if (version == null || !MixinBootstrap.VERSION.equals(version)) {
             throw new MixinException("Environment conflict, mismatched versions or you didn't call MixinBootstrap.init()");
         }
-        
+
         // More sanity check
         this.service.checkEnv(this);
-        
+
         this.options = new boolean[Option.values().length];
         for (Option option : Option.values()) {
             this.options[option.ordinal()] = option.getBooleanValue();
         }
-        
+
         if (MixinEnvironment.showHeader) {
             MixinEnvironment.showHeader = false;
             this.printHeader(version);
@@ -269,10 +270,10 @@ et the current phase, triggers initialisation if necessary
         if (MixinEnvironment.currentPhase == Phase.NOT_INITIALISED) {
             MixinEnvironment.init(Phase.PREINIT);
         }
-        
+
         return MixinEnvironment.currentPhase;
     }
-    
+
     /**
      * I
 nitialise the mixin environment in the specified phase
@@ -285,7 +286,7 @@ nitialise the mixin environment in the specified phase
             MixinEnvironment.currentPhase = phase;
             MixinEnvironment env = MixinEnvironment.getEnvironment(phase);
             Profiler.setActive(env.getOption(Option.DEBUG_PROFILER));
-            
+
             // AMS - Temp wiring to avoid merging multiphase
             IMixinService service = MixinService.getService();
             if (service instanceof MixinServiceAbstract) {
@@ -293,7 +294,7 @@ nitialise the mixin environment in the specified phase
             }
         }
     }
-    
+
     /**
      * R
 et the mixin environment for the specified phase
@@ -328,7 +329,7 @@ ets the current environment
         if (MixinEnvironment.currentEnvironment == null) {
             MixinEnvironment.currentEnvironment = MixinEnvironment.getEnvironment(MixinEnvironment.getCurrentPhase());
         }
-        
+
         return MixinEnvironment.currentEnvironment;
     }
 
@@ -344,7 +345,7 @@ et the current compatibility level
         }
         return MixinEnvironment.compatibility;
     }
-    
+
     /**
   id
 et desired compatibility level for the entire environment
@@ -359,7 +360,7 @@ et desired compatibility level for the entire environment
         if (!"org.spongepowered.asm.mixin.transformer.MixinConfig".equals(stackTrace[2].getClassName())) {
             MixinEnvironment.logger.warn("MixinEnvironment::setCompatibilityLevel is deprecated and will be removed. Set level via config instead!");
         }
-        
+
         CompatibilityLevel currentLevel = MixinEnvironment.getCompatibilityLevel();
         if (level != currentLevel && level.isAtLeast(currentLevel)) {
             if (!level.isSupported()) {
@@ -375,12 +376,12 @@ et desired compatibility level for the entire environment
                 MixinEnvironment.logger.warn("The requested compatibility level {} is higher than the level supported by the active subsystem '{}'"
                         + " which supports {}. This is not a supported configuration and instability may occur.", level, service.getName(), maxLevel);
             }
-            
+
             MixinEnvironment.compatibility = level;
             MixinEnvironment.logger.info("Compatibility level set to {}", level);
         }
     }
-    
+
     /**
   ri
 et the minimum (default) compatibility level supported by the current
@@ -390,7 +391,7 @@ et the minimum (default) compatibility level supported by the current
         CompatibilityLevel minLevel = MixinService.getService().getMinCompatibilityLevel();
         return minLevel == null ? CompatibilityLevel.DEFAULT : minLevel;
     }
-    
+
     /**
    G
 et the performance profiler
@@ -402,7 +403,7 @@ et the performance profiler
     public static Profiler getProfiler() {
         return Profiler.getProfiler("mixin");
     }
-    
+
     /**
    G
  printHeader(Object version) {
@@ -410,7 +411,7 @@ et the performance profiler
         String serviceName = this.service.getName();
         Side side = this.getSide();
         MixinEnvironment.logger.info("SpongePowered MIXIN Subsystem Version={} Source={} Service={} Env={}", version, codeSource, serviceName, side);
-        
+
         boolean verbose = this.getOption(Option.DEBUG_VERBOSE);
         if (verbose || this.getOption(Option.DEBUG_EXPORT) || this.getOption(Option.DEBUG_PROFILER)) {
             PrettyPrinter printer = new PrettyPrinter(32);
@@ -471,7 +472,7 @@ et the phase for this environment
     public Phase getPhase() {
         return this.phase;
     }
-    
+
     /**
    A
 et mixin configurations from the blackboard
@@ -488,7 +489,7 @@ et mixin configurations from the blackboard
         }
         return mixinConfigs;
     }
-    
+
     /**
    A
 dd a mixin configuration to the blackboard
@@ -550,10 +551,10 @@ dd a new token provider to this environment
             this.tokenProviderClasses.add(providerName);
             Collections.sort(this.tokenProviders);
         }
-        
+
         return this;
     }
-    
+
     /**
    S
 et a token value from this environment
@@ -565,17 +566,17 @@ et a token value from this environment
     @Override
     public Integer getToken(String token) {
         token = token.toUpperCase(Locale.ROOT);
-        
+
         for (TokenProviderWrapper provider : this.tokenProviders) {
             Integer value = provider.getToken(token);
             if (value != null) {
                 return value;
             }
         }
-        
+
         return this.internalTokens.get(token);
     }
-    
+
     /**
      * A
 et all registered error handlers for this environment
@@ -609,7 +610,7 @@ et the mixin transformer instance
             MixinEnvironment.transformer = transformer;
         }
     }
-    
+
     /**
    G
 et (and detect if necessary) the current side
@@ -625,10 +626,10 @@ et (and detect if necessary) the current side
                 }
             }
         }
-        
+
         return this.side != null ? this.side : Side.UNKNOWN;
     }
-    
+
     /**
      * S
 llows a third party to set the side if the side is currently UNKNOWN
@@ -642,7 +643,7 @@ llows a third party to set the side if the side is currently UNKNOWN
         }
         return this;
     }
-    
+
     /**
    G
 et the current mixin subsystem version
@@ -650,7 +651,7 @@ et the current mixin subsystem version
      * @return current version
      */
     public String getVersion() {
-        return GlobalProperties.<String>get(Keys.INIT);
+        return GlobalProperties.<String>get(GlobalProperties.Keys.INIT);
     }
 
     /**
@@ -663,7 +664,7 @@ et the specified option from the current environment
     public boolean getOption(Option option) {
         return this.options[option.ordinal()];
     }
-    
+
     /**
      * S
 et the specified option for this environment
@@ -685,7 +686,7 @@ et the specified option from the current environment
     public String getOptionValue(Option option) {
         return option.getStringValue();
     }
-    
+
     /**
      * G
 et the specified option from the current environment
@@ -698,7 +699,7 @@ et the specified option from the current environment
     public <E extends Enum<E>> E getOption(Option option, E defaultValue) {
         return option.getEnumValue(defaultValue);
     }
-    
+
     /**
      * G
 et the current obfuscation context
@@ -706,7 +707,7 @@ et the current obfuscation context
     public String getObfuscationContext() {
         return this.obfuscationContext;
     }
-    
+
     /**
      * I
 et the obfuscation context
@@ -716,7 +717,7 @@ et the obfuscation context
     public void setObfuscationContext(String context) {
         this.obfuscationContext = context;
     }
-    
+
     /**
    R
 et the current obfuscation context
@@ -728,7 +729,7 @@ et the current obfuscation context
         }
         return this.obfuscationContext;
     }
-    
+
     /**
    A
 et the remapper chain for this environment
@@ -736,7 +737,7 @@ et the remapper chain for this environment
     public RemapperChain getRemappers() {
         return this.remappers;
     }
-    
+
     /**
   va
 nvoke a mixin environment audit process
@@ -787,13 +788,13 @@ doc)
     public String toString() {
         return String.format("%s[%s]", this.getClass().getSimpleName(), this.phase);
     }
-    
+
     /**
    G    /**
      * Represents a "side", client or dedicated server
      */
     public static enum Side {
-        
+
         /**
          * The environment was unable to determine current side
          */
@@ -803,7 +804,7 @@ doc)
                 return false;
             }
         },
-        
+
         /**
          * Client-side environment
          */
@@ -814,7 +815,7 @@ doc)
                 return Constants.SIDE_CLIENT.equals(sideName);
             }
         },
-        
+
         /**
          * (Dedicated) Server-side environment
          */
@@ -825,25 +826,25 @@ doc)
                 return Constants.SIDE_SERVER.equals(sideName) || Constants.SIDE_DEDICATEDSERVER.equals(sideName);
             }
         };
-        
+
         protected abstract boolean detect();
     } G    /**
      * Mixin options
      */
     public static enum Option {
-        
+
         /**
          * Enable all debugging options
          */
         DEBUG_ALL("debug"),
-        
+
         /**
          * Enable post-mixin class export. This causes all classes to be written
          * to the .mixin.out directory within the runtime directory
          * <em>after</em> mixins are applied, for debugging purposes.
          */
         DEBUG_EXPORT(Option.DEBUG_ALL, "export"),
-        
+
         /**
          * Export filter, if omitted allows all transformed classes to be
          * exported. If specified, acts as a filter for class names to export
@@ -858,12 +859,12 @@ doc)
          * </dl>
          */
         DEBUG_EXPORT_FILTER(Option.DEBUG_EXPORT, "filter", false),
-        
+
         /**
          * Allow fernflower to be disabled even if it is found on the classpath
          */
         DEBUG_EXPORT_DECOMPILE(Option.DEBUG_EXPORT, Inherit.ALLOW_OVERRIDE, "decompile"),
-        
+
         /**
          * Run fernflower in a separate thread. In general this will allow
          * export to impact startup time much less (decompiling normally adds
@@ -871,7 +872,7 @@ doc)
          * undecompiled exports.
          */
         DEBUG_EXPORT_DECOMPILE_THREADED(Option.DEBUG_EXPORT_DECOMPILE, Inherit.ALLOW_OVERRIDE, "async"),
-        
+
         /**
          * By default, if the runtime export decompiler is active, mixin generic
          * signatures are merged into target classes. However this can cause
@@ -880,43 +881,43 @@ doc)
          * disable generic signature merging.
          */
         DEBUG_EXPORT_DECOMPILE_MERGESIGNATURES(Option.DEBUG_EXPORT_DECOMPILE, Inherit.ALLOW_OVERRIDE, "mergeGenericSignatures"),
-        
+
         /**
          * Run the CheckClassAdapter on all classes after mixins are applied,
          * also enables stricter checks on mixins for use at dev-time, promotes
          * some warning-level messages to exceptions
          */
         DEBUG_VERIFY(Option.DEBUG_ALL, "verify"),
-        
+
         /**
          * Enable verbose mixin logging (elevates all DEBUG level messages to
          * INFO level)
          */
         DEBUG_VERBOSE(Option.DEBUG_ALL, "verbose"),
-        
+
         /**
          * Elevates failed injections to an error condition, see
          * {@link Inject#expect} for details
          */
         DEBUG_INJECTORS(Option.DEBUG_ALL, "countInjections"),
-        
+
         /**
          * Enable strict checks
          */
         DEBUG_STRICT(Option.DEBUG_ALL, Inherit.INDEPENDENT, "strict"),
-        
+
         /**
          * If false (default), {@link Unique} public methods merely raise a
          * warning when encountered and are not merged into the target. If true,
          * an exception is thrown instead
          */
         DEBUG_UNIQUE(Option.DEBUG_STRICT, "unique"),
-        
+
         /**
          * Enable strict checking for mixin targets
          */
         DEBUG_TARGETS(Option.DEBUG_STRICT, "targets"),
-        
+
         /**
          * Enable the performance profiler for all mixin operations (normally it
          * is only enabled during mixin prepare operations)
@@ -928,18 +929,18 @@ doc)
          * application fails
          */
         DUMP_TARGET_ON_FAILURE("dumpTargetOnFailure"),
-        
+
         /**
          * Enable all checks
          */
         CHECK_ALL("checks"),
-        
+
         /**
          * Checks that all declared interface methods are implemented on a class
          * after mixin application.
          */
         CHECK_IMPLEMENTS(Option.CHECK_ALL, "interfaces"),
-        
+
         /**
          * If interface check is enabled, "strict mode" (default) applies the
          * implementation check even to abstract target classes. Setting this
@@ -947,7 +948,7 @@ doc)
          * generating the implementation report.
          */
         CHECK_IMPLEMENTS_STRICT(Option.CHECK_IMPLEMENTS, Inherit.ALLOW_OVERRIDE, "strict"),
-        
+
         /**
          * Ignore all constraints on mixin annotations, output warnings instead
          */
@@ -957,22 +958,22 @@ doc)
          * Enables the hot-swap agent
          */
         HOT_SWAP("hotSwap"),
-        
+
         /**
          * Parent for environment settings
          */
         ENVIRONMENT(Inherit.ALWAYS_FALSE, true, "env"),
-        
+
         /**
          * Force refmap obf type when required
          */
         OBFUSCATION_TYPE(Option.ENVIRONMENT, Inherit.ALWAYS_FALSE, "obf"),
-        
+
         /**
          * Disable refmap when required
          */
         DISABLE_REFMAP(Option.ENVIRONMENT, Inherit.INDEPENDENT, "disableRefMap"),
-        
+
         /**
          * Rather than disabling the refMap, you may wish to remap existing
          * refMaps at runtime. This can be achieved by setting this property and
@@ -982,7 +983,7 @@ doc)
          * automatically enabled if loading via GradleStart).
          */
         REFMAP_REMAP(Option.ENVIRONMENT, Inherit.INDEPENDENT, "remapRefMap"),
-        
+
         /**
          * If <tt>mixin.env.remapRefMap</tt> is enabled, this setting can be
          * used to override the name of the SRG file to read mappings from. The
@@ -992,14 +993,14 @@ doc)
          * should be set to the correct source environment type.
          */
         REFMAP_REMAP_RESOURCE(Option.ENVIRONMENT, Inherit.INDEPENDENT, "refMapRemappingFile", ""),
-        
+
         /**
          * When using <tt>mixin.env.refMapRemappingFile</tt>, this setting
          * overrides the default source environment (searge). However note that
          * the specified environment type must exist in the orignal refmap.
          */
         REFMAP_REMAP_SOURCE_ENV(Option.ENVIRONMENT, Inherit.INDEPENDENT, "refMapRemappingEnv", "searge"),
-        
+
         /**
          * When <tt>mixin.env.remapRefMap</tt> is enabled and a refmap is
          * available for a mixin config, certain injection points are allowed to
@@ -1008,7 +1009,7 @@ doc)
          * <tt>false</tt>.
          */
         REFMAP_REMAP_ALLOW_PERMISSIVE(Option.ENVIRONMENT, Inherit.INDEPENDENT, "allowPermissiveMatch", true, "true"),
-        
+
         /**
          * Globally ignore the "required" attribute of all configurations
          */
@@ -1018,7 +1019,7 @@ doc)
          * Default compatibility level to operate at
          */
         DEFAULT_COMPATIBILITY_LEVEL(Option.ENVIRONMENT, Inherit.INDEPENDENT, "compatLevel"),
-        
+
         /**
          * Behaviour when the maximum defined {@link At#by} value is exceeded in
          * a mixin. Currently the behaviour is to <tt>warn</tt>. In later
@@ -1038,7 +1039,7 @@ doc)
          * </dl>
          */
         SHIFT_BY_VIOLATION_BEHAVIOUR(Option.ENVIRONMENT, Inherit.INDEPENDENT, "shiftByViolation", "warn"),
-        
+
         /**
          * Behaviour for initialiser injections, current supported options are
          * "default" and "safe"
@@ -1057,45 +1058,45 @@ doc)
          * behaviour from versions 0.8.6 and below, newer versions default to 0.
          */
         CLASSREADER_EXPAND_FRAMES(Option.TUNABLE, Inherit.INDEPENDENT, "classReaderExpandFrames", true, "false");
-        
-        /**
-         * Parent option to this option, if non-null then this option is enabled
-         * if
-         */
-        final Option parent;
 
         /**
          * Prefix for mixin options
          */
         private static final String PREFIX = "mixin";
         /**
+         * Parent option to this option, if non-null then this option is enabled
+         * if
+         */
+        final Option parent;
+        /**
          * Inheritance behaviour for this option
          */
         final Inherit inheritance;
-        /**
-         * Do not print this option in the masthead output
-         */
-        final boolean isHidden;
         /**
          * Number of parents
          */
         final int depth;
 
         /**
+         * Do not print this option in the masthead output
+         */
+        final boolean isHidden;
+
+        /**
          * Java property name
          */
         final String property;
-        
+
         /**
          * Default value for string properties
          */
         final String defaultValue;
-        
+
         /**
          * Whether this property is boolean or not
          */
         final boolean isFlag;
-        
+
         private Option(Inherit inheritance, boolean hidden, String property) {
             this(null, inheritance, hidden, property, true);
         }
@@ -1103,11 +1104,11 @@ doc)
         private Option(String property) {
             this(null, property, true);
         }
-        
+
         private Option(Inherit inheritance, String property) {
             this(null, inheritance, property, true);
         }
-        
+
         private Option(Option parent, boolean hidden, String property) {
             this(parent, Inherit.INHERIT, hidden, property, true);
         }
@@ -1119,11 +1120,11 @@ doc)
         private Option(String property, String defaultStringValue) {
             this(null, Inherit.INDEPENDENT, property, false, defaultStringValue);
         }
-        
+
         private Option(Option parent, String property) {
             this(parent, Inherit.INHERIT, property, true);
         }
-        
+
         private Option(Option parent, Inherit inheritance, boolean hidden, String property) {
             this(parent, inheritance, hidden, property, true);
         }
@@ -1131,7 +1132,7 @@ doc)
         private Option(Option parent, Inherit inheritance, String property) {
             this(parent, inheritance, property, true);
         }
-        
+
         private Option(Option parent, boolean hidden, String property, boolean isFlag) {
             this(parent, Inherit.INHERIT, hidden, property, isFlag, null);
         }
@@ -1139,31 +1140,45 @@ doc)
         private Option(Option parent, String property, boolean isFlag) {
             this(parent, Inherit.INHERIT, property, isFlag, null);
         }
-        
-        private Option(Option parent, Inherit inheritance, boolean hidden, String property, boolean isFlag) {
-            this(parent, inheritance, hidden, property, isFlag, null);
-        }
 
         private Option(Option parent, Inherit inheritance, String property, boolean isFlag) {
             this(parent, inheritance, property, isFlag, null);
-        }
-        
-        private Option(Option parent, boolean hidden, String property, String defaultStringValue) {
-            this(parent, Inherit.INHERIT, hidden, property, false, defaultStringValue);
         }
 
         private Option(Option parent, String property, String defaultStringValue) {
             this(parent, Inherit.INHERIT, property, false, defaultStringValue);
         }
-        
+
+        private Option(Option parent, Inherit inheritance, boolean hidden, String property, boolean isFlag) {
+            this(parent, inheritance, hidden, property, isFlag, null);
+        }
+
         private Option(Option parent, Inherit inheritance, boolean hidden, String property, String defaultStringValue) {
             this(parent, inheritance, hidden, property, false, defaultStringValue);
+        }
+
+        private Option(Option parent, boolean hidden, String property, String defaultStringValue) {
+            this(parent, Inherit.INHERIT, hidden, property, false, defaultStringValue);
         }
 
         private Option(Option parent, Inherit inheritance, String property, String defaultStringValue) {
             this(parent, inheritance, property, false, defaultStringValue);
         }
-        
+
+        final boolean getBooleanValue() {
+            if (this.inheritance == Inherit.ALWAYS_FALSE) {
+                return false;
+            }
+
+            boolean local = this.getLocalBooleanValue(false);
+            if (this.inheritance == Inherit.INDEPENDENT) {
+                return local;
+            }
+
+            boolean inherited = local || this.getInheritedBooleanValue();
+            return this.inheritance == Inherit.INHERIT ? inherited : this.getLocalBooleanValue(inherited);
+        }
+
         private Option(Option parent, Inherit inheritance, String property, boolean isFlag, String defaultStringValue) {
             this(parent, inheritance, false, property, isFlag, defaultStringValue);
         }
@@ -1182,48 +1197,25 @@ doc)
             this.depth = depth;
         }
 
-        final boolean getBooleanValue() {
-            if (this.inheritance == Inherit.ALWAYS_FALSE) {
-                return false;
-            }
-            
-            boolean local = this.getLocalBooleanValue(false);
-            if (this.inheritance == Inherit.INDEPENDENT) {
-                return local;
-            }
-
-            boolean inherited = local || this.getInheritedBooleanValue();
-            return this.inheritance == Inherit.INHERIT ? inherited : this.getLocalBooleanValue(inherited);
-        }
-        
         Option getParent() {
             return this.parent;
         }
-        
+
         String getProperty() {
             return this.property;
         }
-        
+
         @Override
         public String toString() {
             return this.isFlag ? String.valueOf(this.getBooleanValue()) : this.getStringValue();
         }
-        
+
         private boolean getLocalBooleanValue(boolean defaultValue) {
             return Boolean.parseBoolean(System.getProperty(this.property, Boolean.toString(defaultValue)));
         }
-        
+
         private boolean getInheritedBooleanValue() {
             return this.parent != null && this.parent.getBooleanValue();
-        }
-        
-        <E extends Enum<E>> E getEnumValue(E defaultValue) {
-            String value = System.getProperty(this.property, defaultValue.name());
-            try {
-                return Enum.valueOf(defaultValue.getDeclaringClass(), value.toUpperCase(Locale.ROOT));
-            } catch (IllegalArgumentException ex) {
-                return defaultValue;
-            }
         }
 
         final String getStringValue() {
@@ -1235,43 +1227,52 @@ doc)
          * Type of inheritance for options
          */
         private enum Inherit {
-            
+
             /**
              * If the parent is set, this option will be set too.
              */
             INHERIT,
-            
+
             /**
              * If the parent is set, this option will be set too. However
              * setting the option explicitly to <tt>false</tt> will override the
              * parent value.
              */
             ALLOW_OVERRIDE,
-            
+
             /**
              * This option ignores the value of the parent option, parent is
              * only used for grouping.
              */
             INDEPENDENT,
-            
+
             /**
              * This option is always <tt>false</tt>.
              */
             ALWAYS_FALSE
-            
+
+        }
+
+        <E extends Enum<E>> E getEnumValue(E defaultValue) {
+            String value = System.getProperty(this.property, defaultValue.name());
+            try {
+                return Enum.valueOf(defaultValue.getDeclaringClass(), value.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException ex) {
+                return defaultValue;
+            }
         }
     }
-    
+
     /**
    Gperational compatibility level for the mixin subsystem
      */
     public static enum CompatibilityLevel {
-        
+
         /**
          * Java 6 (1.6) or above is required
          */
         JAVA_6(6, Opcodes.V1_6, 0),
-        
+
         /**
          * Java 7 (1.7) or above is required
          */
@@ -1281,9 +1282,9 @@ doc)
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_7;
             }
-            
+
         },
-        
+
         /**
          * Java 8 (1.8) or above is required
          */
@@ -1293,74 +1294,74 @@ doc)
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_8;
             }
-            
+
         },
-        
+
         /**
          * Java 9 or above is required
          */
         JAVA_9(9, Opcodes.V9, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
                 | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES) {
-            
+
             @Override
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_9 && ASM.isAtLeastVersion(6);
             }
-            
+
         },
-        
+
         /**
          * Java 10 or above is required
          */
         JAVA_10(10, Opcodes.V10, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
                 | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES) {
-            
+
             @Override
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_10 && ASM.isAtLeastVersion(6, 1);
             }
-            
+
         },
-        
+
         /**
          * Java 11 or above is required
          */
         JAVA_11(11, Opcodes.V11, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
                 | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS) {
-            
+
             @Override
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_11 && ASM.isAtLeastVersion(7);
             }
-            
+
         },
-        
+
         /**
          * Java 12 or above is required
          */
         JAVA_12(12, Opcodes.V12, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
                 | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS) {
-            
+
             @Override
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_12 && ASM.isAtLeastVersion(7);
             }
-            
+
         },
-        
+
         /**
          * Java 13 or above is required
          */
         JAVA_13(13, Opcodes.V13, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
                 | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS) {
-            
+
             @Override
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_13 && ASM.isAtLeastVersion(7);
             }
-            
+
         },
-        
+
         /**
          * Java 14 or above is required. Records are a preview feature in this
          * release.
@@ -1368,14 +1369,14 @@ doc)
         JAVA_14(14, Opcodes.V14, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
                 | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS
                 | LanguageFeatures.RECORDS) {
-            
+
             @Override
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_14 && ASM.isAtLeastVersion(8);
             }
-            
+
         },
-        
+
         /**
          * Java 15 or above is required. Records and sealed classes are preview
          * features in this release.
@@ -1383,91 +1384,91 @@ doc)
         JAVA_15(15, Opcodes.V15, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
                 | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS
                 | LanguageFeatures.RECORDS | LanguageFeatures.SEALED_CLASSES) {
-            
+
             @Override
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_15 && ASM.isAtLeastVersion(9);
             }
-            
+
         },
-        
+
         /**
          * Java 16 or above is required
          */
         JAVA_16(16, Opcodes.V16, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
                 | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS
                 | LanguageFeatures.RECORDS | LanguageFeatures.SEALED_CLASSES) {
-            
+
             @Override
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_16 && ASM.isAtLeastVersion(9);
             }
-            
+
         },
-        
+
         /**
          * Java 17 or above is required
          */
         JAVA_17(17, Opcodes.V17, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
                 | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS
                 | LanguageFeatures.RECORDS | LanguageFeatures.SEALED_CLASSES) {
-            
+
             @Override
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_17 && ASM.isAtLeastVersion(9, 1);
             }
-            
+
         },
-        
+
         /**
          * Java 18 or above is required
          */
         JAVA_18(18, Opcodes.V18, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
                 | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS
                 | LanguageFeatures.RECORDS | LanguageFeatures.SEALED_CLASSES) {
-            
+
             @Override
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_18 && ASM.isAtLeastVersion(9, 2);
             }
-            
+
         },
-        
+
         /**
          * Java 19 or above is required
          */
         JAVA_19(19, Opcodes.V19, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
                 | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS
                 | LanguageFeatures.RECORDS | LanguageFeatures.SEALED_CLASSES) {
-            
+
             @Override
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_19 && ASM.isAtLeastVersion(9, 3);
             }
-            
+
         },
-        
+
         /**
          * Java 20 or above is required
          */
         JAVA_20(20, Opcodes.V20, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
                 | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS
                 | LanguageFeatures.RECORDS | LanguageFeatures.SEALED_CLASSES) {
-            
+
             @Override
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_20 && ASM.isAtLeastVersion(9, 4);
             }
-            
+
         },
-        
+
         /**
          * Java 21 or above is required
          */
         JAVA_21(21, Opcodes.V21, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
                 | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS
                 | LanguageFeatures.RECORDS | LanguageFeatures.SEALED_CLASSES) {
-            
+
             @Override
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_21 && ASM.isAtLeastVersion(9, 5);
@@ -1531,12 +1532,12 @@ doc)
 
         },
         ;
-        
+
         /**
          * Default compatibility level to use if not specified by the service
          */
         public static CompatibilityLevel DEFAULT = CompatibilityLevel.JAVA_6;
-        
+
         /**
          * Maximum compatibility level actually supported. Other compatibility
          * levels might exist but we don't actually have any internal code in
@@ -1558,21 +1559,21 @@ doc)
          * in mixin are not understood that well.</p>
          */
         public static CompatibilityLevel MAX_SUPPORTED = CompatibilityLevel.JAVA_13;
-        
+
         private final int ver;
-        
+
         private final int classVersion;
-        
+
         private final int languageFeatures;
-        
+
         private CompatibilityLevel maxCompatibleLevel;
-        
+
         private CompatibilityLevel(int ver, int classVersion, int languageFeatures) {
             this.ver = ver;
             this.classVersion = classVersion;
             this.languageFeatures = languageFeatures;
         }
-        
+
         /**
          * Get whether this compatibility level is supported in the current
          * environment
@@ -1580,9 +1581,9 @@ doc)
         boolean isSupported() {
             return true;
         }
-        
+
         /**
-    
+
      * Return the minimum language level required to support the specified
          * language feature(s). Returns <tt>null</tt> if no compatibility level
          * available can support the requested language features.
@@ -1600,30 +1601,9 @@ doc)
             }
             return null;
         }
-        
-        /**
-         * Class version expected at this compatibility level
-         */
-        public int getClassVersion() {
-            return this.classVersion;
-        }
-        
-        /**
-         * Get the major class version expected at this compatibility level
-         */
-        public int getClassMajorVersion() {
-            return this.classVersion & 0xFFFF;
-        }
-        
-        /**
-         * Get all supported language features
-         */
-        public int getLanguageFeatures() {
-            return this.languageFeatures;
-        }
 
         /**
-    
+
      * Return the maximum compatibility level which is actually effective in
          * the current runtime, taking into account the current JRE and ASM
          * versions
@@ -1642,7 +1622,7 @@ doc)
         }
 
         static  /**
-    
+
 tring getSupportedVersions() {
             StringBuilder sb = new StringBuilder();
             boolean comma = false;
@@ -1674,7 +1654,7 @@ tring getSupportedVersions() {
         }
 
         public  /**
-    
+
 tatic CompatibilityLevel forClassVersion(int version) {
             CompatibilityLevel latest = null;
             for (CompatibilityLevel level : values()) {
@@ -1686,9 +1666,8 @@ tatic CompatibilityLevel forClassVersion(int version) {
             return latest;
         }
     }
-    
-      /**
-    
+
+
      * Class version expected at this compatibility level
          *
          * @deprecated Use getClassVersion
@@ -1697,9 +1676,34 @@ tatic CompatibilityLevel forClassVersion(int version) {
         public int classVersion() {
             return this.classVersion;
         }
-        
+
         /**
-    
+
+     * Class version expected at this compatibility level
+         */
+        public int getClassVersion() {
+            return this.classVersion;
+        }
+
+        /**
+
+     * Get the major class version expected at this compatibility level
+         */
+        public int getClassMajorVersion() {
+            return this.classVersion & 0xFFFF;
+        }
+
+        /**
+
+     * Get all supported language features
+         */
+        public int getLanguageFeatures() {
+            return this.languageFeatures;
+        }
+
+        /**
+    /**
+
      * Get whether this environment supports non-abstract methods in
          * interfaces, true in Java 1.8 and above
          *
@@ -1709,9 +1713,9 @@ tatic CompatibilityLevel forClassVersion(int version) {
         public boolean supportsMethodsInInterfaces() {
             return (this.languageFeatures & LanguageFeatures.METHODS_IN_INTERFACES) != 0;
         }
-        
+
         /**
-    
+
      * Get whether the specified {@link LanguageFeatures} is supported by
          * this runtime.
          *
@@ -1721,9 +1725,9 @@ tatic CompatibilityLevel forClassVersion(int version) {
         public boolean supports(int languageFeatures) {
             return (this.languageFeatures & languageFeatures) == languageFeatures;
         }
-        
+
         /**
-    
+
      * Get whether this level is the same or greater than the specified
          * level
          *
@@ -1733,9 +1737,9 @@ tatic CompatibilityLevel forClassVersion(int version) {
         public boolean isAtLeast(CompatibilityLevel level) {
             return level == null || this.ver >= level.ver;
         }
-        
+
         /**
-    
+
      * Get whether this level is less than the specified level
          *
          * @param level level to compare to
@@ -1744,7 +1748,7 @@ tatic CompatibilityLevel forClassVersion(int version) {
         public boolean isLessThan(CompatibilityLevel level) {
             return level == null || this.ver < level.ver;
         }
-        
+
        S
      * Get whether this level can be elevated to the specified level
          *
@@ -1757,7 +1761,7 @@ tatic CompatibilityLevel forClassVersion(int version) {
             }
             return level.ver <= this.maxCompatibleLevel.ver;
         }
-        
+
        s
      * True if this level can support the specified level
          *
@@ -1768,10 +1772,10 @@ tatic CompatibilityLevel forClassVersion(int version) {
             if (level == null) {
                 return true;
             }
-            
+
             return level.canElevateTo(this);
         }
-        
+
       /**
      * Gixin features which can be specified in mixin configs as required for
      * the config to be valid. No support for backward compatibility but should
@@ -1780,30 +1784,30 @@ tatic CompatibilityLevel forClassVersion(int version) {
      * features added in version 0.8.6 and higher.
      */
     public static enum Feature {
-        
+
         /**
          * Supports the <tt>unsafe</tt> flag on &#64;At annotations to
          * facilitate hassle-free constructor injections.
          */
         UNSAFE_INJECTION(true),
-        
+
         /**
          * Support for the use of injector annotations in interface mixins
          */
         INJECTORS_IN_INTERFACE_MIXINS {
-            
+
             @Override
             public boolean isAvailable() {
                 return CompatibilityLevel.getMaxEffective().supports(LanguageFeatures.METHODS_IN_INTERFACES);
             }
-        
+
             @Override
             public boolean isEnabled() {
                 return MixinEnvironment.getCompatibilityLevel().supports(LanguageFeatures.METHODS_IN_INTERFACES);
             }
 
         };
-        
+
         /**
          * Existence of the enum constant does not necessarily indicate that the
          * feature is actually supported by this version, for example if
@@ -1820,10 +1824,9 @@ tatic CompatibilityLevel forClassVersion(int version) {
         private Feature(boolean enabled) {
             this.enabled = enabled;
         }
-        
+
         /**
-    
-     * Convenience function which returns a Feature constant based on the
+         * Convenience function which returns a Feature constant based on the
          * feature id, but returns null instead of throwing an exception.
          *
          * @param featureId Feature ID (enum constant name) to check for
@@ -1842,7 +1845,7 @@ tatic CompatibilityLevel forClassVersion(int version) {
 
         /**
     /**
-    
+
      * Check whether a particular feature exists in this mixin version, even
          * if it's not currently available
          *
@@ -1852,9 +1855,9 @@ tatic CompatibilityLevel forClassVersion(int version) {
         public static boolean exists(String featureId) {
             return Feature.get(featureId) != null;
         }
-        
+
         /**
-    
+
      * Check whether a particular feature is available and enabled
          *
          * @param featureId Feature ID (enum constant name) to check for
@@ -1864,40 +1867,40 @@ tatic CompatibilityLevel forClassVersion(int version) {
             Feature feature = Feature.get(featureId);
             return feature != null && feature.isEnabled();
         }
-        
+
     }
-  
+
      * Get whether this feature is available in the current runtime
          * environment
          */
         public boolean isAvailable() {
             return true;
         }
-        
+
         /**
-    
+
      * Get whether this feature is supported in the current environment and
          * compatibility level
          */
         public boolean isEnabled() {
             return this.isAvailable() && this.enabled;
         }
-        
-        
+
+
     /**
      * S
 rapper for providing a natural sorting order for providers
      */
     static class TokenProviderWrapper implements Comparable<TokenProviderWrapper> {
-        
+
         private static int nextOrder = 0;
-        
+
         private final int priority, order;
-        
+
         private final IEnvironmentTokenProvider provider;
 
         private final MixinEnvironment environment;
-        
+
         public TokenProviderWrapper(IEnvironmentTokenProvider provider, MixinEnvironment environment) {
             this.provider = provider;
             this.environment = environment;
@@ -1915,11 +1918,11 @@ rapper for providing a natural sorting order for providers
             }
             return (other.priority - this.priority);
         }
-        
+
         public IEnvironmentTokenProvider getProvider() {
             return this.provider;
         }
-        
+
         Integer getToken(String token) {
             return this.provider.getToken(token, this.environment);
         }
@@ -1936,9 +1939,9 @@ hase setter callback delegate
         public void accept(Phase phase) {
             MixinEnvironment.gotoPhase(phase);
         }
-        
+
     }
-    
+
     /**
      * Internal callback
      * 

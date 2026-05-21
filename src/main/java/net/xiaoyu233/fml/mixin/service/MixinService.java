@@ -11,9 +11,11 @@ import org.spongepowered.asm.logging.ILogger;
 import org.spongepowered.asm.mixin.MixinEnvironment;
 import org.spongepowered.asm.mixin.transformer.IMixinTransformer;
 import org.spongepowered.asm.mixin.transformer.IMixinTransformerFactory;
+import org.spongepowered.asm.service.IAdviceProvider;
 import org.spongepowered.asm.service.IClassBytecodeProvider;
 import org.spongepowered.asm.service.IClassProvider;
 import org.spongepowered.asm.service.IClassTracker;
+import org.spongepowered.asm.service.IFeatureValidator;
 import org.spongepowered.asm.service.IMixinAuditTrail;
 import org.spongepowered.asm.service.IMixinInternal;
 import org.spongepowered.asm.service.IMixinService;
@@ -34,6 +36,16 @@ public class MixinService implements IMixinService, IClassProvider, IClassByteco
 
    public MixinService() {
       lock = new ReEntranceLock(1);
+   }
+
+   @Override
+   public IAdviceProvider getAdviceProvider() {
+      return IAdviceProvider.GENERIC;
+   }
+
+   @Override
+   public IFeatureValidator getFeatureValidator() {
+      return IFeatureValidator.ALLOW_ALL;
    }
 
    public static IMixinTransformer getTransformer() {

@@ -24,12 +24,12 @@
  */
 package org.spongepowered.asm.launch.platform;
 
+import java.util.Collection;
+
 import org.spongepowered.asm.launch.platform.container.IContainerHandle;
 import org.spongepowered.asm.mixin.MixinEnvironment.Phase;
 import org.spongepowered.asm.util.Constants;
 import org.spongepowered.asm.util.IConsumer;
-
-import java.util.Collection;
 
 /**
  * Service agents provide additional platform-specific extensions leveraged by

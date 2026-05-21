@@ -24,29 +24,18 @@
  */
 package org.spongepowered.asm.util.perf;
 
-import com.google.common.base.Joiner;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableList.Builder;
+import java.lang.reflect.Method;
+import java.text.DecimalFormat;
+import java.util.*;
+import java.util.Map.Entry;
+
 import org.spongepowered.asm.service.MixinService;
 import org.spongepowered.asm.util.PrettyPrinter;
 import org.spongepowered.asm.util.PrettyPrinter.Alignment;
 
-import java.lang.reflect.Method;
-import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.NoSuchElementException;
-import java.util.Set;
-import java.util.TreeMap;
+import com.google.common.base.Joiner;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList.Builder;
 
 /**
  * Performance profiler for Mixin.
@@ -83,7 +72,7 @@ public final class Profiler {
     /**
      * All profiler sections
      */
-    private final Map<String, Section> sections = new TreeMap<String, Section>();
+    private final Map<String, Section> sections = new TreeMap<String, Profiler.Section>();
     /**
      * Profiler phases, recorded by calling {@link #mark}
      */
@@ -109,15 +98,15 @@ public final class Profiler {
     
     private static PrettyPrinter printer(boolean includeFine, boolean group, List<String> phases, Map<String, Section> sections) {
         PrettyPrinter printer = new PrettyPrinter();
-        
+
         // 4 extra columns, name, total, count, avg
         int colCount = phases.size() + 4;
-        
+
         //                Which columns go where
         //                Name  Total  Phases  Count         Average
         //                |     |      |       |             |
         int[] columns = { 0,    1,     2,      colCount - 2, colCount - 1 };
-        
+
         Object[] headers = new Object[(colCount) * 2];
         for (int col = 0, pos = 0; col < colCount; col++, pos = col * 2) {
             headers[pos + 1] = Alignment.RIGHT;
@@ -136,9 +125,9 @@ public final class Profiler {
                 headers[pos] = "";
             }
         }
-        
+
         printer.table(headers).th().hr().add();
-        
+
         for (Section section : sections.values()) {
             if ((section.isFine() && !includeFine) || (group && section.getDelegate() != section)) {
                 continue;
@@ -146,7 +135,7 @@ public final class Profiler {
 
             // Add row for this section
             Profiler.printSectionRow(printer, colCount, columns, section, group);
-            
+
             // If grouping, print sections which have this section as delegate
             if (group) {
                 for (Section subSection : sections.values()) {
@@ -154,7 +143,7 @@ public final class Profiler {
                     if ((subSection.isFine() && !includeFine) || delegate != section || delegate == subSection) {
                         continue;
                     }
-                    
+
                     Profiler.printSectionRow(printer, colCount, columns, subSection, group);
                 }
             }
@@ -172,7 +161,7 @@ public final class Profiler {
         } else {
             values[0] = (isDelegate ? "+ " : "  ") + section.getName();
         }
-        
+
         long[] times = section.getTimes();
         for (long time : times) {
             if (col == columns[1]) {
@@ -182,7 +171,7 @@ public final class Profiler {
                 values[col++] = time + " ms";
             }
         }
-        
+
         values[columns[3]] = section.getTotalCount();
         values[columns[4]] = new DecimalFormat("   ###0.000 ms").format(section.getTotalAverageTime());
 
@@ -191,7 +180,7 @@ public final class Profiler {
                 values[i] = "-";
             }
         }
-        
+
         printer.tr(values);
     }
     
@@ -231,22 +220,22 @@ public final class Profiler {
                 }
             }
         }
-        
+
         Profiler.printSummary(id, new ArrayList<String>(allPhases), allSections);
     }
     
     private static void printSummary(String id, List<String> phases, Map<String, Section> sections) {
-        
+
         DecimalFormat threedp = new DecimalFormat("(###0.000");
         DecimalFormat onedp = new DecimalFormat("(###0.0");
         PrettyPrinter printer = Profiler.printer(false, false, phases, sections);
-        
+
         long prepareTime = sections.get("mixin.prepare").getTotalTime();
         long readTime = sections.get("mixin.read").getTotalTime();
         long applyTime = sections.get("mixin.apply").getTotalTime();
         long writeTime = sections.get("mixin.write").getTotalTime();
         long totalMixinTime = sections.get("mixin").getTotalTime();
-        
+
         long loadTime = sections.get("class.load").getTotalTime();
         long transformTime = sections.get("class.transform").getTotalTime();
         long exportTime = sections.get("mixin.debug.export").getTotalTime();
@@ -255,10 +244,10 @@ public final class Profiler {
         double timeSliceLoad = ((double)loadTime / (double)totalMixinTime) * 100.0D;
         double timeSliceTransform = ((double)transformTime / (double)totalMixinTime) * 100.0D;
         double timeSliceExport = ((double)exportTime / (double)totalMixinTime) * 100.0D;
-        
+
         long worstTransformerTime = 0L;
         Section worstTransformer = null;
-        
+
         for (Section section : sections.values()) {
             long transformerTime = section.getName().startsWith("class.transform.") ? section.getTotalTime() : 0L;
             if (transformerTime > worstTransformerTime) {
@@ -266,27 +255,27 @@ public final class Profiler {
                 worstTransformer = section;
             }
         }
-        
+
         printer.hr().add("Summary for Profiler[%s]", id).hr().add();
-        
+
         String format = "%9d ms %12s seconds)";
         printer.kv("Total mixin time", format, totalMixinTime, threedp.format(totalMixinTime * 0.001)).add();
         printer.kv("Preparing mixins", format, prepareTime, threedp.format(prepareTime * 0.001));
         printer.kv("Reading input", format, readTime, threedp.format(readTime * 0.001));
         printer.kv("Applying mixins", format, applyTime, threedp.format(applyTime * 0.001));
         printer.kv("Writing output", format, writeTime, threedp.format(writeTime * 0.001)).add();
-        
+
         printer.kv("of which","");
         printer.kv("Time spent loading from disk", format, loadTime, threedp.format(loadTime * 0.001));
         printer.kv("Time spent transforming classes", format, transformTime, threedp.format(transformTime * 0.001)).add();
-        
+
         if (worstTransformer != null) {
             printer.kv("Worst transformer", worstTransformer.getName());
             printer.kv("Class", worstTransformer.getInfo());
             printer.kv("Time spent", "%s seconds", worstTransformer.getTotalSeconds());
             printer.kv("called", "%d times", worstTransformer.getTotalCount()).add();
         }
-        
+
         printer.kv("   Time allocation:     Processing mixins", "%9d ms %10s%% of total)", actualTime, onedp.format(timeSliceMixin));
         printer.kv("Loading classes", "%9d ms %10s%% of total)", loadTime, onedp.format(timeSliceLoad));
         printer.kv("Running transformers", "%9d ms %10s%% of total)", transformTime, onedp.format(timeSliceTransform));
@@ -294,21 +283,21 @@ public final class Profiler {
             printer.kv("Exporting classes (debug)", "%9d ms %10s%% of total)", exportTime, onedp.format(timeSliceExport));
         }
         printer.add();
-        
+
         try {
             Class<?> agent = MixinService.getService().getClassProvider().findAgentClass(Profiler.METRONOME_AGENT_CLASS, false);
             Method mdGetTimes = agent.getDeclaredMethod("getTimes");
-            
+
             @SuppressWarnings("unchecked")
             Map<String, Long> times = (Map<String, Long>)mdGetTimes.invoke(null);
-            
+
             printer.hr().add("Transformer Times").hr().add();
 
             int longest = 10;
             for (Entry<String, Long> entry : times.entrySet()) {
                 longest = Math.max(longest, entry.getKey().length());
             }
-            
+
             for (Entry<String, Long> entry : times.entrySet()) {
                 String name = entry.getKey();
                 long mixinTime = 0L;
@@ -318,16 +307,16 @@ public final class Profiler {
                         break;
                     }
                 }
-                
+
                 if (mixinTime > 0L) {
                     printer.add("%-" + longest + "s %8s ms %8s ms in mixin)", name, entry.getValue() + mixinTime, "(" + mixinTime);
                 } else {
                     printer.add("%-" + longest + "s %8s ms", name, entry.getValue());
                 }
             }
-            
+
             printer.add();
-            
+
         } catch (Throwable th) {
             // Metronome agent not loaded
         }
@@ -376,7 +365,7 @@ public final class Profiler {
         for (Section section : this.sections.values()) {
             section.invalidate();
         }
-        
+
         this.sections.clear();
         this.phases.clear();
         this.phases.add("Initial");
@@ -404,7 +393,7 @@ public final class Profiler {
             section = new SubSection(name, this.phases.size() - 1, baseName, root);
             this.sections.put(name, section);
         }
-        
+
         return section;
     }
     
@@ -453,7 +442,7 @@ public final class Profiler {
     public synchronized Section begin(int flags, String name) {
         boolean root = (flags & Profiler.ROOT) != 0;
         boolean fine = (flags & Profiler.FINE) != 0;
-        
+
         String path = name;
         Section head = this.stack.peek();
         if (head != null) {
@@ -464,15 +453,15 @@ public final class Profiler {
                 root = true;
             }
         }
-        
+
         Section section = this.get(root ? name : path);
         if (root && head != null && Profiler.active) {
             section = this.getSubSection(path, head.getName(), section);
         }
-        
+
         section.setFine(fine).setRoot(root);
         this.stack.push(section);
-        
+
         return section.start();
     }
     
@@ -511,14 +500,14 @@ public final class Profiler {
         for (Section section : this.sections.values()) {
             currentPhaseTime += section.getTime();
         }
-        
+
         // If no accumulated time in the current phase, just discard it
         if (currentPhaseTime == 0L) {
             int size = this.phases.size();
             this.phases.set(size - 1, phase);
             return;
         }
-        
+
         this.phases.add(phase);
         for (Section section : this.sections.values()) {
             section.mark();
@@ -558,16 +547,16 @@ public final class Profiler {
      * are used. When enabled, {@link LiveSection} is used to record timings.
      */
     public abstract static class Section {
-        
+
         static final String SEPARATOR_ROOT = " -> ";
-        
+
         static final String SEPARATOR_CHILD = ".";
 
         /**
          * Section name
          */
         private final String name;
-        
+
         /**
          * True if this is a ROOT section
          */
@@ -577,38 +566,38 @@ public final class Profiler {
          * True if this is a FINE section
          */
         private boolean fine;
-        
+
         /**
          * True if this section has been invalidated by a call to Profiler#clear
          */
         protected boolean invalidated;
-        
+
         /**
          * Auxilliary info for this section, used for context
          */
         private String info;
-        
+
         Section(String name) {
             this.name = name;
             this.info = name;
         }
-        
+
         protected int getCursor() {
             return 0;
         }
-        
+
         /**
          * Get the delegate (root section) for this section
          */
         Section getDelegate() {
             return this;
         }
-        
+
         Section invalidate() {
             this.invalidated = true;
             return this;
         }
-        
+
         /**
          * Mark this section as ROOT
          *
@@ -618,14 +607,14 @@ public final class Profiler {
             this.root = root;
             return this;
         }
-        
+
         /**
          * Get whether this is a root section
          */
         public boolean isRoot() {
             return this.root;
         }
-        
+
         /**
          * Set this section as FINE
          *
@@ -635,7 +624,7 @@ public final class Profiler {
             this.fine = fine;
             return this;
         }
-        
+
         /**
          * Get whether this section is FINE
          */
@@ -649,7 +638,7 @@ public final class Profiler {
         public String getName() {
             return this.name;
         }
-        
+
         /**
          * Get the base name for this section, for delegated sections this is
          * the name of the parent section, minus the root
@@ -657,7 +646,7 @@ public final class Profiler {
         public String getBaseName() {
             return this.name;
         }
-        
+
         /**
          * Set the auxilliary info for this section
          *
@@ -666,7 +655,7 @@ public final class Profiler {
         public void setInfo(String info) {
             this.info = info;
         }
-        
+
         /**
          * Get the auxilliary info for this section
          */
@@ -682,7 +671,7 @@ public final class Profiler {
         Section start() {
             return this;
         }
-        
+
         /**
          * Stop timing of this section
          *
@@ -691,7 +680,7 @@ public final class Profiler {
         protected Section stop() {
             return this;
         }
-        
+
         /**
          * Stop timing of this section and end it (pop from profiler stack)
          *
@@ -700,9 +689,9 @@ public final class Profiler {
         public Section end() {
             return this;
         }
-        
+
         /**
-         * Stop timing of this section and initial a new section at the same level
+         * Stop timing of this section and start a new section at the same level
          *
          * @param name name of the next section
          * @return new section
@@ -756,21 +745,21 @@ public final class Profiler {
         public long[] getTimes() {
             return new long[1];
         }
-        
+
         /**
          * Get the number of total time periods recorded in the current slice
          */
         public int getCount() {
             return 0;
         }
-        
+
         /**
          * Get the number of total time periods recorded in the all slices
          */
         public int getTotalCount() {
             return 0;
         }
-        
+
         /**
          * Get the average time in milliseconds of each time period recorded in
          * the current slice
@@ -778,7 +767,7 @@ public final class Profiler {
         public double getAverageTime() {
             return 0.0D;
         }
-        
+
         /**
          * Get the average time in milliseconds of each time period recorded in
          * the all slices
@@ -786,7 +775,7 @@ public final class Profiler {
         public double getTotalAverageTime() {
             return 0.0D;
         }
-        
+
         /* (non-Javadoc)
          * @see java.lang.Object#toString()
          */
@@ -794,7 +783,7 @@ public final class Profiler {
         public final String toString() {
             return this.name;
         }
-        
+
         /**
          * Internal accessor for markedTime from LiveSection, used by
          * ResultSection
@@ -802,7 +791,7 @@ public final class Profiler {
         protected long getMarkedTime() {
             return 0L;
         }
-        
+
         /**
          * Internal accessor for markedCount from LiveSection, used by
          * ResultSection
@@ -810,7 +799,7 @@ public final class Profiler {
         protected int getMarkedCount() {
             return 0;
         }
-        
+
     }
 
     /**
@@ -818,7 +807,7 @@ public final class Profiler {
      * all profilers, used when printing a global summary
      */
     static class ResultSection extends Section {
-        
+
         /**
          * Sections to summarise
          */
@@ -827,11 +816,11 @@ public final class Profiler {
         ResultSection(String name) {
             super(name);
         }
-        
+
         void add(Section section) {
             this.sections.add(section);
         }
-        
+
         @Override
         public long getTime() {
             long time = 0L;
@@ -840,7 +829,7 @@ public final class Profiler {
             }
             return time;
         }
-        
+
         @Override
         public long getTotalTime() {
             long totalTime = 0L;
@@ -849,7 +838,7 @@ public final class Profiler {
             }
             return totalTime;
         }
-        
+
         @Override
         public double getSeconds() {
             double seconds = 0.0D;
@@ -858,7 +847,7 @@ public final class Profiler {
             }
             return seconds;
         }
-        
+
         @Override
         public double getTotalSeconds() {
             double totalSeconds = 0.0D;
@@ -867,14 +856,14 @@ public final class Profiler {
             }
             return totalSeconds;
         }
-        
+
         @Override
         public long[] getTimes() {
             int cursor = 0;
             for (Section section : this.sections) {
                 cursor = Math.max(cursor, section.getCursor());
             }
-            
+
             long[] times = new long[cursor + 1];
             for (Section section : this.sections) {
                 long[] sectionTimes = section.getTimes();
@@ -882,10 +871,10 @@ public final class Profiler {
                     times[i] += sectionTimes[i];
                 }
             }
-            
+
             return times;
         }
-        
+
         @Override
         public int getCount() {
             int count = 0;
@@ -894,7 +883,7 @@ public final class Profiler {
             }
             return count;
         }
-        
+
         @Override
         public int getTotalCount() {
             int totalCount = 0;
@@ -903,7 +892,7 @@ public final class Profiler {
             }
             return totalCount;
         }
-        
+
         @Override
         protected long getMarkedTime() {
             long markedTime = 0L;
@@ -912,7 +901,7 @@ public final class Profiler {
             }
             return markedTime;
         }
-        
+
         @Override
         protected int getMarkedCount() {
             int markedCount = 0;
@@ -927,13 +916,13 @@ public final class Profiler {
             int count = this.getCount();
             return count > 0 ? (double)(this.getTime()) / count : 0.0D;
         }
-        
+
         @Override
         public double getTotalAverageTime() {
             int count = this.getCount();
             return count > 0 ? (double)(this.getTime() + this.getMarkedTime()) / (count + this.getMarkedCount()) : 0.0D;
         }
-        
+
     }
     
     /**
@@ -944,7 +933,7 @@ public final class Profiler {
         DisabledSection(String name) {
             super(name);
         }
-        
+
         /**
          * Stop timing of this section and end it (pop from profiler stack)
          *
@@ -957,9 +946,9 @@ public final class Profiler {
             }
             return this;
         }
-        
+
         /**
-         * Stop timing of this section and initial a new section at the same level
+         * Stop timing of this section and start a new section at the same level
          *
          * @param name name of the next section
          * @return new section
@@ -969,7 +958,7 @@ public final class Profiler {
             this.end();
             return Profiler.this.begin(name);
         }
-        
+
     }
     
     /**
@@ -983,32 +972,32 @@ public final class Profiler {
          * slice is not in the array of times.
          */
         private int cursor = 0;
-        
+
         /**
          * Historical time slicess (times recorded by calls to {@link #mark})
          */
         private long[] times = new long[0];
-        
+
         /**
          * Start time. Zero when not recording a time slice
          */
         private long start = 0L;
-        
+
         /**
          * Current accumulated time and time in all previous slices
          */
         private long time, markedTime;
-        
+
         /**
          * Current period count and period count in all previous slices
          */
         private int count, markedCount;
-        
+
         LiveSection(String name, int cursor) {
             super(name);
             this.cursor = cursor;
         }
-        
+
         @Override
         protected int getCursor() {
             return this.cursor;
@@ -1029,7 +1018,7 @@ public final class Profiler {
             this.count++;
             return this;
         }
-        
+
         @Override
         public Section end() {
             this.stop();
@@ -1038,7 +1027,7 @@ public final class Profiler {
             }
             return this;
         }
-        
+
         @Override
         void mark() {
             if (this.cursor >= this.times.length) {
@@ -1051,27 +1040,27 @@ public final class Profiler {
             this.count = 0;
             this.cursor++;
         }
-        
+
         @Override
         public long getTime() {
             return this.time;
         }
-        
+
         @Override
         public long getTotalTime() {
             return this.time + this.markedTime;
         }
-        
+
         @Override
         public double getSeconds() {
             return this.time * 0.001D;
         }
-        
+
         @Override
         public double getTotalSeconds() {
             return (this.time + this.markedTime) * 0.001D;
         }
-        
+
         @Override
         public long[] getTimes() {
             long[] times = new long[this.cursor + 1];
@@ -1079,32 +1068,32 @@ public final class Profiler {
             times[this.cursor] = this.time;
             return times;
         }
-        
+
         @Override
         public int getCount() {
             return this.count;
         }
-        
+
         @Override
         public int getTotalCount() {
             return this.count + this.markedCount;
         }
-        
+
         @Override
         public double getAverageTime() {
             return this.count > 0 ? (double)(this.time) / this.count : 0.0D;
         }
-        
+
         @Override
         public double getTotalAverageTime() {
             return this.count > 0 ? (double)(this.time + this.markedTime) / (this.count + this.markedCount) : 0.0D;
         }
-        
+
         @Override
         protected long getMarkedTime() {
             return this.markedTime;
         }
-        
+
         @Override
         protected int getMarkedCount() {
             return this.markedCount;
@@ -1123,7 +1112,7 @@ public final class Profiler {
          * Section base name
          */
         private final String baseName;
-        
+
         /**
          * Delegated root
          */
@@ -1134,47 +1123,47 @@ public final class Profiler {
             this.baseName = baseName;
             this.root = root;
         }
-        
+
         @Override
         Section invalidate() {
             this.root.invalidate();
             return super.invalidate();
         }
-        
+
         @Override
         public String getBaseName() {
             return this.baseName;
         }
-        
+
         @Override
         public void setInfo(String info) {
             this.root.setInfo(info);
             super.setInfo(info);
         }
-        
+
         @Override
         Section getDelegate() {
             return this.root;
         }
-        
+
         @Override
         Section start() {
             this.root.start();
             return super.start();
         }
-        
+
         @Override
         public Section end() {
             this.root.stop();
             return super.end();
         }
-        
+
         @Override
         public Section next(String name) {
             super.stop();
             return this.root.next(name);
         }
-        
+
     }
     
 }

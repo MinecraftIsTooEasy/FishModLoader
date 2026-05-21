@@ -24,12 +24,12 @@
  */
 package org.spongepowered.asm.launch;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.spongepowered.asm.service.IGlobalPropertyService;
 import org.spongepowered.asm.service.IPropertyKey;
 import org.spongepowered.asm.service.MixinService;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Access to underlying global property service provided by the current

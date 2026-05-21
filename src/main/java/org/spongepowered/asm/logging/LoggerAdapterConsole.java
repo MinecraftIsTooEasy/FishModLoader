@@ -24,11 +24,11 @@
  */
 package org.spongepowered.asm.logging;
 
-import com.google.common.base.Strings;
-
 import java.io.PrintStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+
+import com.google.common.base.Strings;
 
 /**
  * A very basic logger adapter which does not log anything to file and simply

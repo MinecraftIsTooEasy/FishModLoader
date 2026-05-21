@@ -24,13 +24,13 @@
  */
 package org.spongepowered.asm.util;
 
-import org.objectweb.asm.tree.AnnotationNode;
-import org.spongepowered.asm.util.throwables.ConstraintViolationException;
-import org.spongepowered.asm.util.throwables.InvalidConstraintException;
-
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import org.objectweb.asm.tree.AnnotationNode;
+import org.spongepowered.asm.util.throwables.ConstraintViolationException;
+import org.spongepowered.asm.util.throwables.InvalidConstraintException;
 
 /**
  * Parser for constraints

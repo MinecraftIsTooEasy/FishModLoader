@@ -24,9 +24,10 @@
  */
 package org.spongepowered.asm.obfuscation.mapping.common;
 
+import org.spongepowered.asm.obfuscation.mapping.IMapping;
+
 import com.google.common.base.Objects;
 import com.google.common.base.Strings;
-import org.spongepowered.asm.obfuscation.mapping.IMapping;
 
 /**
  * Stores information about a field mapping during AP runs

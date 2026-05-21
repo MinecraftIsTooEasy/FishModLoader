@@ -24,19 +24,19 @@
  */
 package org.spongepowered.asm.mixin;
 
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.Set;
+
+import org.spongepowered.asm.logging.ILogger;
 import org.spongepowered.asm.launch.GlobalProperties;
 import org.spongepowered.asm.launch.GlobalProperties.Keys;
-import org.spongepowered.asm.logging.ILogger;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigSource;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 import org.spongepowered.asm.mixin.transformer.ClassInfo;
 import org.spongepowered.asm.mixin.transformer.Config;
 import org.spongepowered.asm.service.MixinService;
-
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.Set;
 
 /**
  * Entry point for registering global mixin resources. Compatibility with
@@ -53,7 +53,7 @@ public final class Mixins {
     /**
      * GlobalProperties key storing mixin configs which are pending
      */
-    private static final Keys CONFIGS_KEY = Keys.of(Keys.CONFIGS + ".queue");
+    private static final Keys CONFIGS_KEY = Keys.of(GlobalProperties.Keys.CONFIGS + ".queue");
     
     /**
      * Error handlers for environment
@@ -153,7 +153,7 @@ public final class Mixins {
      * been applied, it is safe to visit any additional configs which were
      * registered in the mean time and may wish to apply to the current phase.
      * This is particularly true during the PREINIT phase, which by necessity
-     * must initial as soon as the first class is transformed after bootstrapping,
+     * must start as soon as the first class is transformed after bootstrapping,
      * but may not have any valid mixins until later in the actual preinit
      * process due to the order in which things are discovered.
      * 

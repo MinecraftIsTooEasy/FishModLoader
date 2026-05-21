@@ -24,13 +24,13 @@
  */
 package org.spongepowered.tools.obfuscation.interfaces;
 
-import org.spongepowered.tools.obfuscation.SuppressedBy;
-
 import javax.annotation.processing.Messager;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
 import javax.tools.Diagnostic;
+
+import org.spongepowered.tools.obfuscation.SuppressedBy;
 
 /**
  * An extended {@link Messager} which supports messages that can be suppressed

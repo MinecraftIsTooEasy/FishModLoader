@@ -24,17 +24,18 @@
  */
 package org.spongepowered.tools.obfuscation.mapping.mcp;
 
+import java.io.IOException;
+import java.io.PrintWriter;
+
+import javax.annotation.processing.Filer;
+import javax.annotation.processing.Messager;
+
 import org.spongepowered.asm.obfuscation.mapping.common.MappingField;
 import org.spongepowered.asm.obfuscation.mapping.common.MappingMethod;
 import org.spongepowered.tools.obfuscation.ObfuscationType;
 import org.spongepowered.tools.obfuscation.mapping.IMappingConsumer.MappingSet;
 import org.spongepowered.tools.obfuscation.mapping.IMappingConsumer.MappingSet.Pair;
 import org.spongepowered.tools.obfuscation.mapping.common.MappingWriter;
-
-import javax.annotation.processing.Filer;
-import javax.annotation.processing.Messager;
-import java.io.IOException;
-import java.io.PrintWriter;
 
 /**
  * Writer for SRG mappings

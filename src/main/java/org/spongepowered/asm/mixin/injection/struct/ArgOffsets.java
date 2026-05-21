@@ -48,25 +48,16 @@ public class ArgOffsets implements IChainedDecoration<ArgOffsets> {
     /**
      * Null offsets
      */
-    public static ArgOffsets DEFAULT = new Default();
+    public static ArgOffsets DEFAULT = new ArgOffsets.Default();
     /**
-     * The offset for the initial of the (original) args within the new args
+     * The offset for the start of the (original) args within the new args
      */
     private final int offset;
-    /**
-     * The total number of (original) args
-     */
-    private final int length;
-    /**
-     * If this offset collection replaces a previous mapping, chain to the next
-     * mapping in order to apply these offsets atop the old ones
-     */
-    private ArgOffsets next;
     
     /**
-     * Create contiguous offsets starting from initial and continuing for length
+     * Create contiguous offsets starting from start and continuing for length
      *
-     * @param offset initial index
+     * @param offset start index
      * @param length length
      */
     public ArgOffsets(int offset, int length) {
@@ -74,14 +65,34 @@ public class ArgOffsets implements IChainedDecoration<ArgOffsets> {
         this.length = length;
     }
     
+    /**
+     * The total number of (original) args
+     */
+    private final int length;
+    
+    /**
+     * If this offset collection replaces a previous mapping, chain to the next
+     * mapping in order to apply these offsets atop the old ones
+     */
+    private ArgOffsets next;
+    
     /* (non-Javadoc)
      * @see java.lang.Object#toString()
      */
     @Override
     public String toString() {
-        return String.format("ArgOffsets[initial=%d(%d),length=%d]", this.offset, this.getStartIndex(), this.length);
+        return String.format("ArgOffsets[start=%d(%d),length=%d]", this.offset, this.getStartIndex(), this.length);
     }
     
+    /**
+     * Compute the argument index for the start of the window (offet 0)
+     *
+     * @return the offset index for the start of the window (inclusive)
+     */
+    public int getStartIndex() {
+        return this.getArgIndex(0);
+    }
+
     /* (non-Javadoc)
      * @see org.spongepowered.asm.mixin.injection.struct.IChainedDecoration
      *      #replace(
@@ -91,7 +102,7 @@ public class ArgOffsets implements IChainedDecoration<ArgOffsets> {
     public void replace(ArgOffsets old) {
         this.next = old;
     }
-
+    
     /**
      * Get the size of the offset window
      */
@@ -104,15 +115,6 @@ public class ArgOffsets implements IChainedDecoration<ArgOffsets> {
      */
     public boolean isEmpty() {
         return this.length == 0;
-    }
-    
-    /**
-     * Compute the argument index for the initial of the window (offet 0)
-     *
-     * @return the offset index for the initial of the window (inclusive)
-     */
-    public int getStartIndex() {
-        return this.getArgIndex(0);
     }
     
     /**
@@ -175,12 +177,12 @@ public class ArgOffsets implements IChainedDecoration<ArgOffsets> {
         public Default() {
             super(0, 255);
         }
-        
+
         @Override
         public int getArgIndex(int index) {
             return index;
         }
-        
+
         @Override
         public Type[] apply(Type[] args) {
             return args;

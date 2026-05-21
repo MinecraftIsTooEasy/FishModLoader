@@ -24,12 +24,13 @@
  */
 package org.spongepowered.tools.obfuscation;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.ImmutableSet.Builder;
+import java.util.Set;
+
 import org.spongepowered.tools.obfuscation.interfaces.IMessagerEx;
 import org.spongepowered.tools.obfuscation.service.ObfuscationServices;
 
-import java.util.Set;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSet.Builder;
 
 /**
  * Supported options for the annotation processor. Not an enum mainly so that

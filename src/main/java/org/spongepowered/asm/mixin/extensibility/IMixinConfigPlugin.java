@@ -24,10 +24,10 @@
  */
 package org.spongepowered.asm.mixin.extensibility;
 
-import org.objectweb.asm.tree.ClassNode;
-
 import java.util.List;
 import java.util.Set;
+
+import org.objectweb.asm.tree.ClassNode;
 
 /**
  * <p>A companion plugin for a mixin configuration object. Objects implementing

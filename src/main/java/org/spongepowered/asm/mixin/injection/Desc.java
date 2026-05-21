@@ -24,14 +24,14 @@
  */
 package org.spongepowered.asm.mixin.injection;
 
-import org.spongepowered.asm.mixin.injection.selectors.dynamic.DynamicSelectorDesc;
-import org.spongepowered.asm.mixin.injection.struct.MemberInfo;
-
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Repeatable;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+
+import org.spongepowered.asm.mixin.injection.selectors.dynamic.DynamicSelectorDesc;
+import org.spongepowered.asm.mixin.injection.struct.MemberInfo;
 
 /**
  * <p>A descriptor for matching a target element, for details of usage see

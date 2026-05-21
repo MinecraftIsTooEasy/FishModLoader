@@ -24,12 +24,13 @@
  */
 package org.spongepowered.asm.util;
 
-import com.google.common.base.Strings;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.LocalVariableNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.spongepowered.asm.mixin.injection.selectors.ITargetSelectorByName;
+
+import com.google.common.base.Strings;
 
 /**
  * Generates callback signature for callback pretty-print
@@ -201,6 +202,58 @@ public class SignaturePrinter {
         return args.append(SignaturePrinter.getTypeName(this.returnType, false, this.fullyQualified)).toString();
     }
     
+    private StringBuilder appendArgs(StringBuilder sb, boolean typesOnly, boolean pretty) {
+        sb.append('(');
+        for (int var = 0; var < this.argTypes.length; var++) {
+            if (this.argTypes[var] == null) {
+                continue;
+            } else if (var > 0) {
+                sb.append(',');
+                if (pretty) {
+                    sb.append(' ');
+                }
+            }
+            try {
+                String name = typesOnly ? null : var < this.argNames.length && !Strings.isNullOrEmpty(this.argNames[var])
+                        ? this.argNames[var] : "unnamed" + var;
+                this.appendType(sb, this.argTypes[var], name);
+            } catch (Exception ex) {
+//                System.err.printf("\n\n>>> argTypes=%d, argNames=%d\n\n", this.argTypes.length, this.argNames.length);
+                throw new RuntimeException(ex);
+            }
+        }
+        return sb.append(")");
+    }
+    
+    private StringBuilder appendType(StringBuilder sb, Type type, String name) {
+        switch (type.getSort()) {
+            case Type.ARRAY:
+                return SignaturePrinter.appendArraySuffix(this.appendType(sb, SignaturePrinter.getElementType(type), name), type);
+            case Type.OBJECT:
+                return this.appendType(sb, SignaturePrinter.getClassName(type), name);
+            default:
+                sb.append(SignaturePrinter.getTypeName(type, false, this.fullyQualified));
+                if (name != null) {
+                    sb.append(' ').append(name);
+                }
+                return sb;
+        }
+    }
+
+    private StringBuilder appendType(StringBuilder sb, String typeName, String name) {
+        if (!this.fullyQualified) {
+            typeName = typeName.substring(typeName.lastIndexOf('.') + 1);
+        }
+        sb.append(typeName);
+        if (typeName.endsWith("CallbackInfoReturnable")) {
+            sb.append('<').append(SignaturePrinter.getTypeName(this.returnType, true, this.fullyQualified)).append('>');
+        }
+        if (name != null) {
+            sb.append(' ').append(name);
+        }
+        return sb;
+    }
+
     /**
      * Get the source code name for the specified type
      *
@@ -212,7 +265,7 @@ public class SignaturePrinter {
     public static String getTypeName(Type type, boolean box) {
         return SignaturePrinter.getTypeName(type, box, false);
     }
-    
+
     /**
      * Get the source code name for the specified type
      *
@@ -266,58 +319,6 @@ public class SignaturePrinter {
         } else {
             this.setModifiers(staticType + returnType);
         }
-    }
-
-    private StringBuilder appendArgs(StringBuilder sb, boolean typesOnly, boolean pretty) {
-        sb.append('(');
-        for (int var = 0; var < this.argTypes.length; var++) {
-            if (this.argTypes[var] == null) {
-                continue;
-            } else if (var > 0) {
-                sb.append(',');
-                if (pretty) {
-                    sb.append(' ');
-                }
-            }
-            try {
-                String name = typesOnly ? null : var < this.argNames.length && !Strings.isNullOrEmpty(this.argNames[var])
-                        ? this.argNames[var] : "unnamed" + var;
-                this.appendType(sb, this.argTypes[var], name);
-            } catch (Exception ex) {
-//                System.err.printf("\n\n>>> argTypes=%d, argNames=%d\n\n", this.argTypes.length, this.argNames.length);
-                throw new RuntimeException(ex);
-            }
-        }
-        return sb.append(")");
-    }
-
-    private StringBuilder appendType(StringBuilder sb, Type type, String name) {
-        switch (type.getSort()) {
-            case Type.ARRAY:
-                return SignaturePrinter.appendArraySuffix(this.appendType(sb, SignaturePrinter.getElementType(type), name), type);
-            case Type.OBJECT:
-                return this.appendType(sb, SignaturePrinter.getClassName(type), name);
-            default:
-                sb.append(SignaturePrinter.getTypeName(type, false, this.fullyQualified));
-                if (name != null) {
-                    sb.append(' ').append(name);
-                }
-                return sb;
-        }
-    }
-
-    private StringBuilder appendType(StringBuilder sb, String typeName, String name) {
-        if (!this.fullyQualified) {
-            typeName = typeName.substring(typeName.lastIndexOf('.') + 1);
-        }
-        sb.append(typeName);
-        if (typeName.endsWith("CallbackInfoReturnable")) {
-            sb.append('<').append(SignaturePrinter.getTypeName(this.returnType, true, this.fullyQualified)).append('>');
-        }
-        if (name != null) {
-            sb.append(' ').append(name);
-        }
-        return sb;
     }
     
     private static Type getElementType(Type type) {

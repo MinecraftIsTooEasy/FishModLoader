@@ -24,7 +24,10 @@
  */
 package org.spongepowered.asm.mixin.struct;
 
-import com.google.common.base.Strings;
+import java.util.Locale;
+
+import javax.tools.Diagnostic.Kind;
+
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.MethodNode;
@@ -40,8 +43,7 @@ import org.spongepowered.asm.util.asm.IAnnotationHandle;
 import org.spongepowered.asm.util.asm.MethodNodeEx;
 import org.spongepowered.asm.util.logging.MessageRouter;
 
-import javax.tools.Diagnostic.Kind;
-import java.util.Locale;
+import com.google.common.base.Strings;
 
 /**
  * Data bundle for an annotated method in a mixin
@@ -217,6 +219,15 @@ public class AnnotatedMethodInfo implements IInjectionPointContext {
         return AnnotatedMethodInfo.getDynamicInfo(method.getAnnotation(Dynamic.class));
     }
 
+    /**
+     * Get a human-readable description of the annotation on the method for use
+     * in error messages
+     */
+    @Override
+    public final String getElementDescription() {
+        return String.format("%s annotation on %s", this.annotationType, this.methodName);
+    }
+
     private static String getDynamicInfo(IAnnotationHandle annotation) {
         if (annotation == null) {
             return "";
@@ -227,15 +238,6 @@ public class AnnotatedMethodInfo implements IInjectionPointContext {
             description = String.format("{%s} %s", upstream.getClassName(), description).trim();
         }
         return description.length() > 0 ? String.format(" Method is @Dynamic(%s).", description) : "";
-    }
-
-    /**
-     * Get a human-readable description of the annotation on the method for use
-     * in error messages
-     */
-    @Override
-    public final String getElementDescription() {
-        return String.format("%s annotation on %s", this.annotationType, this.methodName);
     }
 
 }

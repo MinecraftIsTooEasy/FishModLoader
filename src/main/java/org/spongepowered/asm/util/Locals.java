@@ -24,6 +24,13 @@
  */
 package org.spongepowered.asm.util;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -46,17 +53,260 @@ import org.spongepowered.asm.util.asm.ASM;
 import org.spongepowered.asm.util.asm.MixinVerifier;
 import org.spongepowered.asm.util.throwables.LVTGeneratorError;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-
 /**
  * Utility methods for working with local variables using ASM
  */
 public final class Locals {
+
+    /**
+     * Frame type names just for the purposes of debug printing
+     */
+    private static final String[] FRAME_TYPES = { "TOP", "INTEGER", "FLOAT", "DOUBLE", "LONG", "NULL", "UNINITIALIZED_THIS" };
+    /**
+     * Cached local variable lists, to avoid having to recalculate them
+     * (expensive) if multiple injectors are working with the same method
+     */
+    private static final Map<String, List<LocalVariableNode>> calculatedLocalVariables = new HashMap<String, List<LocalVariableNode>>();
+    
+    private Locals() {
+        // utility class
+    }
+
+    /**
+     * <p>Attempts to identify available locals at an arbitrary point in the
+     * bytecode specified by node.</p>
+     *
+     * <p>This method builds an approximate view of the locals available at an
+     * arbitrary point in the bytecode by examining the following features in
+     * the bytecode:</p>
+     * <ul>
+     *   <li>Any available stack map frames</li>
+     *   <li>STORE opcodes</li>
+     *   <li>The local variable table</li>
+     * </ul>
+     *
+     * <p>Inference proceeds by walking the bytecode from the start of the
+     * method looking for stack frames and STORE opcodes. When either of these
+     * is encountered, an attempt is made to cross-reference the values in the
+     * stack map or STORE opcode with the value in the local variable table
+     * which covers the code range. Stack map frames overwrite the entire
+     * simulated local variable table with their own value types, STORE opcodes
+     * overwrite only the local slot to which they pertain. Values in the
+     * simulated locals array are spaced according to their size (unlike the
+     * representation in FrameNode) and this TOP, NULL and UNINTITIALIZED_THIS
+     * opcodes will be represented as null values in the simulated frame.</p>
+     *
+     * <p>This code does not currently simulate the prescribed JVM behaviour
+     * where overwriting the second slot of a DOUBLE or LONG actually
+     * invalidates the DOUBLE or LONG stored in the previous location, so we
+     * have to hope (for now) that this behaviour isn't emitted by the compiler
+     * or any upstream transformers. I may have to re-think this strategy if
+     * this situation is encountered in the wild.</p>
+     *
+     * @param classNode ClassNode containing the method, used to initialise the
+     *      implicit "this" reference in simple methods with no stack frames
+     * @param method MethodNode to explore
+     * @param node Node indicating the position at which to determine the locals
+     *      state. The locals will be enumerated UP TO the specified node, so
+     *      bear in mind that if the specified node is itself a STORE opcode,
+     *      then we will be looking at the state of the locals PRIOR to its
+     *      invocation
+     * @param fabricCompatibility Fabric compatibility level
+     * @return A sparse array containing a view (hopefully) of the locals at the
+     *      specified location
+     */
+    public static LocalVariableNode[] getLocalsAt(ClassNode classNode, MethodNode method, AbstractInsnNode node, int fabricCompatibility) {
+        if (fabricCompatibility >= org.spongepowered.asm.mixin.FabricUtil.COMPATIBILITY_0_10_0) {
+            return Locals.getLocalsAt(classNode, method, node, Settings.DEFAULT, fabricCompatibility);
+        } else {
+            return getLocalsAt092(classNode, method, node);
+        }
+    }
+    
+    /**
+     * <p>Attempts to identify available locals at an arbitrary point in the
+     * bytecode specified by node.</p>
+     *
+     * <p>This method builds an approximate view of the locals available at an
+     * arbitrary point in the bytecode by examining the following features in
+     * the bytecode:</p>
+     * <ul>
+     *   <li>Any available stack map frames</li>
+     *   <li>STORE opcodes</li>
+     *   <li>The local variable table</li>
+     * </ul>
+     *
+     * <p>Inference proceeds by walking the bytecode from the start of the
+     * method looking for stack frames and STORE opcodes. When either of these
+     * is encountered, an attempt is made to cross-reference the values in the
+     * stack map or STORE opcode with the value in the local variable table
+     * which covers the code range. Stack map frames overwrite the entire
+     * simulated local variable table with their own value types, STORE opcodes
+     * overwrite only the local slot to which they pertain. Values in the
+     * simulated locals array are spaced according to their size (unlike the
+     * representation in FrameNode) and this TOP, NULL and UNINTITIALIZED_THIS
+     * opcodes will be represented as null values in the simulated frame.</p>
+     *
+     * <p>This code does not currently simulate the prescribed JVM behaviour
+     * where overwriting the second slot of a DOUBLE or LONG actually
+     * invalidates the DOUBLE or LONG stored in the previous location, so we
+     * have to hope (for now) that this behaviour isn't emitted by the compiler
+     * or any upstream transformers. I may have to re-think this strategy if
+     * this situation is encountered in the wild.</p>
+     *
+     * @param classNode ClassNode containing the method, used to initialise the
+     *      implicit "this" reference in simple methods with no stack frames
+     * @param method MethodNode to explore
+     * @param node Node indicating the position at which to determine the locals
+     *      state. The locals will be enumerated UP TO the specified node, so
+     *      bear in mind that if the specified node is itself a STORE opcode,
+     *      then we will be looking at the state of the locals PRIOR to its
+     *      invocation
+     * @param settings Tunable settings for the state machine
+     * @return A sparse array containing a view (hopefully) of the locals at the
+     *      specified location
+     */
+    public static LocalVariableNode[] getLocalsAt(ClassNode classNode, MethodNode method, AbstractInsnNode node, Settings settings) {
+        return getLocalsAt(classNode, method, node, settings, org.spongepowered.asm.mixin.FabricUtil.COMPATIBILITY_LATEST);
+    }
+    
+    private static LocalVariableNode[] getLocalsAt092(ClassNode classNode, MethodNode method, AbstractInsnNode node) {
+        for (int i = 0; i < 3 && (node instanceof LabelNode || node instanceof LineNumberNode); i++) {
+            node = Locals.nextNode(method.instructions, node);
+        }
+
+        ClassInfo classInfo = ClassInfo.forName(classNode.name);
+        if (classInfo == null) {
+            throw new LVTGeneratorError("Could not load class metadata for " + classNode.name + " generating LVT for " + method.name);
+        }
+        Method methodInfo = classInfo.findMethod(method, method.access | ClassInfo.INCLUDE_INITIALISERS);
+        if (methodInfo == null) {
+            throw new LVTGeneratorError("Could not locate method metadata for " + method.name + " generating LVT in " + classNode.name);
+        }
+        List<FrameData> frames = methodInfo.getFrames();
+
+        LocalVariableNode[] frame = new LocalVariableNode[method.maxLocals];
+        int local = 0, index = 0;
+
+        // Initialise implicit "this" reference in non-static methods
+        if ((method.access & Opcodes.ACC_STATIC) == 0) {
+            frame[local++] = new LocalVariableNode("this", Type.getObjectType(classNode.name).toString(), null, null, null, 0);
+        }
+
+        // Initialise method arguments
+        for (Type argType : Type.getArgumentTypes(method.desc)) {
+            frame[local] = new LocalVariableNode("arg" + index++, argType.toString(), null, null, null, local);
+            local += argType.getSize();
+        }
+
+        int initialFrameSize = local;
+        int frameSize = local;
+        int frameIndex = -1;
+        int lastFrameSize = local;
+        VarInsnNode storeInsn = null;
+
+        for (Iterator<AbstractInsnNode> iter = method.instructions.iterator(); iter.hasNext();) {
+            AbstractInsnNode insn = iter.next();
+            if (storeInsn != null) {
+                frame[storeInsn.var] = Locals.getLocalVariableAt(classNode, method, insn, storeInsn.var);
+                storeInsn = null;
+            }
+
+            handleFrame: if (insn instanceof FrameNode) {
+                frameIndex++;
+                FrameNode frameNode = (FrameNode)insn;
+                if (frameNode.type == Opcodes.F_SAME || frameNode.type == Opcodes.F_SAME1) {
+                    break handleFrame;
+                }
+
+                FrameData frameData = frameIndex < frames.size() ? frames.get(frameIndex) : null;
+
+                if (frameData != null) {
+                    if (frameData.type == Opcodes.F_FULL) {
+                        frameSize = Math.min(frameSize, frameData.locals);
+                        lastFrameSize = frameSize;
+                    } else {
+                        frameSize = Locals.getAdjustedFrameSize(frameSize, frameData.type, frameData.rawSize, 0); // Fabric: initialSize 0, also applies to frameData through rawSize instead of size
+                    }
+                } else {
+                    frameSize = Locals.getAdjustedFrameSize(frameSize, frameNode, 0); // Fabric: initialSize 0
+                }
+
+                if (frameNode.type == Opcodes.F_CHOP) {
+                    for (int framePos = frameSize; framePos < frame.length; framePos++) {
+                        frame[framePos] = null;
+                    }
+                    lastFrameSize = frameSize;
+                    break handleFrame;
+                }
+
+                int framePos = frameNode.type == Opcodes.F_APPEND ? lastFrameSize : 0;
+                lastFrameSize = frameSize;
+
+                // localPos tracks the location in the frame node's locals list, which doesn't leave space for TOP entries
+                for (int localPos = 0; framePos < frame.length; framePos++, localPos++) {
+                    // Get the local at the current position in the FrameNode's locals list
+                    final Object localType = (localPos < frameNode.local.size()) ? frameNode.local.get(localPos) : null;
+
+                    if (localType instanceof String) { // String refers to a reference type
+                        frame[framePos] = Locals.getLocalVariableAt(classNode, method, insn, framePos);
+                    } else if (localType instanceof Integer) { // Integer refers to a primitive type or other marker
+                        boolean isMarkerType = localType == Opcodes.UNINITIALIZED_THIS || localType == Opcodes.NULL;
+                        boolean is32bitValue = localType == Opcodes.INTEGER || localType == Opcodes.FLOAT;
+                        boolean is64bitValue = localType == Opcodes.DOUBLE || localType == Opcodes.LONG;
+                        if (localType == Opcodes.TOP) {
+                            // Do nothing, explicit TOP entries are pretty much always bogus, and real ones are handled below
+                        } else if (isMarkerType) {
+                            frame[framePos] = null;
+                        } else if (is32bitValue || is64bitValue) {
+                            frame[framePos] = Locals.getLocalVariableAt(classNode, method, insn, framePos);
+
+                            if (is64bitValue) {
+                                framePos++;
+                                frame[framePos] = null; // TOP
+                            }
+                        } else {
+                            throw new LVTGeneratorError("Unrecognised locals opcode " + localType + " in locals array at position " + localPos
+                                    + " in " + classNode.name + "." + method.name + method.desc);
+                        }
+                    } else if (localType == null) {
+                        if (framePos >= initialFrameSize && framePos >= frameSize && frameSize > 0) {
+                            frame[framePos] = null;
+                        }
+                    } else if (localType instanceof LabelNode) {
+                        // Uninitialised
+                    } else {
+                        throw new LVTGeneratorError("Invalid value " + localType + " in locals array at position " + localPos
+                                + " in " + classNode.name + "." + method.name + method.desc);
+                    }
+                }
+            } else if (insn instanceof VarInsnNode) {
+                VarInsnNode varNode = (VarInsnNode) insn;
+                boolean isLoad = insn.getOpcode() >= Opcodes.ILOAD && insn.getOpcode() <= Opcodes.SALOAD;
+                if (isLoad) {
+                    frame[varNode.var] = Locals.getLocalVariableAt(classNode, method, insn, varNode.var);
+                } else {
+                    // Update the LVT for the opcode AFTER this one, since we always want to know
+                    // the frame state BEFORE the *current* instruction to match the contract of
+                    // injection points
+                    storeInsn = varNode;
+                }
+            }
+
+            if (insn == node) {
+                break;
+            }
+        }
+
+        // Null out any "unknown" locals
+        for (int l = 0; l < frame.length; l++) {
+            if (frame[l] != null && frame[l].desc == null) {
+                frame[l] = null;
+            }
+        }
+
+        return frame;
+    }
 
     /**
      * Constructs the initial local variable frame for a method, containing only "this" (if non-static)
@@ -116,7 +366,7 @@ public final class Locals {
 
         return frame;
     }
-    
+
     /**
      * Attempts to extract parameter names from the method's local variable table.
      * This is used as a fallback when detailed LVT information is not available at a specific
@@ -166,21 +416,6 @@ public final class Locals {
     }
 
     /**
-     * Frame type names just for the purposes of debug printing
-     */
-    private static final String[] FRAME_TYPES = { "TOP", "INTEGER", "FLOAT", "DOUBLE", "LONG", "NULL", "UNINITIALIZED_THIS" };
-    
-    /**
-     * Cached local variable lists, to avoid having to recalculate them
-     * (expensive) if multiple injectors are working with the same method
-     */
-    private static final Map<String, List<LocalVariableNode>> calculatedLocalVariables = new HashMap<String, List<LocalVariableNode>>();
-    
-    private Locals() {
-        // utility class
-    }
-
-    /**
      * Injects appropriate LOAD opcodes into the supplied InsnList for each
      * entry in the supplied locals array starting at pos
      *
@@ -200,101 +435,38 @@ public final class Locals {
     }
 
     /**
-     * <p>Attempts to identify available locals at an arbitrary point in the
-     * bytecode specified by node.</p>
+     * Walks the supplied <tt>frame</tt> up to the specified <tt>knownFrameSize
+     * </tt> and resurrects any zombies that meet the required criteria
      *
-     * <p>This method builds an approximate view of the locals available at an
-     * arbitrary point in the bytecode by examining the following features in
-     * the bytecode:</p>
-     * <ul>
-     *   <li>Any available stack map frames</li>
-     *   <li>STORE opcodes</li>
-     *   <li>The local variable table</li>
-     * </ul>
-     *
-     * <p>Inference proceeds by walking the bytecode from the initial of the
-     * method looking for stack frames and STORE opcodes. When either of these
-     * is encountered, an attempt is made to cross-reference the values in the
-     * stack map or STORE opcode with the value in the local variable table
-     * which covers the code range. Stack map frames overwrite the entire
-     * simulated local variable table with their own value types, STORE opcodes
-     * overwrite only the local slot to which they pertain. Values in the
-     * simulated locals array are spaced according to their size (unlike the
-     * representation in FrameNode) and this TOP, NULL and UNINTITIALIZED_THIS
-     * opcodes will be represented as null values in the simulated frame.</p>
-     *
-     * <p>This code does not currently simulate the prescribed JVM behaviour
-     * where overwriting the second slot of a DOUBLE or LONG actually
-     * invalidates the DOUBLE or LONG stored in the previous location, so we
-     * have to hope (for now) that this behaviour isn't emitted by the compiler
-     * or any upstream transformers. I may have to re-think this strategy if
-     * this situation is encountered in the wild.</p>
-     *
-     * @param classNode ClassNode containing the method, used to initialise the
-     *      implicit "this" reference in simple methods with no stack frames
-     * @param method MethodNode to explore
-     * @param node Node indicating the position at which to determine the locals
-     *      state. The locals will be enumerated UP TO the specified node, so
-     *      bear in mind that if the specified node is itself a STORE opcode,
-     *      then we will be looking at the state of the locals PRIOR to its
-     *      invocation
-     * @param fabricCompatibility Fabric compatibility level
-     * @return A sparse array containing a view (hopefully) of the locals at the
-     *      specified location
+     * @param frame Frame to walk
+     * @param knownFrameSize Known frame size in which to resurrect
+     * @param settings Resurrection settings
      */
-    public static LocalVariableNode[] getLocalsAt(ClassNode classNode, MethodNode method, AbstractInsnNode node, int fabricCompatibility) {
-        if (fabricCompatibility >= org.spongepowered.asm.mixin.FabricUtil.COMPATIBILITY_0_10_0) {
-            return Locals.getLocalsAt(classNode, method, node, Settings.DEFAULT, fabricCompatibility);
-        } else {
-            return getLocalsAt092(classNode, method, node);
+    private static void resurrect(LocalVariableNode[] frame, int knownFrameSize, Settings settings) {
+        for (int l = 0; l < knownFrameSize && l < frame.length; l++) {
+            if (frame[l] instanceof ZombieLocalVariableNode) {
+                ZombieLocalVariableNode zombie = (ZombieLocalVariableNode)frame[l];
+                if (zombie.checkResurrect(settings)) {
+                    frame[l] = zombie.ancestor;
+                }
+            }
         }
     }
-
-    /**
-     * <p>Attempts to identify available locals at an arbitrary point in the
-     * bytecode specified by node.</p>
+    
+   /**
+     * Attempts to locate the appropriate entry in the local variable table for
+     * the specified local variable index at the location specified by node.
      *
-     * <p>This method builds an approximate view of the locals available at an
-     * arbitrary point in the bytecode by examining the following features in
-     * the bytecode:</p>
-     * <ul>
-     *   <li>Any available stack map frames</li>
-     *   <li>STORE opcodes</li>
-     *   <li>The local variable table</li>
-     * </ul>
-     *
-     * <p>Inference proceeds by walking the bytecode from the initial of the
-     * method looking for stack frames and STORE opcodes. When either of these
-     * is encountered, an attempt is made to cross-reference the values in the
-     * stack map or STORE opcode with the value in the local variable table
-     * which covers the code range. Stack map frames overwrite the entire
-     * simulated local variable table with their own value types, STORE opcodes
-     * overwrite only the local slot to which they pertain. Values in the
-     * simulated locals array are spaced according to their size (unlike the
-     * representation in FrameNode) and this TOP, NULL and UNINTITIALIZED_THIS
-     * opcodes will be represented as null values in the simulated frame.</p>
-     *
-     * <p>This code does not currently simulate the prescribed JVM behaviour
-     * where overwriting the second slot of a DOUBLE or LONG actually
-     * invalidates the DOUBLE or LONG stored in the previous location, so we
-     * have to hope (for now) that this behaviour isn't emitted by the compiler
-     * or any upstream transformers. I may have to re-think this strategy if
-     * this situation is encountered in the wild.</p>
-     *
-     * @param classNode ClassNode containing the method, used to initialise the
-     *      implicit "this" reference in simple methods with no stack frames
-     * @param method MethodNode to explore
-     * @param node Node indicating the position at which to determine the locals
-     *      state. The locals will be enumerated UP TO the specified node, so
-     *      bear in mind that if the specified node is itself a STORE opcode,
-     *      then we will be looking at the state of the locals PRIOR to its
-     *      invocation
-     * @param settings Tunable settings for the state machine
-     * @return A sparse array containing a view (hopefully) of the locals at the
-     *      specified location
+     * @param classNode Containing class
+     * @param method Method
+     * @param node Instruction defining the location to get the local variable
+     *      table at
+     * @param var Local variable index
+     * @return a LocalVariableNode containing information about the local
+     *      variable at the specified location in the specified local slot
      */
-    public static LocalVariableNode[] getLocalsAt(ClassNode classNode, MethodNode method, AbstractInsnNode node, Settings settings) {
-        return getLocalsAt(classNode, method, node, settings, org.spongepowered.asm.mixin.FabricUtil.COMPATIBILITY_LATEST);
+    public static LocalVariableNode getLocalVariableAt(ClassNode classNode, MethodNode method, AbstractInsnNode node, int var) {
+        return Locals.getLocalVariableAt(classNode, method, method.instructions.indexOf(node), var);
     }
 
     private static LocalVariableNode[] getLocalsAt(ClassNode classNode, MethodNode method, AbstractInsnNode node, Settings settings, int fabricCompatibility) {
@@ -485,179 +657,6 @@ public final class Locals {
 
         return frame;
     }
-
-    private static LocalVariableNode[] getLocalsAt092(ClassNode classNode, MethodNode method, AbstractInsnNode node) {
-        for (int i = 0; i < 3 && (node instanceof LabelNode || node instanceof LineNumberNode); i++) {
-            node = Locals.nextNode(method.instructions, node);
-        }
-
-        ClassInfo classInfo = ClassInfo.forName(classNode.name);
-        if (classInfo == null) {
-            throw new LVTGeneratorError("Could not load class metadata for " + classNode.name + " generating LVT for " + method.name);
-        }
-        Method methodInfo = classInfo.findMethod(method, method.access | ClassInfo.INCLUDE_INITIALISERS);
-        if (methodInfo == null) {
-            throw new LVTGeneratorError("Could not locate method metadata for " + method.name + " generating LVT in " + classNode.name);
-        }
-        List<FrameData> frames = methodInfo.getFrames();
-
-        LocalVariableNode[] frame = new LocalVariableNode[method.maxLocals];
-        int local = 0, index = 0;
-
-        // Initialise implicit "this" reference in non-static methods
-        if ((method.access & Opcodes.ACC_STATIC) == 0) {
-            frame[local++] = new LocalVariableNode("this", Type.getObjectType(classNode.name).toString(), null, null, null, 0);
-        }
-
-        // Initialise method arguments
-        for (Type argType : Type.getArgumentTypes(method.desc)) {
-            frame[local] = new LocalVariableNode("arg" + index++, argType.toString(), null, null, null, local);
-            local += argType.getSize();
-        }
-
-        int initialFrameSize = local;
-        int frameSize = local;
-        int frameIndex = -1;
-        int lastFrameSize = local;
-        VarInsnNode storeInsn = null;
-
-        for (Iterator<AbstractInsnNode> iter = method.instructions.iterator(); iter.hasNext();) {
-            AbstractInsnNode insn = iter.next();
-            if (storeInsn != null) {
-                frame[storeInsn.var] = Locals.getLocalVariableAt(classNode, method, insn, storeInsn.var);
-                storeInsn = null;
-            }
-
-            handleFrame: if (insn instanceof FrameNode) {
-                frameIndex++;
-                FrameNode frameNode = (FrameNode)insn;
-                if (frameNode.type == Opcodes.F_SAME || frameNode.type == Opcodes.F_SAME1) {
-                    break handleFrame;
-                }
-
-                FrameData frameData = frameIndex < frames.size() ? frames.get(frameIndex) : null;
-
-                if (frameData != null) {
-                    if (frameData.type == Opcodes.F_FULL) {
-                        frameSize = Math.min(frameSize, frameData.locals);
-                        lastFrameSize = frameSize;
-                    } else {
-                        frameSize = Locals.getAdjustedFrameSize(frameSize, frameData.type, frameData.rawSize, 0); // Fabric: initialSize 0, also applies to frameData through rawSize instead of size
-                    }
-                } else {
-                    frameSize = Locals.getAdjustedFrameSize(frameSize, frameNode, 0); // Fabric: initialSize 0
-                }
-
-                if (frameNode.type == Opcodes.F_CHOP) {
-                    for (int framePos = frameSize; framePos < frame.length; framePos++) {
-                        frame[framePos] = null;
-                    }
-                    lastFrameSize = frameSize;
-                    break handleFrame;
-                }
-
-                int framePos = frameNode.type == Opcodes.F_APPEND ? lastFrameSize : 0;
-                lastFrameSize = frameSize;
-
-                // localPos tracks the location in the frame node's locals list, which doesn't leave space for TOP entries
-                for (int localPos = 0; framePos < frame.length; framePos++, localPos++) {
-                    // Get the local at the current position in the FrameNode's locals list
-                    final Object localType = (localPos < frameNode.local.size()) ? frameNode.local.get(localPos) : null;
-
-                    if (localType instanceof String) { // String refers to a reference type
-                        frame[framePos] = Locals.getLocalVariableAt(classNode, method, insn, framePos);
-                    } else if (localType instanceof Integer) { // Integer refers to a primitive type or other marker
-                        boolean isMarkerType = localType == Opcodes.UNINITIALIZED_THIS || localType == Opcodes.NULL;
-                        boolean is32bitValue = localType == Opcodes.INTEGER || localType == Opcodes.FLOAT;
-                        boolean is64bitValue = localType == Opcodes.DOUBLE || localType == Opcodes.LONG;
-                        if (localType == Opcodes.TOP) {
-                            // Do nothing, explicit TOP entries are pretty much always bogus, and real ones are handled below
-                        } else if (isMarkerType) {
-                            frame[framePos] = null;
-                        } else if (is32bitValue || is64bitValue) {
-                            frame[framePos] = Locals.getLocalVariableAt(classNode, method, insn, framePos);
-
-                            if (is64bitValue) {
-                                framePos++;
-                                frame[framePos] = null; // TOP
-                            }
-                        } else {
-                            throw new LVTGeneratorError("Unrecognised locals opcode " + localType + " in locals array at position " + localPos
-                                    + " in " + classNode.name + "." + method.name + method.desc);
-                        }
-                    } else if (localType == null) {
-                        if (framePos >= initialFrameSize && framePos >= frameSize && frameSize > 0) {
-                            frame[framePos] = null;
-                        }
-                    } else if (localType instanceof LabelNode) {
-                        // Uninitialised
-                    } else {
-                        throw new LVTGeneratorError("Invalid value " + localType + " in locals array at position " + localPos
-                                + " in " + classNode.name + "." + method.name + method.desc);
-                    }
-                }
-            } else if (insn instanceof VarInsnNode) {
-                VarInsnNode varNode = (VarInsnNode) insn;
-                boolean isLoad = insn.getOpcode() >= Opcodes.ILOAD && insn.getOpcode() <= Opcodes.SALOAD;
-                if (isLoad) {
-                    frame[varNode.var] = Locals.getLocalVariableAt(classNode, method, insn, varNode.var);
-                } else {
-                    // Update the LVT for the opcode AFTER this one, since we always want to know
-                    // the frame state BEFORE the *current* instruction to match the contract of
-                    // injection points
-                    storeInsn = varNode;
-                }
-            }
-
-            if (insn == node) {
-                break;
-            }
-        }
-
-        // Null out any "unknown" locals
-        for (int l = 0; l < frame.length; l++) {
-            if (frame[l] != null && frame[l].desc == null) {
-                frame[l] = null;
-            }
-        }
-
-        return frame;
-    }
-    
-    /**
-     * Walks the supplied <tt>frame</tt> up to the specified <tt>knownFrameSize
-     * </tt> and resurrects any zombies that meet the required criteria
-     *
-     * @param frame Frame to walk
-     * @param knownFrameSize Known frame size in which to resurrect
-     * @param settings Resurrection settings
-     */
-    private static void resurrect(LocalVariableNode[] frame, int knownFrameSize, Settings settings) {
-        for (int l = 0; l < knownFrameSize && l < frame.length; l++) {
-            if (frame[l] instanceof ZombieLocalVariableNode) {
-                ZombieLocalVariableNode zombie = (ZombieLocalVariableNode)frame[l];
-                if (zombie.checkResurrect(settings)) {
-                    frame[l] = zombie.ancestor;
-                }
-            }
-        }
-    }
-
-   /**
-     * Attempts to locate the appropriate entry in the local variable table for
-     * the specified local variable index at the location specified by node.
-     *
-     * @param classNode Containing class
-     * @param method Method
-     * @param node Instruction defining the location to get the local variable
-     *      table at
-     * @param var Local variable index
-     * @return a LocalVariableNode containing information about the local
-     *      variable at the specified location in the specified local slot
-     */
-    public static LocalVariableNode getLocalVariableAt(ClassNode classNode, MethodNode method, AbstractInsnNode node, int var) {
-        return Locals.getLocalVariableAt(classNode, method, method.instructions.indexOf(node), var);
-    }
     
     /**
      * Attempts to locate the appropriate entry in the local variable table for
@@ -684,7 +683,7 @@ public final class Locals {
                 fallbackNode = local;
             }
         }
-        
+
         if (localVariableNode == null && !method.localVariables.isEmpty()) {
             for (LocalVariableNode local : Locals.getGeneratedLocalVariableTable(classNode, method)) {
                 if (local.index == var && Locals.isOpcodeInRange(method.instructions, local, pos)) {
@@ -692,12 +691,8 @@ public final class Locals {
                 }
             }
         }
-        
-        return localVariableNode != null ? localVariableNode : fallbackNode;
-    }
 
-    private static boolean isOpcodeInRange(InsnList insns, LocalVariableNode local, int pos) {
-        return insns.indexOf(local.start) <= pos && insns.indexOf(local.end) > pos;
+        return localVariableNode != null ? localVariableNode : fallbackNode;
     }
 
     /**
@@ -807,7 +802,7 @@ public final class Locals {
                         labels[i] = label = new LabelNode();
                     }
                 }
-                
+
                 if (local == null && locals[j] != null) {
                     localVariables.add(localNodes[j]);
                     localNodes[j].end = label;
@@ -825,7 +820,7 @@ public final class Locals {
                         desc = localType.getSort() >= Type.ARRAY && "null".equals(localType.getInternalName())
                                 ? Constants.OBJECT_DESC : localType.getDescriptor();
                     }
-                    
+
                     localNodes[j] = new LocalVariableNode("var" + j, desc, null, label, null, j);
                     if (desc != null) {
                         lastKnownType[j] = desc;
@@ -858,6 +853,10 @@ public final class Locals {
         }
 
         return localVariables;
+    }
+
+    private static boolean isOpcodeInRange(InsnList insns, LocalVariableNode local, int pos) {
+        return insns.indexOf(local.start) <= pos && insns.indexOf(local.end) > pos;
     }
 
     /**
@@ -963,7 +962,7 @@ public final class Locals {
         public SyntheticLocalVariableNode(String name, String descriptor, String signature, LabelNode start, LabelNode end, int index) {
             super(name, descriptor, signature, start, end, index);
         }
-    
+
     }
     
     /**
@@ -976,16 +975,16 @@ public final class Locals {
      * the zombies will be returned as valid results, but otherwise culled.</p>
      */
     static class ZombieLocalVariableNode extends LocalVariableNode {
-        
+
         static final char CHOP = 'C';
         static final char TRIM = 'X';
-        
+
         /**
          * Progenitor of this zombie, to allow "resurrection" (am I stretching
          * this metaphor too far?)
          */
         final LocalVariableNode ancestor;
-        
+
         final char type;
 
         /**
@@ -993,26 +992,26 @@ public final class Locals {
          * state machine loop
          */
         int lifetime;
-        
+
         /**
          * Number of frames which have elapsed for this zombie, incremented by
          * the state machine loop when a frame node is encountered
          */
         int frames;
-        
+
         ZombieLocalVariableNode(LocalVariableNode ancestor, char type) {
             super(ancestor.name, ancestor.desc, ancestor.signature, ancestor.start, ancestor.end, ancestor.index);
             this.ancestor = ancestor;
             this.type = type;
         }
-        
+
         static ZombieLocalVariableNode of(LocalVariableNode ancestor, char type) {
             if (ancestor instanceof ZombieLocalVariableNode) {
                 return (ZombieLocalVariableNode)ancestor;
             }
             return ancestor != null ? new ZombieLocalVariableNode(ancestor, type) : null;
         }
-        
+
         boolean checkResurrect(Settings settings) {
             int insnThreshold = this.type == ZombieLocalVariableNode.CHOP ? settings.choppedInsnThreshold : settings.trimmedInsnThreshold;
             if (insnThreshold > -1 && this.lifetime > insnThreshold) {
@@ -1021,12 +1020,12 @@ public final class Locals {
             int frameThreshold = this.type == ZombieLocalVariableNode.CHOP ? settings.choppedFrameThreshold : settings.trimmedFrameThreshold;
             return frameThreshold == -1 || this.frames <= frameThreshold;
         }
-        
+
         @Override
         public String toString() {
             return String.format("Z(%s,%-2d)", this.type, this.lifetime);
         }
-        
+
     }
     
     /**
@@ -1041,20 +1040,20 @@ public final class Locals {
      * date.
      */
     public static class Settings {
-        
+
         /**
          * When an incoming frame contains TOP entries, these are nearly always
          * bogus. If we previously knew the local in that slot, resurrect it.
          * Only resurrects TRIM zombies.
          */
         public static int RESURRECT_FOR_BOGUS_TOP = 0x01;
-        
+
         /**
          * When a LOAD grows the frame, resurrect any zombies in the exposed
          * portion of the frame, based on the thresholds configured.
          */
         public static int RESURRECT_EXPOSED_ON_LOAD = 0x02;
-        
+
         /**
          * When a STORE grows the frame, resurrect any zombies in the exposed
          * portion of the frame, based on the thresholds configured.
@@ -1065,35 +1064,35 @@ public final class Locals {
          * Default flags
          */
         public static int DEFAULT_FLAGS = Settings.RESURRECT_FOR_BOGUS_TOP | Settings.RESURRECT_EXPOSED_ON_LOAD | Settings.RESURRECT_EXPOSED_ON_STORE;
-        
+
         /**
          * Default settings. CHOP zombies can be resurrected for 1 frame, TRIM
          * zombies can be resurrected forever
          */
         public static Settings DEFAULT = new Settings(Settings.DEFAULT_FLAGS, 0, -1, 1, -1, -1);
-        
+
         /**
          * Reserved flags for Mixin
          */
         final int flags;
-        
+
         /**
          * Platform-specific flags
          */
         final int flagsCustom;
-        
+
         /**
          * Number of instructions that a CHOPped local is eligible for
          * resurrection, -1 to ignore, 0 for none
          */
         final int choppedInsnThreshold;
-        
+
         /**
          * Number of frames that a CHOPped local is eligible for resurrection,
          * -1 to ignore, 0 for none
          */
         final int choppedFrameThreshold;
-        
+
         /**
          * Number of instructions that a TRIMmed local is eligible for
          * resurrection, -1 to ignore, 0 for none
@@ -1119,7 +1118,7 @@ public final class Locals {
         public Settings(int flags, int flagsCustom, int insnThreshold, int frameThreshold) {
             this(flags, flagsCustom, insnThreshold, frameThreshold, insnThreshold, frameThreshold);
         }
-        
+
         /**
          * @param flags Mixin flags
          * @param flagsCustom Platform-specific flags
@@ -1141,15 +1140,15 @@ public final class Locals {
             this.trimmedInsnThreshold = trimmedInsnThreshold;
             this.trimmedFrameThreshold = trimmedFrameThreshold;
         }
-        
+
         boolean hasFlags(int flags) {
             return (this.flags & flags) == flags;
         }
-        
+
         boolean hasCustomFlags(int flagsCustom) {
             return (this.flagsCustom & flagsCustom) == flagsCustom;
         }
-        
+
     }
     
     /**

@@ -24,20 +24,19 @@
  */
 package org.spongepowered.asm.mixin.injection.points;
 
+import java.util.Arrays;
+import java.util.Collection;
+
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
-import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.InjectionPoint;
 import org.spongepowered.asm.mixin.injection.InjectionPoint.AtCode;
 import org.spongepowered.asm.mixin.injection.selectors.ITargetSelector;
 import org.spongepowered.asm.mixin.injection.struct.InjectionPointData;
-
-import java.util.Arrays;
-import java.util.Collection;
 
 /**
  * <p>This injection point searches for INVOKEVIRTUAL, INVOKESTATIC and
@@ -45,7 +44,7 @@ import java.util.Collection;
  * after the matching instructions, with special handling for methods
  * invocations which return a value and immediately assign it to a local
  * variable. It accepts the following parameters from
- * {@link At At}:</p>
+ * {@link org.spongepowered.asm.mixin.injection.At At}:</p>
  * 
  * <dl>
  *   <dt>target</dt>
@@ -78,7 +77,7 @@ import java.util.Collection;
  * 
  * <p>Note that unlike other standard injection points, this class matches the
  * insn after the invocation, and after any local variable assignment. Use the
- * {@link At#shift shift} specifier to
+ * {@link org.spongepowered.asm.mixin.injection.At#shift shift} specifier to
  * adjust the matched opcode as necessary.</p>
  */
 @AtCode("INVOKE_ASSIGN")

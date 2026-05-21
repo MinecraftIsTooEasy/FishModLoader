@@ -24,14 +24,10 @@
  */
 package org.spongepowered.tools.obfuscation.mirror;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableList.Builder;
-import org.spongepowered.asm.mixin.injection.selectors.ITargetSelectorByName;
-import org.spongepowered.asm.obfuscation.mapping.common.MappingMethod;
-import org.spongepowered.asm.util.Bytecode;
-import org.spongepowered.asm.util.asm.IAnnotationHandle;
-import org.spongepowered.tools.obfuscation.interfaces.ITypeHandleProvider;
-import org.spongepowered.tools.obfuscation.mirror.mapping.MappingMethodResolvable;
+import java.lang.annotation.Annotation;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
@@ -43,10 +39,16 @@ import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
-import java.lang.annotation.Annotation;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+
+import org.spongepowered.asm.mixin.injection.selectors.ITargetSelectorByName;
+import org.spongepowered.asm.obfuscation.mapping.common.MappingMethod;
+import org.spongepowered.asm.util.Bytecode;
+import org.spongepowered.asm.util.asm.IAnnotationHandle;
+import org.spongepowered.tools.obfuscation.interfaces.ITypeHandleProvider;
+import org.spongepowered.tools.obfuscation.mirror.mapping.MappingMethodResolvable;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList.Builder;
 
 /**
  * A wrapper for TypeElement which gives us a soft-failover mechanism when
@@ -166,11 +168,11 @@ public class TypeHandle {
         if (kind == null || kind.length < 1) {
             return (List<T>)TypeHandle.getEnclosedElements(targetElement);
         }
-        
+
         if (targetElement == null) {
             return Collections.<T>emptyList();
         }
-        
+
         Builder<T> list = ImmutableList.<T>builder();
         for (Element elem : targetElement.getEnclosedElements()) {
             for (ElementKind ek : kind) {
@@ -184,17 +186,10 @@ public class TypeHandle {
         return list.build();
     }
 
-    /**
-     * Returns enclosed elements (methods, fields, etc.)
-     */
-    protected final List<? extends Element> getEnclosedElements() {
-        return TypeHandle.getEnclosedElements(this.getTargetElement());
-    }
-    
     protected static List<? extends Element> getEnclosedElements(TypeElement targetElement) {
         return targetElement != null ? targetElement.getEnclosedElements() : Collections.<Element>emptyList();
     }
-
+    
     /**
      * Get an annotation handle for the specified annotation on this type
      *
@@ -207,13 +202,12 @@ public class TypeHandle {
     }
 
     /**
-     * Returns the enclosed element as a type mirror, or null if this is an
-     * imaginary type
+     * Returns enclosed elements (methods, fields, etc.)
      */
-    public TypeMirror getTypeMirror() {
-        return this.getTargetElement() != null ? this.getTargetElement().asType() : null;
+    protected final List<? extends Element> getEnclosedElements() {
+        return TypeHandle.getEnclosedElements(this.getTargetElement());
     }
-    
+
     /**
      * Returns enclosed elements (methods, fields, etc.) of a particular type
      *
@@ -222,16 +216,6 @@ public class TypeHandle {
      */
     protected <T extends Element> List<T> getEnclosedElements(ElementKind... kind) {
         return TypeHandle.getEnclosedElements(this.getTargetElement(), kind);
-    }
-    
-    /**
-     * Get whether the type handle can return a type mirror for the represented
-     * type. This is true only for types returned by mirror and is not available
-     * for simulated types or classpath types inaccessible via mirror (eg. anon
-     * classes)
-     */
-    public boolean hasTypeMirror() {
-        return this.getTargetElement() != null;
     }
     
     /**
@@ -251,22 +235,6 @@ public class TypeHandle {
         
         return typeProvider.getTypeHandle(superClass);
     }
-
-    /**
-     * Get whether the element is probably public
-     */
-    public boolean isPublic() {
-        TypeElement targetElement = this.getTargetElement();
-        if (targetElement == null || !targetElement.getModifiers().contains(Modifier.PUBLIC)) {
-            return false;
-        }
-        for (Element e = targetElement.getEnclosingElement(); e != null && e.getKind() != ElementKind.PACKAGE; e = e.getEnclosingElement()) {
-            if (!e.getModifiers().contains(Modifier.PUBLIC)) {
-                return false;
-            }
-        }
-        return true;
-    }
     
     /**
      * Get interfaces directly implemented by this type
@@ -284,13 +252,6 @@ public class TypeHandle {
     }
     
     /**
-     * Get whether this handle is simulated
-     */
-    public boolean isSimulated() {
-        return false;
-    }
-
-    /**
      * Get methods in this type
      */
     public List<MethodHandle> getMethods() {
@@ -303,11 +264,52 @@ public class TypeHandle {
     }
 
     /**
+     * Get whether the type handle can return a type mirror for the represented
+     * type. This is true only for types returned by mirror and is not available
+     * for simulated types or classpath types inaccessible via mirror (eg. anon
+     * classes)
+     */
+    public boolean hasTypeMirror() {
+        return this.getTargetElement() != null;
+    }
+    
+    /**
      * Get whether the element is imaginary (inaccessible via mirror or
      * classpath)
      */
     public boolean isImaginary() {
         return this.getTargetElement() == null;
+    }
+    
+    /**
+     * Returns the enclosed element as a type mirror, or null if this is an
+     * imaginary type
+     */
+    public TypeMirror getTypeMirror() {
+        return this.getTargetElement() != null ? this.getTargetElement().asType() : null;
+    }
+
+    /**
+     * Get whether the element is probably public
+     */
+    public boolean isPublic() {
+        TypeElement targetElement = this.getTargetElement();
+        if (targetElement == null || !targetElement.getModifiers().contains(Modifier.PUBLIC)) {
+            return false;
+        }
+        for (Element e = targetElement.getEnclosingElement(); e != null && e.getKind() != ElementKind.PACKAGE; e = e.getEnclosingElement()) {
+            if (!e.getModifiers().contains(Modifier.PUBLIC)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Get whether this handle is simulated
+     */
+    public boolean isSimulated() {
+        return false;
     }
 
     /**
@@ -492,7 +494,7 @@ public class TypeHandle {
                 return new FieldHandle(this.getTargetElement(), field, true);
             }
         }
-        
+
         return null;
     }
 

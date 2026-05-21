@@ -24,6 +24,7 @@
  */
 package org.spongepowered.asm.mixin.injection.invoke.util;
 
+import org.spongepowered.asm.logging.ILogger;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.analysis.Analyzer;
 import org.objectweb.asm.tree.analysis.AnalyzerException;
@@ -31,7 +32,6 @@ import org.objectweb.asm.tree.analysis.BasicInterpreter;
 import org.objectweb.asm.tree.analysis.BasicValue;
 import org.objectweb.asm.tree.analysis.Frame;
 import org.objectweb.asm.tree.analysis.Interpreter;
-import org.spongepowered.asm.logging.ILogger;
 import org.spongepowered.asm.mixin.injection.struct.Target;
 import org.spongepowered.asm.service.MixinService;
 
@@ -144,11 +144,11 @@ public class InsnFinder {
         public AnalysisResultException(AbstractInsnNode popNode) {
             this.result = popNode;
         }
-        
+
         public AbstractInsnNode getResult() {
             return this.result;
         }
-        
+
     }
     
     /**

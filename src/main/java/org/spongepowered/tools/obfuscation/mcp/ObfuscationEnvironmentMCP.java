@@ -24,15 +24,15 @@
  */
 package org.spongepowered.tools.obfuscation.mcp;
 
+import javax.annotation.processing.Filer;
+import javax.annotation.processing.Messager;
+
 import org.spongepowered.tools.obfuscation.ObfuscationEnvironment;
 import org.spongepowered.tools.obfuscation.ObfuscationType;
 import org.spongepowered.tools.obfuscation.mapping.IMappingProvider;
 import org.spongepowered.tools.obfuscation.mapping.IMappingWriter;
 import org.spongepowered.tools.obfuscation.mapping.mcp.MappingProviderSrg;
 import org.spongepowered.tools.obfuscation.mapping.mcp.MappingWriterSrg;
-
-import javax.annotation.processing.Filer;
-import javax.annotation.processing.Messager;
 
 /**
  * An MCP obfuscation environment (eg. SEARGE or NOTCH)

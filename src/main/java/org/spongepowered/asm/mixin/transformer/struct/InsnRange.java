@@ -24,15 +24,15 @@
  */
 package org.spongepowered.asm.mixin.transformer.struct;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.Iterator;
+
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.LabelNode;
 import org.objectweb.asm.tree.LineNumberNode;
-
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.Iterator;
 
 /**
  * Struct for representing a range of instructions
@@ -68,8 +68,8 @@ public class InsnRange {
     }
     
     /**
-     * Range is valid if both initial and end are nonzero and end is after or
-     * at initial
+     * Range is valid if both start and end are nonzero and end is after or
+     * at start
      * 
      * @return true if valid
      */
@@ -78,7 +78,7 @@ public class InsnRange {
     }
     
     /**
-     * Returns true if the supplied value is between or equal to initial and
+     * Returns true if the supplied value is between or equal to start and
      * end
      * 
      * @param value true if the range contains value

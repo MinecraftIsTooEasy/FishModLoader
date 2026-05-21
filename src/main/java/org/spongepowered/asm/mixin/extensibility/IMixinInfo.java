@@ -24,10 +24,10 @@
  */
 package org.spongepowered.asm.mixin.extensibility;
 
+import java.util.List;
+
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.MixinEnvironment.Phase;
-
-import java.util.List;
 
 /**
  * Interface for MixinInfo, used in extensibility API

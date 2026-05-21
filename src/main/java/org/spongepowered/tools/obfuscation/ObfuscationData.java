@@ -24,11 +24,11 @@
  */
 package org.spongepowered.tools.obfuscation;
 
-import org.spongepowered.asm.obfuscation.mapping.common.MappingMethod;
-
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+
+import org.spongepowered.asm.obfuscation.mapping.common.MappingMethod;
 
 /**
  * Return value struct for various obfuscation queries performed by the mixin

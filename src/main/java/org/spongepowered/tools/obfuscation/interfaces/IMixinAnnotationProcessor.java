@@ -24,9 +24,9 @@
  */
 package org.spongepowered.tools.obfuscation.interfaces;
 
-import org.spongepowered.asm.util.ITokenProvider;
-
 import javax.annotation.processing.ProcessingEnvironment;
+
+import org.spongepowered.asm.util.ITokenProvider;
 
 /**
  * Interface for annotation processor core
@@ -68,12 +68,12 @@ public interface IMixinAnnotationProcessor extends IMessagerSuppressible, IOptio
      * for compatibility purposes.
      */
     public static enum CompilerEnvironment {
-        
+
         /**
          * Default environment
          */
         JAVAC(false, "Java Compiler"),
-        
+
         /**
          * Eclipse
          */
@@ -85,7 +85,7 @@ public interface IMixinAnnotationProcessor extends IMessagerSuppressible, IOptio
             }
 
         },
-        
+
         /**
          * IntelliJ IDEA
          */
@@ -112,7 +112,7 @@ public interface IMixinAnnotationProcessor extends IMessagerSuppressible, IOptio
          * True if this compiler environment is an IDE
          */
         private final boolean isDevelopmentEnvironment;
-        
+
         /**
          * Display name
          */
@@ -122,28 +122,28 @@ public interface IMixinAnnotationProcessor extends IMessagerSuppressible, IOptio
             this.isDevelopmentEnvironment = isDevelopmentEnvironment;
             this.friendlyName = friendlyName;
         }
-        
+
         /**
          * True if this compiler environment is not an IDE
          */
         public boolean isCompiler() {
             return !this.isDevelopmentEnvironment;
         }
-        
+
         /**
          * True if this compiler environment is an IDE
          */
         public boolean isDevelopmentEnvironment() {
             return this.isDevelopmentEnvironment;
         }
-        
+
         /**
          * Get the human-readable name of this environment
          */
         public String getFriendlyName() {
             return this.friendlyName;
         }
-        
+
         /**
          * Detect compiler environments which require special handling (for the
          * time being, the only special environments we care about are IDEs)
@@ -175,7 +175,7 @@ public interface IMixinAnnotationProcessor extends IMessagerSuppressible, IOptio
         protected boolean isDetected(ProcessingEnvironment processingEnv) {
             return false;
         }
-        
+
     }
 
 }

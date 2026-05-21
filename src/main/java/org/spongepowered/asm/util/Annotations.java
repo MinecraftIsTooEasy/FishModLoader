@@ -24,9 +24,14 @@
  */
 package org.spongepowered.asm.util;
 
-import com.google.common.base.Function;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
+import java.lang.annotation.Annotation;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.regex.Pattern;
+
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.ClassNode;
@@ -39,18 +44,16 @@ import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.service.MixinService;
 import org.spongepowered.asm.util.asm.IAnnotationHandle;
 
-import java.lang.annotation.Annotation;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.regex.Pattern;
+import com.google.common.base.Function;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 
 /**
  * Utility class for working with ASM annotations
  */
 public final class Annotations {
+    
+    private static Pattern mergeableAnnotationPattern = Annotations.getMergeableAnnotationPattern();
     
     /**
      * Annotations which are eligible for merge via {@link #mergeAnnotations}
@@ -61,12 +64,6 @@ public final class Annotations {
         Final.class,
         Debug.class
     };
-    
-    private Annotations() {
-        // Utility class
-    }
-
-    private static Pattern mergeableAnnotationPattern = Annotations.getMergeableAnnotationPattern();
 
     /**
      * Get the supplied annotation object as an annotation handle
@@ -78,12 +75,16 @@ public final class Annotations {
         if (annotation instanceof IAnnotationHandle) {
             return (IAnnotationHandle)annotation;
         } else if (annotation instanceof AnnotationNode) {
-            return new Handle((AnnotationNode)annotation);
+            return new Annotations.Handle((AnnotationNode)annotation);
         } else if (annotation == null) {
             return null;
         } else {
             throw new IllegalArgumentException("Unsupported annotation type: " + annotation.getClass().getName());
         }
+    }
+
+    private Annotations() {
+        // Utility class
     }
     
     /**
@@ -475,25 +476,6 @@ public final class Annotations {
     }
 
     /**
-     * Get the value of an annotation node as the specified enum, returns
-     * defaultValue if the annotation value is not set
-     *
-     * @param <T> duck type
-     * @param annotation Annotation node to query
-     * @param key Key to search for
-     * @param enumClass Class of enum containing the enum constant to search for
-     * @param defaultValue Value to return if the specified key isn't found
-     * @return duck-typed annotation value or defaultValue if missing
-     */
-    public static <T extends Enum<T>> T getValue(AnnotationNode annotation, String key, Class<T> enumClass, T defaultValue) {
-        String[] value = Annotations.<String[]>getValue(annotation, key);
-        if (value == null) {
-            return defaultValue;
-        }
-        return Annotations.toEnumValue(enumClass, value);
-    }
-
-    /**
      * Return the specified annotation node value as a list of nodes
      *
      * @param <T> list element type
@@ -513,6 +495,25 @@ public final class Annotations {
             return list;
         }
         return Collections.<T>emptyList();
+    }
+
+    /**
+     * Get the value of an annotation node as the specified enum, returns
+     * defaultValue if the annotation value is not set
+     *
+     * @param <T> duck type
+     * @param annotation Annotation node to query
+     * @param key Key to search for
+     * @param enumClass Class of enum containing the enum constant to search for
+     * @param defaultValue Value to return if the specified key isn't found
+     * @return duck-typed annotation value or defaultValue if missing
+     */
+    public static <T extends Enum<T>> T getValue(AnnotationNode annotation, String key, Class<T> enumClass, T defaultValue) {
+        String[] value = Annotations.<String[]>getValue(annotation, key);
+        if (value == null) {
+            return defaultValue;
+        }
+        return Annotations.toEnumValue(enumClass, value);
     }
 
     /**
@@ -556,29 +557,29 @@ public final class Annotations {
             if (from == null) {
                 return to;
             }
-            
+
             if (to == null) {
                 to = new ArrayList<AnnotationNode>();
             }
-            
+
             for (AnnotationNode annotation : from) {
                 if (!Annotations.isMergeableAnnotation(annotation)) {
                     continue;
                 }
-                
+
                 for (Iterator<AnnotationNode> iter = to.iterator(); iter.hasNext();) {
                     if (iter.next().desc.equals(annotation.desc)) {
                         iter.remove();
                         break;
                     }
                 }
-                
+
                 to.add(annotation);
             }
         } catch (Exception ex) {
             MixinService.getService().getLogger("mixin").warn("Exception encountered whilst merging annotations for {} {}", type, name);
         }
-        
+
         return to;
     }
 
@@ -678,23 +679,23 @@ public final class Annotations {
      * Wrapper for {@link AnnotationNode} to support access via common interface
      */
     public static class Handle implements IAnnotationHandle {
-        
+
         private final AnnotationNode annotation;
-        
+
         Handle(AnnotationNode annotation) {
             Preconditions.checkNotNull(annotation, "annotation");
             this.annotation = annotation;
         }
-        
+
         @Override
         public boolean exists() {
             return true;
         }
-        
+
         public AnnotationNode getNode() {
             return this.annotation;
         }
-        
+
         @Override
         public String getDesc() {
             return Type.getType(this.annotation.desc).getInternalName();
@@ -711,12 +712,12 @@ public final class Annotations {
             }
             return list;
         }
-        
+
         @Override
         public Type getTypeValue(String key) {
             return this.<Type>getValue(key, Type.VOID_TYPE);
         }
-        
+
         @Override
         public List<Type> getTypeList(String key) {
             return this.<Type>getList(key);
@@ -737,27 +738,27 @@ public final class Annotations {
         public <T> T getValue() {
             return this.getValue("value", null);
         }
-        
+
         @Override
         public <T> T getValue(String key) {
             return this.getValue(key, null);
         }
-        
+
         @Override
         public boolean getBoolean(String key, boolean defaultValue) {
             return this.<Boolean>getValue(key, Boolean.valueOf(defaultValue)).booleanValue();
         }
-        
+
         @Override
         public <T> List<T> getList() {
             return this.<T>getList("value");
         }
-        
+
         @Override
         public <T> List<T> getList(String key) {
             return Annotations.<T>getValue(this.annotation, key, false);
         }
-        
+
         @Override
         public String toString() {
             return "@" + Annotations.getSimpleName(this.annotation);

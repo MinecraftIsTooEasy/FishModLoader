@@ -24,7 +24,8 @@
  */
 package org.spongepowered.asm.mixin.injection.struct;
 
-import com.google.common.base.Strings;
+import java.util.List;
+
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.MethodNode;
@@ -38,7 +39,7 @@ import org.spongepowered.asm.mixin.injection.struct.InjectionInfo.HandlerPrefix;
 import org.spongepowered.asm.mixin.injection.struct.InjectionInfo.InjectorOrder;
 import org.spongepowered.asm.mixin.transformer.MixinTargetContext;
 
-import java.util.List;
+import com.google.common.base.Strings;
 
 /**
  * Information about a constant modifier injector

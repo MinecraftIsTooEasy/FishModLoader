@@ -24,12 +24,12 @@
  */
 package org.spongepowered.asm.mixin.transformer;
 
+import java.util.ArrayList;
+
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.mixin.transformer.MixinCoprocessor.ProcessResult;
 import org.spongepowered.asm.util.perf.Profiler;
 import org.spongepowered.asm.util.perf.Profiler.Section;
-
-import java.util.ArrayList;
 
 /**
  * Convenience list of coprocessors

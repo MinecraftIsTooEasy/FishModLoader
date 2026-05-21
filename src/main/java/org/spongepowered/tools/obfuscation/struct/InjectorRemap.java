@@ -24,12 +24,12 @@
  */
 package org.spongepowered.tools.obfuscation.struct;
 
+import javax.annotation.processing.Messager;
+import javax.lang.model.element.Element;
+
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.tools.obfuscation.interfaces.IMessagerEx.MessageType;
 import org.spongepowered.tools.obfuscation.mirror.AnnotationHandle;
-
-import javax.annotation.processing.Messager;
-import javax.lang.model.element.Element;
 
 /**
  * Remap tracking object for injectors. When remapping an injector we will

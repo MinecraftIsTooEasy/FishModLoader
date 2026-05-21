@@ -24,11 +24,12 @@
  */
 package org.spongepowered.tools.obfuscation.interfaces;
 
-import org.spongepowered.asm.util.asm.IAnnotationHandle;
-import org.spongepowered.tools.obfuscation.mirror.TypeHandle;
+import java.util.Collection;
 
 import javax.lang.model.element.TypeElement;
-import java.util.Collection;
+
+import org.spongepowered.asm.util.asm.IAnnotationHandle;
+import org.spongepowered.tools.obfuscation.mirror.TypeHandle;
 
 /**
  * A mixin validator module, basically just a way of making the various sanity

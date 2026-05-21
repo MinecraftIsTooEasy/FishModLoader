@@ -24,11 +24,6 @@
  */
 package org.spongepowered.asm.util;
 
-import com.google.common.base.Strings;
-import org.spongepowered.asm.logging.ILogger;
-import org.spongepowered.asm.logging.Level;
-import org.spongepowered.asm.service.MixinService;
-
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -36,6 +31,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import org.spongepowered.asm.logging.ILogger;
+import org.spongepowered.asm.logging.Level;
+import org.spongepowered.asm.service.MixinService;
+
+import com.google.common.base.Strings;
 
 /**
  * Prints information in a pretty box
@@ -47,7 +48,7 @@ public class PrettyPrinter {
             return;
         }
         this.lines.add(line);
-        this.recalcWidth |= line instanceof IVariableWidthEntry;
+        this.recalcWidth |= line instanceof PrettyPrinter.IVariableWidthEntry;
     }
     
     /**
@@ -875,16 +876,6 @@ public class PrettyPrinter {
         return this;
     }
 
-    private void printSpecial(PrintStream stream, ISpecialEntry line) {
-        stream.printf("/*%s*/\n", line.toString());
-    }
-    
-    private void printString(PrintStream stream, String string) {
-        if (string != null) {
-            stream.printf("/* %-" + this.width + "s */\n", string);
-        }
-    }
-    
     /**
      * Write this printer to the specified logger at {@link Level#INFO}
      *
@@ -938,40 +929,40 @@ public class PrettyPrinter {
      * Interface for object which supports printing to pretty printer
      */
     public interface IPrettyPrintable {
-        
+
         /**
          * Append this objec to specified pretty printer
          *
          * @param printer printer to append to
          */
         public abstract void print(PrettyPrinter printer);
-        
-    }
 
+    }
+    
     /**
      * Interface for objects which need their width calculated prior to printing
      */
     interface IVariableWidthEntry {
-        
-        public abstract int getWidth();
-        
-    }
 
+        public abstract int getWidth();
+
+    }
+    
     /**
      * Table information, added to output in order to print header
      */
-    static class Table implements IVariableWidthEntry {
-        
+    static class Table implements PrettyPrinter.IVariableWidthEntry {
+
         final List<Column> columns = new ArrayList<Column>();
-        
+
         final List<Row> rows = new ArrayList<Row>();
-        
+
         String format = "%s";
-        
+
         int colSpacing = 2;
-        
+
         boolean addHeader = true;
-        
+
         void headerAdded() {
             this.addHeader = false;
         }
@@ -988,25 +979,25 @@ public class PrettyPrinter {
             this.updateFormat();
             return this;
         }
-        
+
         Column add(Column column) {
             this.columns.add(column);
             return column;
         }
-        
+
         Row add(Row row) {
             this.rows.add(row);
             return row;
         }
-        
+
         Column addColumn(String title) {
             return this.add(new Column(this, title));
         }
-        
+
         Column addColumn(Alignment align, int size, String title) {
             return this.add(new Column(this, align, size, title));
         }
-        
+
         Row addRow(Object... args) {
             return this.add(new Row(this, args));
         }
@@ -1024,7 +1015,7 @@ public class PrettyPrinter {
             }
             this.format = format.toString();
         }
-        
+
         String getFormat() {
             return this.format;
         }
@@ -1036,7 +1027,7 @@ public class PrettyPrinter {
             }
             return titles.toArray();
         }
-        
+
         @Override
         public String toString() {
             boolean nonEmpty = false;
@@ -1047,22 +1038,32 @@ public class PrettyPrinter {
             }
             return nonEmpty ? String.format(this.format, (Object[])titles) : null;
         }
-        
+
         @Override
         public int getWidth() {
             String str = this.toString();
             return str != null ? str.length() : 0;
         }
-        
+
+    }
+
+    private void printSpecial(PrintStream stream, ISpecialEntry line) {
+        stream.printf("/*%s*/\n", line.toString());
+    }
+
+    private void printString(PrintStream stream, String string) {
+        if (string != null) {
+            stream.printf("/* %-" + this.width + "s */\n", string);
+        }
     }
 
     /**
      * Table row, internal
      */
-    static class Row implements IVariableWidthEntry {
-        
+    static class Row implements PrettyPrinter.IVariableWidthEntry {
+
         final Table table;
-        
+
         final String[] args;
 
         public Row(Table table, Object... args) {
@@ -1073,7 +1074,7 @@ public class PrettyPrinter {
                 this.table.columns.get(i).setMinWidth(this.args[i].length());
             }
         }
-        
+
         @Override
         public String toString() {
             Object[] args = new Object[this.table.columns.size()];
@@ -1085,26 +1086,26 @@ public class PrettyPrinter {
                     args[col] = (this.args[col].length() > column.getMaxWidth()) ? this.args[col].substring(0, column.getMaxWidth()) : this.args[col];
                 }
             }
-            
+
             return String.format(this.table.format, args);
         }
-        
+
         @Override
         public int getWidth() {
             return this.toString().length();
         }
-        
+
     }
     
     /**
      * A key/value pair for convenient printing
      */
-    class KeyValue implements IVariableWidthEntry {
-        
+    class KeyValue implements PrettyPrinter.IVariableWidthEntry {
+
         private final String key;
-        
+
         private final Object value;
-        
+
         public KeyValue(String key, Object value) {
             this.key = key;
             this.value = value;
@@ -1119,25 +1120,25 @@ public class PrettyPrinter {
         public int getWidth() {
             return this.toString().length();
         }
-        
+
     }
     
     /**
      * Horizontal rule
      */
-    class HorizontalRule implements ISpecialEntry {
-        
+    class HorizontalRule implements PrettyPrinter.ISpecialEntry {
+
         private final char[] hrChars;
 
         public HorizontalRule(char... hrChars) {
             this.hrChars = hrChars;
         }
-        
+
         @Override
         public String toString() {
             return Strings.repeat(new String(this.hrChars), PrettyPrinter.this.width + 2);
         }
-        
+
     }
 
     private void logSpecial(ILogger logger, Level level, ISpecialEntry line) {

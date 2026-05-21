@@ -24,11 +24,11 @@
  */
 package org.spongepowered.asm.util.asm;
 
-import org.objectweb.asm.tree.ClassNode;
-
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
+
+import org.objectweb.asm.tree.ClassNode;
 
 /**
  * Adapter for ClassNode to access members added after ASM 5 

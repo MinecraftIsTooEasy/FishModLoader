@@ -24,9 +24,10 @@
  */
 package org.spongepowered.asm.mixin.transformer;
 
-import com.google.common.base.Preconditions;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 import org.spongepowered.asm.service.ISyntheticClassInfo;
+
+import com.google.common.base.Preconditions;
 
 /**
  * Information bundle about a synthetic class provided by Mixin

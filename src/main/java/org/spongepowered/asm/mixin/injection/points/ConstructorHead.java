@@ -24,6 +24,8 @@
  */
 package org.spongepowered.asm.mixin.injection.points;
 
+import java.util.Collection;
+
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.MethodNode;
@@ -35,8 +37,6 @@ import org.spongepowered.asm.mixin.injection.code.IInsnListEx.SpecialNodeType;
 import org.spongepowered.asm.mixin.injection.struct.InjectionPointData;
 import org.spongepowered.asm.mixin.injection.throwables.InvalidInjectionPointException;
 import org.spongepowered.asm.service.MixinService;
-
-import java.util.Collection;
 
 /**
  * <p>Like {@link MethodHead HEAD}, this injection point can be used to specify
@@ -85,13 +85,42 @@ public class ConstructorHead extends MethodHead {
      */
     protected final ILogger logger = MixinService.getService().getLogger("mixin");
     /**
-     * Enforce behaviour parsed from At args
-     */
-    private final Enforce enforce;
-    /**
      * True to warn when enfored selection fails
      */
     private final boolean verbose;
+
+    /**
+     * Enforce behaviour parsed from At args
+     */
+    private final Enforce enforce;
+    
+    /**
+     * Location enforcement
+     */
+    static enum Enforce {
+
+        /**
+         * Use default behaviour (POST_INIT)
+         */
+        DEFAULT,
+
+        /**
+         * Enforce selection of post-delegate insn
+         */
+        POST_DELEGATE,
+
+        /**
+         * Enforce selection of post-initialiser insn
+         */
+        POST_INIT,
+
+        /**
+         * Enforce selection of the first body insn
+         */
+        PRE_BODY;
+
+    }
+
     private final MethodNode method;
 
     public ConstructorHead(InjectionPointData data) {
@@ -143,32 +172,5 @@ public class ConstructorHead extends MethodHead {
         }
         
         return super.find(desc, insns, nodes);
-    }
-
-    /**
-     * Location enforcement
-     */
-    static enum Enforce {
-        
-        /**
-         * Use default behaviour (POST_INIT)
-         */
-        DEFAULT,
-        
-        /**
-         * Enforce selection of post-delegate insn
-         */
-        POST_DELEGATE,
-        
-        /**
-         * Enforce selection of post-initialiser insn
-         */
-        POST_INIT,
-        
-        /**
-         * Enforce selection of the first body insn
-         */
-        PRE_BODY;
-        
     }
 }

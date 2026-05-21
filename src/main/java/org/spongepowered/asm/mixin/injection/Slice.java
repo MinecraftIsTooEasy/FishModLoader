@@ -24,11 +24,11 @@
  */
 package org.spongepowered.asm.mixin.injection;
 
-import org.spongepowered.asm.mixin.injection.InjectionPoint.Specifier;
-
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+
+import org.spongepowered.asm.mixin.injection.InjectionPoint.Specifier;
 
 /**
  * A <tt>Slice</tt> identifies a section of a method to search for injection
@@ -161,7 +161,7 @@ public @interface Slice {
     public String id() default "";
     
     /**
-     * Injection point which specifies the <em>initial</em> of the slice region.
+     * Injection point which specifies the <em>start</em> of the slice region.
      * {@link At}s supplied here should generally use a {@link Specifier}
      * in order to identify which instruction should be used for queries which
      * return multiple results. The specifier is supplied by appending the
@@ -175,7 +175,7 @@ public @interface Slice {
      * <tt>to</tt> must appear after that selected by <tt>from</tt> in the
      * method body).</p>
      * 
-     * @return the initial point of the slice
+     * @return the start point of the slice
      */
     public At from() default @At("HEAD");
     
@@ -194,7 +194,7 @@ public @interface Slice {
      * <tt>to</tt> must appear <em>after</em> that selected by <tt>from</tt> in
      * the method body).</p>
      * 
-     * @return the initial point of the slice
+     * @return the start point of the slice
      */
     public At to() default @At("TAIL");
     

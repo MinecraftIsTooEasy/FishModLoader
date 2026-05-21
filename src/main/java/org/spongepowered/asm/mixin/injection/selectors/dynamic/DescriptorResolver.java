@@ -24,8 +24,12 @@
  */
 package org.spongepowered.asm.mixin.injection.selectors.dynamic;
 
-import com.google.common.base.Joiner;
-import com.google.common.base.Strings;
+import java.lang.annotation.Annotation;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodNode;
@@ -39,11 +43,8 @@ import org.spongepowered.asm.util.Quantifier;
 import org.spongepowered.asm.util.asm.IAnnotatedElement;
 import org.spongepowered.asm.util.asm.IAnnotationHandle;
 
-import java.lang.annotation.Annotation;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
+import com.google.common.base.Joiner;
+import com.google.common.base.Strings;
 
 /**
  * Utility class which contains the logic for resolving descriptors
@@ -52,10 +53,42 @@ import java.util.Set;
  */
 public final class DescriptorResolver {
     
+    /**
+     * Special ID used to instruct the resolver to print its progress.
+     */
+    public static String PRINT_ID = "?";
+    
     // No
     private DescriptorResolver() {
     }
     
+    /**
+     * Basic resolver observer which just collects searched coordinates
+     */
+    static class ResolverObserverBasic implements IResolverObserver {
+        
+        private final Set<String> searched = new LinkedHashSet<String>();
+        
+        @Override
+        public void visit(String coordinate, Object element, String detail) {
+            this.searched.add(coordinate);
+        }
+
+        @Override
+        public Set<String> getSearched() {
+            return this.searched;
+        }
+        
+        @Override
+        public void postResolve() {
+        }
+        
+    }
+
+    public static IResolvedDescriptor resolve(IAnnotationHandle desc, ISelectorContext context) {
+        return new Descriptor(Collections.<String>emptySet(), desc, context);
+    }
+
     /**
      * Resolve the specified descriptor id starting at the specified context
      *
@@ -75,7 +108,7 @@ public final class DescriptorResolver {
                 observer.visit(id, "", "");
             }
         }
-        
+
         IAnnotationHandle desc = DescriptorResolver.resolve(id, context, observer, context.getSelectorCoordinate(true));
         observer.postResolve();
         return new Descriptor(observer.getSearched(), desc, context, debug);
@@ -87,7 +120,7 @@ public final class DescriptorResolver {
     private static IAnnotationHandle resolve(String id, ISelectorContext context, IResolverObserver observer, String coordinate) {
         IAnnotationHandle annotation = Annotations.handleOf(context.getSelectorAnnotation());
         observer.visit(coordinate, annotation, annotation.toString() + ".desc");
-        
+
         // First check if there's a "desc" value on the current annotation
         IAnnotationHandle resolved = DescriptorResolver.resolve(id, context, observer, coordinate, annotation.getAnnotationList("desc"));
         if (resolved != null) {
@@ -117,18 +150,18 @@ public final class DescriptorResolver {
             String parentCoordinate = parent.getSelectorCoordinate(false) + "." + coordinate;
             return DescriptorResolver.resolve(id, parent, observer, parentCoordinate);
         }
-        
+
         // If all else fails, return failure
         return null;
     }
-
+    
     /**
      * Attempt to resolve on an element
      */
     private static IAnnotationHandle resolve(String id, ISelectorContext context, IResolverObserver observer, String coordinate, Object element,
             String detail) {
         observer.visit(coordinate, element, detail);
-        
+
         IAnnotationHandle descriptors = DescriptorResolver.getVisibleAnnotation(element, Descriptors.class);
         if (descriptors != null) {
             IAnnotationHandle resolved = DescriptorResolver.resolve(id, context, observer, coordinate, descriptors.getAnnotationList("value"));
@@ -136,7 +169,7 @@ public final class DescriptorResolver {
                 return resolved;
             }
         }
-        
+
         IAnnotationHandle descriptor = DescriptorResolver.getVisibleAnnotation(element, Desc.class);
         if (descriptor != null) {
             IAnnotationHandle resolved = DescriptorResolver.resolve(id, context, observer, coordinate, descriptor);
@@ -144,15 +177,41 @@ public final class DescriptorResolver {
                 return resolved;
             }
         }
-        
+
         return null;
     }
 
     /**
-     * Special ID used to instruct the resolver to print its progress.
+     * Attempt resolution using annotations from a particular element
      */
-    public static String PRINT_ID = "?";
+    private static IAnnotationHandle resolve(String id, ISelectorContext context, IResolverObserver observer, String coordinate,
+            List<IAnnotationHandle> availableDescriptors) {
+        if (availableDescriptors != null) {
+            for (IAnnotationHandle desc : availableDescriptors) {
+                IAnnotationHandle resolved = DescriptorResolver.resolve(id, context, observer, coordinate, desc);
+                if (resolved != null) {
+                    return resolved;
+                }
+            }
+        }
+        return null;
+    }
     
+    /**
+     * Attempt resolution using an actual annotation
+     */
+    private static IAnnotationHandle resolve(String id, ISelectorContext context, IResolverObserver observer, String coordinate,
+            IAnnotationHandle desc) {
+        if (desc != null) {
+            String descriptorId = desc.getValue("id", coordinate);
+            boolean implicit = Strings.isNullOrEmpty(id);
+            if ((implicit && descriptorId.equalsIgnoreCase(coordinate)) || (!implicit && descriptorId.equalsIgnoreCase(id))) {
+                return desc;
+            }
+        }
+        return null;
+    }
+
     /**
      * Utility function, gets an annotation handle from the candidate elements
      * we are able to process
@@ -177,10 +236,6 @@ public final class DescriptorResolver {
         }
         throw new IllegalStateException("Cannot read visible annotations from element with unknown type: " + element.getClass().getName());
     }
-    
-    public static IResolvedDescriptor resolve(IAnnotationHandle desc, ISelectorContext context) {
-        return new Descriptor(Collections.<String>emptySet(), desc, context);
-    }
 
     /**
      * Observer for the resolution process, used to support printing resolution
@@ -188,7 +243,7 @@ public final class DescriptorResolver {
      * messages
      */
     interface IResolverObserver {
-        
+
         /**
          * Called when the resolver visits a coordinate on the specified member
          *
@@ -202,40 +257,40 @@ public final class DescriptorResolver {
          * Get all of the searched coordinates, for inclusion in error messages
          */
         public abstract Set<String> getSearched();
-        
+
         /**
          * Called after resolution completes
          */
         public abstract void postResolve();
-        
+
     }
-    
+
     /**
      * Resolution result
      */
     static final class Descriptor implements IResolvedDescriptor {
-        
+
         /**
          * The set of coordinates which were searched, stored here so they can
          * be included in error messages if resolution fails
          */
         private final Set<String> searched;
-        
+
         /**
          * The resolved descriptor
          */
         private final IAnnotationHandle desc;
-        
+
         /**
          * Selector context
          */
         private final ISelectorContext context;
-        
+
         /**
          * True if this is a debug descriptor
          */
         private final boolean debug;
-        
+
         Descriptor(Set<String> searched, IAnnotationHandle desc, ISelectorContext context) {
             this(searched, desc, context, false);
         }
@@ -246,7 +301,7 @@ public final class DescriptorResolver {
             this.context = context;
             this.debug = debug;
         }
-        
+
         /**
          * True if the resolution process was successful
          */
@@ -254,7 +309,7 @@ public final class DescriptorResolver {
         public boolean isResolved() {
             return this.desc != null;
         }
-        
+
         /**
          * True if this is a debugging descriptor and shouldn't be treated as
          * fully resolved
@@ -263,7 +318,7 @@ public final class DescriptorResolver {
         public boolean isDebug() {
             return this.debug;
         }
-        
+
         /**
          * Get information about the resolution of this descriptor, for
          * inclusion in error messages when isResolved is false
@@ -276,7 +331,7 @@ public final class DescriptorResolver {
             }
             return String.format("Searched coordinates [ \"%s\" ]", Joiner.on("\", \"").join(this.searched));
         }
-        
+
         /**
          * Gets the resolved descriptor annotation if successful, otherwise
          * returns null
@@ -285,7 +340,7 @@ public final class DescriptorResolver {
         public IAnnotationHandle getAnnotation() {
             return this.desc;
         }
-        
+
         @Override
         public String getId() {
             return this.desc != null ? this.desc.<String>getValue("id", "") : "";
@@ -331,77 +386,23 @@ public final class DescriptorResolver {
             }
             return this.desc.getTypeValue("ret");
         }
-        
+
         @Override
         public Quantifier getMatches() {
             if (this.desc == null) {
                 return Quantifier.DEFAULT;
             }
-            
+
             int min = Math.max(0, this.desc != null ? this.desc.<Integer>getValue("min", 0) : 0);
             Integer max = this.desc != null ? this.desc.<Integer>getValue("max", null) : null;
             return new Quantifier(min, max != null ? (max > 0 ? max : Integer.MAX_VALUE) : -1);
         }
-        
+
         @Override
         public List<IAnnotationHandle> getNext() {
             return this.desc != null ? this.desc.getAnnotationList("next") : Collections.<IAnnotationHandle>emptyList();
         }
-        
-    }
 
-    /**
-     * Basic resolver observer which just collects searched coordinates
-     */
-    static class ResolverObserverBasic implements IResolverObserver {
-        
-        private final Set<String> searched = new LinkedHashSet<String>();
-        
-        @Override
-        public void visit(String coordinate, Object element, String detail) {
-            this.searched.add(coordinate);
-        }
-
-        @Override
-        public Set<String> getSearched() {
-            return this.searched;
-        }
-        
-        @Override
-        public void postResolve() {
-        }
-        
-    }
-
-    /**
-     * Attempt resolution using annotations from a particular element
-     */
-    private static IAnnotationHandle resolve(String id, ISelectorContext context, IResolverObserver observer, String coordinate,
-            List<IAnnotationHandle> availableDescriptors) {
-        if (availableDescriptors != null) {
-            for (IAnnotationHandle desc : availableDescriptors) {
-                IAnnotationHandle resolved = DescriptorResolver.resolve(id, context, observer, coordinate, desc);
-                if (resolved != null) {
-                    return resolved;
-                }
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Attempt resolution using an actual annotation
-     */
-    private static IAnnotationHandle resolve(String id, ISelectorContext context, IResolverObserver observer, String coordinate,
-            IAnnotationHandle desc) {
-        if (desc != null) {
-            String descriptorId = desc.getValue("id", coordinate);
-            boolean implicit = Strings.isNullOrEmpty(id);
-            if ((implicit && descriptorId.equalsIgnoreCase(coordinate)) || (!implicit && descriptorId.equalsIgnoreCase(id))) {
-                return desc;
-            }
-        }
-        return null;
     }
     
     /**
@@ -409,9 +410,9 @@ public final class DescriptorResolver {
      * resolution is complete
      */
     static class ResolverObserverDebug extends ResolverObserverBasic {
-        
+
         private final PrettyPrinter printer = new PrettyPrinter();
-        
+
         ResolverObserverDebug(ISelectorContext context) {
             this.printer.add("Searching for implicit descriptor").add(context).hr().table();
             this.printer.tr("Context Coordinate:", context.getSelectorCoordinate(true) + " (" + context.getSelectorCoordinate(false) + ")");
@@ -420,7 +421,7 @@ public final class DescriptorResolver {
             this.printer.tr("Method:", context.getMethod()).hr();
             this.printer.table("Search Coordinate", "Search Element", "Detail").th().hr();
         }
-        
+
         @Override
         public void visit(String coordinate, Object element, String detail) {
             super.visit(coordinate, element, detail);
@@ -431,7 +432,7 @@ public final class DescriptorResolver {
         public void postResolve() {
             this.printer.print();
         }
-        
+
     }
     
     private static ISelectorContext getRoot(ISelectorContext context) {

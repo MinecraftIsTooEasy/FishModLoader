@@ -24,15 +24,15 @@
  */
 package org.spongepowered.tools.obfuscation.fg3;
 
+import javax.annotation.processing.Filer;
+import javax.annotation.processing.Messager;
+
 import org.spongepowered.tools.obfuscation.ObfuscationEnvironment;
 import org.spongepowered.tools.obfuscation.ObfuscationType;
 import org.spongepowered.tools.obfuscation.mapping.IMappingProvider;
 import org.spongepowered.tools.obfuscation.mapping.IMappingWriter;
 import org.spongepowered.tools.obfuscation.mapping.fg3.MappingProviderTSrg;
 import org.spongepowered.tools.obfuscation.mapping.fg3.MappingWriterTSrg;
-
-import javax.annotation.processing.Filer;
-import javax.annotation.processing.Messager;
 
 /**
  * A ForgeGradle 3.+ obfuscation environment

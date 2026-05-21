@@ -115,15 +115,15 @@ public final class Quantifier {
         if (string == null || ((string = string.trim()).length() == 0)) {
             return Quantifier.DEFAULT;
         }
-        
+
         if ("*".equals(string)) {
             return Quantifier.ANY;
         }
-        
+
         if ("+".equals(string)) {
             return Quantifier.PLUS;
         }
-        
+
         if (!string.startsWith("{") || !string.endsWith("}") || string.length() < 3) {
             return Quantifier.NONE; // malformed
         }
@@ -132,10 +132,10 @@ public final class Quantifier {
         if (inner.isEmpty()) {
             return Quantifier.NONE;
         }
-        
+
         String strMin = inner;
         String strMax = inner;
-        
+
         int comma = inner.indexOf(',');
         if (comma > -1) {
             strMin = inner.substring(0, comma).trim();

@@ -24,6 +24,9 @@
  */
 package org.spongepowered.asm.mixin.injection.points;
 
+import java.util.Collection;
+import java.util.ListIterator;
+
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -35,9 +38,6 @@ import org.spongepowered.asm.mixin.injection.InjectionPoint.AtCode;
 import org.spongepowered.asm.mixin.injection.struct.InjectionPointData;
 import org.spongepowered.asm.mixin.injection.throwables.InvalidInjectionException;
 import org.spongepowered.asm.mixin.refmap.IMixinContext;
-
-import java.util.Collection;
-import java.util.ListIterator;
 
 /**
  * <p>This injection point searches for the last RETURN opcode in the target

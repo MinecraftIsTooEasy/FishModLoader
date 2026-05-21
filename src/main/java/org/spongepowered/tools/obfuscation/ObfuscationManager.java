@@ -24,18 +24,19 @@
  */
 package org.spongepowered.tools.obfuscation;
 
-import org.spongepowered.tools.obfuscation.interfaces.IMessagerEx.MessageType;
-import org.spongepowered.tools.obfuscation.interfaces.IMixinAnnotationProcessor;
-import org.spongepowered.tools.obfuscation.interfaces.IMixinAnnotationProcessor.CompilerEnvironment;
-import org.spongepowered.tools.obfuscation.interfaces.IObfuscationDataProvider;
-import org.spongepowered.tools.obfuscation.interfaces.IObfuscationManager;
-import org.spongepowered.tools.obfuscation.interfaces.IReferenceManager;
-import org.spongepowered.tools.obfuscation.mapping.IMappingConsumer;
-import org.spongepowered.tools.obfuscation.service.ObfuscationServices;
-
-import javax.tools.Diagnostic.Kind;
 import java.util.ArrayList;
 import java.util.List;
+
+import javax.tools.Diagnostic.Kind;
+
+import org.spongepowered.tools.obfuscation.interfaces.IMixinAnnotationProcessor;
+import org.spongepowered.tools.obfuscation.interfaces.IMixinAnnotationProcessor.CompilerEnvironment;
+import org.spongepowered.tools.obfuscation.interfaces.IObfuscationManager;
+import org.spongepowered.tools.obfuscation.interfaces.IObfuscationDataProvider;
+import org.spongepowered.tools.obfuscation.interfaces.IReferenceManager;
+import org.spongepowered.tools.obfuscation.interfaces.IMessagerEx.MessageType;
+import org.spongepowered.tools.obfuscation.mapping.IMappingConsumer;
+import org.spongepowered.tools.obfuscation.service.ObfuscationServices;
 
 /**
  * Obfuscation Manager for mixin Annotation Processor

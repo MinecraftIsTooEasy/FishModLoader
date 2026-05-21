@@ -24,12 +24,6 @@
  */
 package org.spongepowered.asm.mixin.transformer;
 
-import org.objectweb.asm.tree.ClassNode;
-import org.spongepowered.asm.mixin.MixinEnvironment;
-import org.spongepowered.asm.mixin.transformer.throwables.MixinTransformerError;
-import org.spongepowered.asm.util.LanguageFeatures;
-import org.spongepowered.asm.util.asm.ClassNodeAdapter;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -37,6 +31,12 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import org.objectweb.asm.tree.ClassNode;
+import org.spongepowered.asm.mixin.MixinEnvironment;
+import org.spongepowered.asm.mixin.transformer.throwables.MixinTransformerError;
+import org.spongepowered.asm.util.LanguageFeatures;
+import org.spongepowered.asm.util.asm.ClassNodeAdapter;
 
 /**
  * In Java 11 and above, access control semantics for inner members are reified

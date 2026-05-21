@@ -24,6 +24,10 @@
  */
 package org.spongepowered.asm.mixin.transformer.struct;
 
+import java.util.Deque;
+import java.util.Locale;
+import java.util.Map;
+
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.JumpInsnNode;
@@ -37,10 +41,6 @@ import org.spongepowered.asm.mixin.transformer.MixinTargetContext;
 import org.spongepowered.asm.mixin.transformer.throwables.InvalidMixinException;
 import org.spongepowered.asm.service.MixinService;
 import org.spongepowered.asm.util.Bytecode;
-
-import java.util.Deque;
-import java.util.Locale;
-import java.util.Map;
 
 public class Initialiser {
 
@@ -73,16 +73,6 @@ public class Initialiser {
      * Source constructor
      */
     private final MethodNode ctor;
-    /**
-     * Filtered instructions
-     */
-    private Deque<AbstractInsnNode> insns;
-    
-    public Initialiser(MixinTargetContext mixin, MethodNode ctor, InsnRange range) {
-        this.mixin = mixin;
-        this.ctor = ctor;
-        this.initInstructions(range);
-    }
     
     private void initInstructions(InsnRange range) {
         // Now we know where the constructor is, look for insns which lie OUTSIDE the method body
@@ -99,7 +89,7 @@ public class Initialiser {
                 }
             }
         }
-        
+
         // Check that the last insn is a PUTFIELD, if it's not then
         AbstractInsnNode last = this.insns.peekLast();
         if (last != null) {
@@ -111,12 +101,56 @@ public class Initialiser {
     }
     
     /**
+     * Filtered instructions
+     */
+    private Deque<AbstractInsnNode> insns;
+    
+    public Initialiser(MixinTargetContext mixin, MethodNode ctor, InsnRange range) {
+        this.mixin = mixin;
+        this.ctor = ctor;
+        this.initInstructions(range);
+    }
+    
+    /**
+     * Inject initialiser code into the target constructor
+     *
+     * @param ctor Constructor to inject into
+     */
+    public void injectInto(Constructor ctor) {
+        AbstractInsnNode marker = ctor.findInitialiserInjectionPoint(Initialiser.InjectionMode.ofEnvironment(this.mixin.getEnvironment()));
+        if (marker == null) {
+            Initialiser.logger.warn("Failed to locate initialiser injection point in <init>{}, initialiser was not mixed in.", ctor.getDesc());
+            return;
+        }
+
+        Map<LabelNode, LabelNode> labels = Bytecode.cloneLabels(ctor.insns);
+        // Fabric: also clone labels from the initialiser as they will be merged.
+        for (AbstractInsnNode node : this.insns) {
+            if (node instanceof LabelNode) {
+                labels.put((LabelNode) node, new LabelNode());
+            }
+        }
+        for (AbstractInsnNode node : this.insns) {
+            if (node instanceof LabelNode) {
+                // Fabric: Merge cloned labels instead of skipping them.
+                // continue;
+            }
+            if (node instanceof JumpInsnNode) {
+                // Fabric: Jumps cause no issues if labels are cloned properly and should not be needlessly restricted.
+                // throw new InvalidMixinException(this.mixin, "Unsupported JUMP opcode in initialiser in " + this.mixin);
+            }
+
+            ctor.insertBefore(marker, node.clone(labels));
+        }
+    }
+    
+    /**
      * Get the number of instructions in the extracted initialiser
      */
     public int size() {
         return this.insns.size();
     }
-    
+
     /**
      * Get the MAXS for the original (source) constructor
      */
@@ -139,39 +173,6 @@ public class Initialiser {
     }
 
     /**
-     * Inject initialiser code into the target constructor
-     *
-     * @param ctor Constructor to inject into
-     */
-    public void injectInto(Constructor ctor) {
-        AbstractInsnNode marker = ctor.findInitialiserInjectionPoint(InjectionMode.ofEnvironment(this.mixin.getEnvironment()));
-        if (marker == null) {
-            Initialiser.logger.warn("Failed to locate initialiser injection point in <init>{}, initialiser was not mixed in.", ctor.getDesc());
-            return;
-        }
-
-        Map<LabelNode, LabelNode> labels = Bytecode.cloneLabels(ctor.insns);
-        // Fabric: also clone labels from the initialiser as they will be merged.
-        for (AbstractInsnNode node : this.insns) {
-            if (node instanceof LabelNode) {
-                labels.put((LabelNode) node, new LabelNode());
-            }
-        }
-        for (AbstractInsnNode node : this.insns) {
-            if (node instanceof LabelNode) {
-                // Fabric: Merge cloned labels instead of skipping them.
-                // continue;
-            }
-            if (node instanceof JumpInsnNode) {
-                // Fabric: Jumps cause no issues if labels are cloned properly and should not be needlessly restricted.
-                // throw new InvalidMixinException(this.mixin, "Unsupported JUMP opcode in initialiser in " + this.mixin);
-            }
-            
-            ctor.insertBefore(marker, node.clone(labels));
-        }
-    }
-
-    /**
      * Strategy for injecting initialiser insns
      */
     public enum InjectionMode {
@@ -181,13 +182,13 @@ public class Initialiser {
          * competing initialisers in the target ctor
          */
         DEFAULT,
-        
+
         /**
          * Safe mode, only injects initialiser directly after the super-ctor
          * invocation
          */
         SAFE;
-        
+
         /**
          * Get the injection mode based on the the environment
          *
@@ -196,14 +197,14 @@ public class Initialiser {
         public static InjectionMode ofEnvironment(MixinEnvironment env) {
             String strMode = env.getOptionValue(Option.INITIALISER_INJECTION_MODE);
             if (strMode == null) {
-                return InjectionMode.DEFAULT;
+                return Initialiser.InjectionMode.DEFAULT;
             }
             try {
-                return InjectionMode.valueOf(strMode.toUpperCase(Locale.ROOT));
+                return Initialiser.InjectionMode.valueOf(strMode.toUpperCase(Locale.ROOT));
             } catch (Exception ex) {
                 Initialiser.logger.warn("Could not parse unexpected value \"{}\" for mixin.initialiserInjectionMode, reverting to DEFAULT",
                         strMode);
-                return InjectionMode.DEFAULT;
+                return Initialiser.InjectionMode.DEFAULT;
             }
         }
 

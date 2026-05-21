@@ -24,10 +24,14 @@
  */
 package org.spongepowered.asm.mixin.transformer.ext.extensions;
 
-import com.google.common.io.Files;
+import java.io.File;
+import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.util.regex.Pattern;
+
+import org.spongepowered.asm.logging.ILogger;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.tree.ClassNode;
-import org.spongepowered.asm.logging.ILogger;
 import org.spongepowered.asm.mixin.MixinEnvironment;
 import org.spongepowered.asm.mixin.MixinEnvironment.Option;
 import org.spongepowered.asm.mixin.transformer.ext.IDecompiler;
@@ -39,10 +43,7 @@ import org.spongepowered.asm.util.Constants;
 import org.spongepowered.asm.util.perf.Profiler;
 import org.spongepowered.asm.util.perf.Profiler.Section;
 
-import java.io.File;
-import java.io.IOException;
-import java.lang.reflect.Constructor;
-import java.util.regex.Pattern;
+import com.google.common.io.Files;
 
 /**
  * Debug exporter

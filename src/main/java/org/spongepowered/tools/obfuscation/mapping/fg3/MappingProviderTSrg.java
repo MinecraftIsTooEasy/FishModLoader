@@ -24,21 +24,23 @@
  */
 package org.spongepowered.tools.obfuscation.mapping.fg3;
 
-import com.google.common.base.Strings;
-import com.google.common.collect.BiMap;
-import com.google.common.io.Files;
-import org.spongepowered.asm.obfuscation.mapping.common.MappingField;
-import org.spongepowered.asm.obfuscation.mapping.common.MappingMethod;
-import org.spongepowered.asm.obfuscation.mapping.mcp.MappingFieldSrg;
-import org.spongepowered.tools.obfuscation.mapping.common.MappingProvider;
-
-import javax.annotation.processing.Filer;
-import javax.annotation.processing.Messager;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
+
+import javax.annotation.processing.Filer;
+import javax.annotation.processing.Messager;
+
+import org.spongepowered.asm.obfuscation.mapping.common.MappingField;
+import org.spongepowered.asm.obfuscation.mapping.common.MappingMethod;
+import org.spongepowered.asm.obfuscation.mapping.mcp.MappingFieldSrg;
+import org.spongepowered.tools.obfuscation.mapping.common.MappingProvider;
+
+import com.google.common.base.Strings;
+import com.google.common.collect.BiMap;
+import com.google.common.io.Files;
 
 /**
  * TSRG Mapping provider

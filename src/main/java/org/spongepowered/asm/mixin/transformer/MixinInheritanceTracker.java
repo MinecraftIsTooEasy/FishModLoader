@@ -24,22 +24,21 @@
  */
 package org.spongepowered.asm.mixin.transformer;
 
-import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.tree.ClassNode;
-import org.objectweb.asm.tree.MethodNode;
-import org.spongepowered.asm.mixin.transformer.MixinConfig.IListener;
-import org.spongepowered.asm.util.Bytecode;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.MethodNode;
+
+import org.spongepowered.asm.mixin.transformer.MixinConfig.IListener;
+import org.spongepowered.asm.util.Bytecode;
+
 public enum MixinInheritanceTracker implements IListener {
     INSTANCE;
-
-    private final Map<String, List<MixinInfo>> parentMixins = new HashMap<String, List<MixinInfo>>();
 
     @Override
     public void onPrepare(MixinInfo mixin) {
@@ -103,4 +102,6 @@ public enum MixinInheritanceTracker implements IListener {
 
         return out.isEmpty() ? Collections.<MethodNode>emptyList() : out;
     }
+
+    private final Map<String, List<MixinInfo>> parentMixins = new HashMap<String, List<MixinInfo>>();
 }

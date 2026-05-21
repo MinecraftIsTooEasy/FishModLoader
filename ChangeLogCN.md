@@ -14,7 +14,7 @@
     public static Block EXAMPLE_BLOCK = new BlockOreStorage(allocator.getBlockId("example"), Material.example);
 ```
 
-* 修改构建系统为Gradle 9.4.1
+* 修改构建系统为Gradle 9.5.1
 * 升级Mixin版本为0.8.7
 * 升级ASM全家桶版本为9.9.1
 * 最低java支持版本改为java21(待商榷)

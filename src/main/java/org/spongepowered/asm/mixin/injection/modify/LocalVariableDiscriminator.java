@@ -24,24 +24,25 @@
  */
 package org.spongepowered.asm.mixin.injection.modify;
 
-import org.objectweb.asm.Type;
-import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.AnnotationNode;
-import org.objectweb.asm.tree.LocalVariableNode;
-import org.spongepowered.asm.mixin.injection.struct.InjectionInfo;
-import org.spongepowered.asm.mixin.injection.struct.Target;
-import org.spongepowered.asm.util.Annotations;
-import org.spongepowered.asm.util.Bytecode;
-import org.spongepowered.asm.util.Locals;
-import org.spongepowered.asm.util.PrettyPrinter;
-import org.spongepowered.asm.util.SignaturePrinter;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import org.objectweb.asm.Type;
+import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.tree.AnnotationNode;
+import org.objectweb.asm.tree.LocalVariableNode;
+import org.spongepowered.asm.mixin.injection.modify.LocalVariableDiscriminator.Context.Local;
+import org.spongepowered.asm.mixin.injection.struct.InjectionInfo;
+import org.spongepowered.asm.mixin.injection.struct.Target;
+import org.spongepowered.asm.util.Bytecode;
+import org.spongepowered.asm.util.Annotations;
+import org.spongepowered.asm.util.Locals;
+import org.spongepowered.asm.util.PrettyPrinter;
+import org.spongepowered.asm.util.SignaturePrinter;
 
 /**
  * Encapsulates logic for identifying a local variable in a target method using
@@ -239,39 +240,39 @@ er specifies no values for <tt>ordinal</tt>, <tt>index</tt> or
      * Discriminator context information, wraps all relevant information about
      * a target location for use when performing discrimination
      */
-    public static class Context implements PrettyPrinter.IPrettyPrintable {
-    
+    public static class Context implements org.spongepowered.asm.util.PrettyPrinter.IPrettyPrintable {
+
 njection info
          */
         final InjectionInfo info;
-        
+
         /**
          * Iarget method for this context
          */
         final Target target;
-        
+
         /**
          * The return type of the handler in question, also the type of the
          * local variable that we care about
          */
         final Type returnType;
-        
+
         /**
          * Tnjection point
          */
         final AbstractInsnNode node;
-        
+
         /**
          * Iase argument index, for static methods this is 0, for instance
          * methods this is 1
          */
         final int baseArgIndex;
-        
+
         /**
          * Bnumerated locals in this context
          */
         final Local[] locals;
-        
+
         /**
          * Erue if the handler (and target) are static
          */
@@ -330,7 +331,7 @@ tOrdinals() {
                 }
             }
         }
-        
+
         publicni
 ndidateCount() {
             int candidateCount = 0;
@@ -363,14 +364,14 @@ ndidateCount() {
         }
 
     }
-    
+
     /**
         /**
          * Information about a local variable in the LVT, used during
          * discrimination
          */
         public class Local {
-            
+
             /**
              * Local variable name
              */
@@ -388,16 +389,16 @@ ndidateCount() {
                 this.name = name;
                 this.type = type;
             }
-            
+
             @Override
             public String toString() {
                 return String.format("Local[ordinal=%d, name=%s, type=%s]", this.ord, this.name, this.type);
             }
-            
+
             int getOrdinal() {
                 return this.ord;
             }
-            
+
             void setOrdinal(int ordinal) {
                 if (this.ord > -1 && this.ord != ordinal) {
                     throw new IllegalStateException("Attempted to reset ordinal for computed local");
@@ -406,9 +407,9 @@ ndidateCount() {
             }
 
         }
-        
+
         /**
-  
+
      *ocal variable discriminator from the supplied annotation
      * 
      * @param annotation annotation to parse

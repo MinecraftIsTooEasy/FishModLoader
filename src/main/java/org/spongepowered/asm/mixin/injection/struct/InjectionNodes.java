@@ -24,12 +24,12 @@
  */
 package org.spongepowered.asm.mixin.injection.struct;
 
-import org.objectweb.asm.tree.AbstractInsnNode;
-import org.spongepowered.asm.util.Bytecode;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+
+import org.objectweb.asm.tree.AbstractInsnNode;
+import org.spongepowered.asm.util.Bytecode;
 
 /**
  * Used to keep track of instruction nodes in a {@link Target} method which are
@@ -45,23 +45,8 @@ public class InjectionNodes extends ArrayList<InjectionNodes.InjectionNode> {
     private static final long serialVersionUID = 1L;
 
     /**
-     * Replace the specified node with the new node, does not update the wrapper
-     * if no wrapper exists for <tt>oldNode</tt>
-     *
-     * @param oldNode node being replaced
-     * @param newNode node to replace with
-     */
-    public InjectionNode replace(AbstractInsnNode oldNode, AbstractInsnNode newNode) {
-        InjectionNode injectionNode = this.get(oldNode);
-        if (injectionNode != null) {
-            injectionNode.replace(newNode);
-        }
-        return injectionNode;
-    }
-
-    /**
      * Add a tracked node to this collection if it does not already exist
-     * 
+     *
      * @param node Instruction node to add
      * @return wrapper for the specified node
      */
@@ -73,11 +58,11 @@ public class InjectionNodes extends ArrayList<InjectionNodes.InjectionNode> {
         }
         return injectionNode;
     }
-    
+
     /**
      * Get a tracked node from this collection if it already exists, returns
      * null if the node is not tracked
-     * 
+     *
      * @param node instruction node
      * @return wrapper node or null if not tracked
      */
@@ -92,12 +77,27 @@ public class InjectionNodes extends ArrayList<InjectionNodes.InjectionNode> {
     
     /**
      * Get whether this collection contains a mapping for the specified insn
-     * 
+     *
      * @param node instruction node to check
      * @return true if a wrapper exists for the node
      */
     public boolean contains(AbstractInsnNode node) {
         return this.get(node) != null;
+    }
+    
+    /**
+     * Replace the specified node with the new node, does not update the wrapper
+     * if no wrapper exists for <tt>oldNode</tt>
+     *
+     * @param oldNode node being replaced
+     * @param newNode node to replace with
+     */
+    public InjectionNode replace(AbstractInsnNode oldNode, AbstractInsnNode newNode) {
+        InjectionNode injectionNode = this.get(oldNode);
+        if (injectionNode != null) {
+            injectionNode.replace(newNode);
+        }
+        return injectionNode;
     }
 
     /**
@@ -121,34 +121,34 @@ public class InjectionNodes extends ArrayList<InjectionNodes.InjectionNode> {
      * custom metadata to allow arbitration between injectors to take place.
      */
     public static class InjectionNode implements Comparable<InjectionNode> {
-        
+
         /**
          * Next unique id
          */
         private static int nextId = 0;
-        
+
         /**
          * Injection node unique id
          */
         private final int id;
-        
+
         /**
          * The original node targetted
          */
         private final AbstractInsnNode originalTarget;
-        
+
         /**
          * Initially set to the {@link #originalTarget}, if an injector removes
          * or replaces this node then points to the current target. Can be null
          * if the node is removed.
          */
         private AbstractInsnNode currentTarget;
-        
+
         /**
          * Injector decorations on this node
          */
         private Map<String, Object> decorations;
-        
+
         /**
          * Create a new node wrapper for the specified target node
          *
@@ -158,21 +158,21 @@ public class InjectionNodes extends ArrayList<InjectionNodes.InjectionNode> {
             this.currentTarget = this.originalTarget = node;
             this.id = InjectionNode.nextId++;
         }
-        
+
         /**
          * Get the unique id for this injector
          */
         public int getId() {
             return this.id;
         }
-        
+
         /**
          * Get the original target of this node
          */
         public AbstractInsnNode getOriginalTarget() {
             return this.originalTarget;
         }
-        
+
         /**
          * Get the current target of this node, can be null if the node was
          * replaced
@@ -180,7 +180,7 @@ public class InjectionNodes extends ArrayList<InjectionNodes.InjectionNode> {
         public AbstractInsnNode getCurrentTarget() {
             return this.currentTarget;
         }
-        
+
         /**
          * Replace this node with the specified target
          *
@@ -190,7 +190,7 @@ public class InjectionNodes extends ArrayList<InjectionNodes.InjectionNode> {
             this.currentTarget = target;
             return this;
         }
-        
+
         /**
          * Remove the node
          */
@@ -198,7 +198,7 @@ public class InjectionNodes extends ArrayList<InjectionNodes.InjectionNode> {
             this.currentTarget = null;
             return this;
         }
-        
+
         /**
          * Checks whether the original or current target of this node match the
          * specified node
@@ -210,7 +210,7 @@ public class InjectionNodes extends ArrayList<InjectionNodes.InjectionNode> {
         public boolean matches(AbstractInsnNode node) {
             return this.originalTarget == node || this.currentTarget == node;
         }
-        
+
         /**
          * Get whether this node has been replaced
          */
@@ -224,7 +224,7 @@ public class InjectionNodes extends ArrayList<InjectionNodes.InjectionNode> {
         public boolean isRemoved() {
             return this.currentTarget == null;
         }
-        
+
         /**
          * Decorate this node with arbitrary metadata for injector arbitration
          *
@@ -246,7 +246,7 @@ public class InjectionNodes extends ArrayList<InjectionNodes.InjectionNode> {
             this.decorations.put(key, value);
             return this;
         }
-        
+
         /**
          * Get whether this node is decorated with the specified key
          *
@@ -256,7 +256,7 @@ public class InjectionNodes extends ArrayList<InjectionNodes.InjectionNode> {
         public boolean hasDecoration(String key) {
             return this.decorations != null && this.decorations.get(key) != null;
         }
-        
+
         /**
          * Get the specified decoration
          *
@@ -268,7 +268,7 @@ public class InjectionNodes extends ArrayList<InjectionNodes.InjectionNode> {
         public <V> V getDecoration(String key) {
             return (V) (this.decorations == null ? null : this.decorations.get(key));
         }
-        
+
         /**
          * Get the specified decoration or default value
          *
@@ -290,7 +290,7 @@ public class InjectionNodes extends ArrayList<InjectionNodes.InjectionNode> {
         public int compareTo(InjectionNode other) {
             return other == null ? Integer.MAX_VALUE : Integer.compare(this.hashCode(), other.hashCode());
         }
-        
+
         /* (non-Javadoc)
          * @see java.lang.Object#toString()
          */
@@ -298,7 +298,7 @@ public class InjectionNodes extends ArrayList<InjectionNodes.InjectionNode> {
         public String toString() {
             return String.format("InjectionNode[%s]", Bytecode.describeNode(this.currentTarget, false));
         }
-        
+
     }
     
 }

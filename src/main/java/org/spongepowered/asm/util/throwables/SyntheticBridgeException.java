@@ -24,6 +24,9 @@
  */
 package org.spongepowered.asm.util.throwables;
 
+import java.util.Iterator;
+import java.util.ListIterator;
+
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
@@ -37,9 +40,6 @@ import org.spongepowered.asm.mixin.transformer.meta.MixinMerged;
 import org.spongepowered.asm.util.Annotations;
 import org.spongepowered.asm.util.Bytecode;
 import org.spongepowered.asm.util.PrettyPrinter;
-
-import java.util.Iterator;
-import java.util.ListIterator;
 
 /**
  * Exception thrown when comparing two synthetic bridge methods fails, thrown
@@ -97,32 +97,24 @@ public class SyntheticBridgeException extends MixinException {
         this.b = b;
     }
     
-    private PrettyPrinter printMethod(PrettyPrinter printer, MethodNode method, AbstractInsnNode marker) {
-        for (Iterator<AbstractInsnNode> iter = method.instructions.iterator(); iter.hasNext();) {
-            AbstractInsnNode insn = iter.next();
-            printer.kv(insn == marker ? ">>>>" : "", Bytecode.describeNode(insn));
-        }
-        return printer.add();
-    }
-
     /**
      * Problem types for synthetic bridge comparisons
      */
     public enum Problem {
-        
+
         BAD_INSN("Conflicting opcodes %4$s and %5$s at offset %3$d in synthetic bridge method %1$s%2$s"),
         BAD_LOAD("Conflicting variable access at offset %3$d in synthetic bridge method %1$s%2$s"),
         BAD_CAST("Conflicting type cast at offset %3$d in synthetic bridge method %1$s%2$s"),
         BAD_INVOKE_NAME("Conflicting synthetic bridge target method name in synthetic bridge method %1$s%2$s Existing:%6$s Incoming:%7$s"),
         BAD_INVOKE_DESC("Conflicting synthetic bridge target method descriptor in synthetic bridge method %1$s%2$s Existing:%8$s Incoming:%9$s"),
         BAD_LENGTH("Mismatched bridge method length for synthetic bridge method %1$s%2$s unexpected extra opcode at offset %3$d");
-        
+
         private final String message;
 
         private Problem(String message) {
             this.message = message;
         }
-        
+
         private static String getInsnName(AbstractInsnNode node) {
             return node instanceof MethodInsnNode ? ((MethodInsnNode)node).name : "";
         }
@@ -135,7 +127,15 @@ public class SyntheticBridgeException extends MixinException {
             return String.format(this.message, name, desc, index, Bytecode.getOpcodeName(a), Bytecode.getOpcodeName(a),
                     Problem.getInsnName(a), Problem.getInsnName(b), Problem.getInsnDesc(a), Problem.getInsnDesc(b));
         }
-        
+
+    }
+
+    private PrettyPrinter printMethod(PrettyPrinter printer, MethodNode method, AbstractInsnNode marker) {
+        for (Iterator<AbstractInsnNode> iter = method.instructions.iterator(); iter.hasNext();) {
+            AbstractInsnNode insn = iter.next();
+            printer.kv(insn == marker ? ">>>>" : "", Bytecode.describeNode(insn));
+        }
+        return printer.add();
     }
 
     private PrettyPrinter printProblem(PrettyPrinter printer, IMixinContext context, MethodNode mda, MethodNode mdb) {
