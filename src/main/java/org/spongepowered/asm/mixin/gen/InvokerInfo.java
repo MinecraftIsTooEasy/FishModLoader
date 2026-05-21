@@ -37,6 +37,7 @@ import org.spongepowered.asm.mixin.injection.struct.MemberInfo;
 import org.spongepowered.asm.mixin.transformer.MixinTargetContext;
 import org.spongepowered.asm.util.Bytecode;
 import org.spongepowered.asm.util.Constants;
+import org.spongepowered.asm.util.asm.MethodNodeEx;
 
 /**
  * Information about an invoker
@@ -54,7 +55,7 @@ class InvokerInfo extends AccessorInfo {
             return this.initType(mappedReference.replace('.',  '/'), this.mixin.getTargetClassRef());
         }
         
-        AccessorName accessorName = AccessorName.of(this.method.name, false);
+        AccessorName accessorName = AccessorName.of(MethodNodeEx.getName(this.method), false);
         if (accessorName != null) {
             for (String prefix : AccessorType.OBJECT_FACTORY.getExpectedPrefixes()) {
                 if (prefix.equals(accessorName.prefix)) {
@@ -109,7 +110,7 @@ class InvokerInfo extends AccessorInfo {
         try {
             return result.getSingleResult(true);
         } catch (IllegalStateException ex) {
-            String message = ex.getMessage() + " matching " + this.target + " in " + this.classNode.name + " for " + this;
+            String message = String.format("%s matching %s in %s for %s", ex.getMessage(), this.target, this.classNode.name, this);
             if (this.type == AccessorType.METHOD_PROXY && this.specifiedName != null && this.target instanceof ITargetSelectorByName) {
                 String name = ((ITargetSelectorByName)this.target).getName();
                 if (name != null && (name.contains(".") || name.contains("/"))) {

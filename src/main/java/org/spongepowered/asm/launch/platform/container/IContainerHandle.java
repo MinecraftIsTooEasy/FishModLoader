@@ -24,6 +24,8 @@
  */
 package org.spongepowered.asm.launch.platform.container;
 
+import org.spongepowered.asm.mixin.extensibility.IMixinConfigSource;
+
 import java.util.Collection;
 
 /**
@@ -32,7 +34,7 @@ import java.util.Collection;
  * handle system now wraps URIs in a more expressive object, and provides
  * support for both virtual containers and nested container resolution.
  */
-public interface IContainerHandle {
+public interface IContainerHandle extends IMixinConfigSource {
 
     /**
      * Retrieve the value of attribute with the specified name, or null if not

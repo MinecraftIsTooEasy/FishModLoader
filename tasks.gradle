@@ -19,7 +19,7 @@ ext {
             jvmArgs: [
                     "-Xmx2G",
                     "-Xms1G",
-                    "-XX:+UseG1GC",
+                    "-XX:+UseZGC",
                     "-XX:+UnlockExperimentalVMOptions",
                     "-XX:MaxGCPauseMillis=100",
                     "-XX:+DisableExplicitGC",
@@ -103,9 +103,7 @@ tasks.register('runServer', JavaExec) {
     dependsOn copyLogConfig
 
     mainClass = 'net.xiaoyu233.fml.relaunch.server.Main'
-
     classpath = runConfig.buildClasspath.call()
-
     def jvmArgsList = new ArrayList(runConfig.jvmArgs as Collection)
     jvmArgsList.add("-Dlog.file.prefix=server")
     jvmArgs(jvmArgsList)

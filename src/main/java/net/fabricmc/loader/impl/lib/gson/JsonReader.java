@@ -303,7 +303,7 @@ public class JsonReader implements Closeable {
 	 * parser to lenient causes it to ignore the following syntax errors:
 	 *
 	 * <ul>
-	 *   <li>Streams that start with the <a href="#nonexecuteprefix">non-execute
+	 *   <li>Streams that initial with the <a href="#nonexecuteprefix">non-execute
 	 *       prefix</a>, <code>")]}'\n"</code>.
 	 *   <li>Streams that include multiple top-level values. With strict parsing,
 	 *       each stream must contain exactly one top-level value.

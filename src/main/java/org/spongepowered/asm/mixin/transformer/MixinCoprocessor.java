@@ -25,7 +25,9 @@
 package org.spongepowered.asm.mixin.transformer;
 
 import org.objectweb.asm.tree.ClassNode;
+import org.spongepowered.asm.logging.ILogger;
 import org.spongepowered.asm.mixin.transformer.MixinConfig.IListener;
+import org.spongepowered.asm.service.MixinService;
 
 /**
  * Coprocessors are parts of the mixin pipeline which aren't involved in
@@ -33,11 +35,10 @@ import org.spongepowered.asm.mixin.transformer.MixinConfig.IListener;
  * mixins.
  * 
  * <p>Such tasks as {@link MixinCoprocessorAccessor making accessor mixins
- * loadable (and transforming the accessors therein)}, {@link
- * MixinCoprocessorSyntheticInner exposing synthetic inner classes to all
- * consumers} and {@link MixinCoprocessorNestHost applying nest member
- * attributes to nest hosts which may themselves not be mixin targets} are
- * handled by different coprocessors.</p>
+ * loadable (and transforming the accessors therein)}, and {@link
+ * MixinCoprocessorNestHost applying nest member attributes to nest hosts
+ * which may themselves not be mixin targets} are handled by different
+ * coprocessors.</p>
  * 
  * <p>These classes were previously encapsulated in a single companion class
  * called <tt>MixinPostProcessor</tt>, but the mixture of responsibilities of
@@ -45,11 +46,14 @@ import org.spongepowered.asm.mixin.transformer.MixinConfig.IListener;
  */
 abstract class MixinCoprocessor implements IListener {
     
+    private static final ILogger logger = MixinService.getService().getLogger("mixin");
+    private boolean willLogUnimplementedCouldTransform = true;
+
     /**
      * Coprocessor name, for debugging only
      */
     abstract String getName();
-    
+
     /* (non-Javadoc)
      * @see org.spongepowered.asm.mixin.transformer.MixinConfig.IListener
      *      #onPrepare(org.spongepowered.asm.mixin.transformer.MixinInfo)
@@ -57,7 +61,7 @@ abstract class MixinCoprocessor implements IListener {
     @Override
     public void onPrepare(MixinInfo mixin) {
     }
-
+    
     /* (non-Javadoc)
      * @see org.spongepowered.asm.mixin.transformer.MixinConfig.IListener
      *      #onInit(org.spongepowered.asm.mixin.transformer.MixinInfo)
@@ -79,12 +83,28 @@ abstract class MixinCoprocessor implements IListener {
     ProcessResult process(String className, ClassNode classNode) {
         return ProcessResult.NONE;
     }
+
+    /**
+     * Determine ahead-of-time whether a given class could be transformed ({@link ProcessResult#TRANSFORMED},
+     * {@link ProcessResult#PASSTHROUGH_TRANSFORMED}, or modification in
+     * {@link MixinCoprocessor#postProcess(String, ClassNode)}) by processing by this coprocessor.
+     *
+     * @param className Name of the target class
+     * @return true if the coprocessor might transform the class when processed
+     */
+    public boolean couldTransform(String className) {
+        if (willLogUnimplementedCouldTransform) {
+            willLogUnimplementedCouldTransform = false;
+            logger.error("MixinCoprocessor {} ({}) does not implement couldTransform, which may lead to unnecessary transformation", getName(), getClass().getName());
+        }
+        return true;
+    }
     
     /**
      * Perform postprocessing actions on the supplied class. This is called for
      * all classes. For passthrough classes and classes which are not mixin
-     * targets this is called immediately after {@link process} is completed for
-     * all coprocessors. For mixin targets this is called after mixins are
+     * targets this is called immediately after {@link #process} is completed
+     * for all coprocessors. For mixin targets this is called after mixins are
      * applied.
      *
      * @param className Name of the target class
@@ -105,49 +125,39 @@ abstract class MixinCoprocessor implements IListener {
      * will <b>not</b> be processed further by the mixin processor.
      */
     enum ProcessResult {
-
+        
         /**
          * This coprocessor does not take any action for the specified class
          */
         NONE(false, false),
-
+        
         /**
          * This coprocessor acted on the supplied bytecode, but does not change
          * the flow of the main mixin processor pipeline
          */
         TRANSFORMED(false, true),
-
+        
         /**
          * This coprocessor did not transform the supplied bytecode, and mixins
          * should not be applied to this class
          */
         PASSTHROUGH_NONE(true, false),
-
+        
         /**
          * This coprocessor acted on the supplied bytecode, and mixins should
          * not be applied to this class
          */
         PASSTHROUGH_TRANSFORMED(true, true);
-
+        
         private boolean passthrough;
-
+        
         private boolean transformed;
 
         private ProcessResult(boolean passthrough, boolean transformed) {
             this.passthrough = passthrough;
             this.transformed = transformed;
         }
-
-        /**
-         * Return a result which represents the supplied tuple of attributes
-         */
-        static ProcessResult of(boolean passthrough, boolean transformed) {
-            if (passthrough) {
-                return transformed ? ProcessResult.PASSTHROUGH_TRANSFORMED : ProcessResult.PASSTHROUGH_NONE;
-            }
-            return transformed ? ProcessResult.TRANSFORMED : ProcessResult.NONE;
-        }
-
+        
         boolean isPassthrough() {
             return this.passthrough;
         }
@@ -155,7 +165,7 @@ abstract class MixinCoprocessor implements IListener {
         boolean isTransformed() {
             return this.transformed;
         }
-
+        
         /**
          * Combine this result with the supplied result
          */
@@ -165,7 +175,17 @@ abstract class MixinCoprocessor implements IListener {
             }
             return ProcessResult.of(this.passthrough || other.passthrough, this.transformed || other.transformed);
         }
-
+        
+        /**
+         * Return a result which represents the supplied tuple of attributes
+         */
+        static ProcessResult of(boolean passthrough, boolean transformed) {
+            if (passthrough) {
+                return transformed ? ProcessResult.PASSTHROUGH_TRANSFORMED : ProcessResult.PASSTHROUGH_NONE;
+            }
+            return transformed ? ProcessResult.TRANSFORMED : ProcessResult.NONE;
+        }
+        
     }
     
 }

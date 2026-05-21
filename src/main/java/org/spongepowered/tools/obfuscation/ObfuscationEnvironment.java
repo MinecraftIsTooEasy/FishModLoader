@@ -40,10 +40,6 @@ import org.spongepowered.tools.obfuscation.mirror.TypeHandle;
 
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Messager;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic.Kind;
 import java.io.File;
 import java.util.Collection;
@@ -195,13 +191,13 @@ public abstract class ObfuscationEnvironment implements IObfuscationEnvironment 
         }
         
         // See if we can get the superclass from the reference
-        TypeMirror superClass = type.getElement().getSuperclass();
-        if (superClass.getKind() != TypeKind.DECLARED) {
+        TypeHandle superClass = type.getSuperclass();
+        if (superClass == null) {
             return null;
         }
         
         // Well we found it, let's inflect the class name and recurse the search
-        String superClassName = ((TypeElement)((DeclaredType)superClass).asElement()).getQualifiedName().toString();
+        String superClassName = superClass.getSimpleName();
         return this.getObfMethod(method.move(superClassName.replace('.', '/')));
     }
 
@@ -247,7 +243,7 @@ public abstract class ObfuscationEnvironment implements IObfuscationEnvironment 
                 return mapping.move(remappedOwner);
             }
             String desc = ObfuscationUtil.mapDescriptor(mapping.getDesc(), this.remapper);
-            return new MappingMethod(remappedOwner, mapping.getSimpleName(), desc);
+            return new MappingMethod(remappedOwner, mapping.getSimpleName(), desc != null ? desc : mapping.getDesc());
         }
         return null;
     }
@@ -274,7 +270,7 @@ public abstract class ObfuscationEnvironment implements IObfuscationEnvironment 
         String desc = method.getDesc();
         if (desc != null) {
             String newDesc = ObfuscationUtil.mapDescriptor(method.getDesc(), this.remapper);
-            if (!newDesc.equals(method.getDesc())) {
+            if (newDesc != null) {
                 desc = newDesc;
                 transformed = true;
             }
@@ -292,7 +288,8 @@ public abstract class ObfuscationEnvironment implements IObfuscationEnvironment 
      */
     @Override
     public String remapDescriptor(String desc) {
-        return ObfuscationUtil.mapDescriptor(desc, this.remapper);
+        String newDesc = ObfuscationUtil.mapDescriptor(desc, this.remapper);
+        return newDesc != null ? newDesc : desc;
     }
     
     /**

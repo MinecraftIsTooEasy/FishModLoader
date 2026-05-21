@@ -29,7 +29,7 @@ public class MinecraftTrans {
 
     @ModifyReturnValue(method = "inDevMode", at = @At("TAIL"))
     private static boolean inDevMode(boolean original) {
-        if (FishModLoader.isDevelopmentEnvironment() && Configs.Debug.DEVENV.get())
+        if (FishModLoader.isDevelopmentEnvironment() && Configs.Debug.DEV_ENV.get())
             return true;
         return original;
     }

@@ -28,6 +28,7 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.JumpInsnNode;
+import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.InjectionPoint;
 import org.spongepowered.asm.mixin.injection.InjectionPoint.AtCode;
 import org.spongepowered.asm.mixin.injection.struct.InjectionPointData;
@@ -41,7 +42,7 @@ import java.util.ListIterator;
  * particular ordinal in the method body (eg. "the Nth JUMP insn" where N is the
  * ordinal of the instruction). By default it returns all JUMP instructions in a
  * method body. It accepts the following parameters from
- * {@link org.spongepowered.asm.mixin.injection.At At}:</p>
+ * {@link At At}:</p>
  * 
  * <dl>
  *   <dt>opcode</dt>
@@ -64,7 +65,7 @@ import java.util.ListIterator;
  * 
  * <p>Note that like all standard injection points, this class matches the insn
  * itself, putting the injection point immediately <em>before</em> the access in
- * question. Use {@link org.spongepowered.asm.mixin.injection.At#shift shift}
+ * question. Use {@link At#shift shift}
  * specifier to adjust the matched opcode as necessary.</p>
  */
 @AtCode("JUMP")

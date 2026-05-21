@@ -65,28 +65,14 @@ public final class MainAttributes {
         this.attributes = MainAttributes.getAttributes(codeSource);
     }
 
-    /**
-     * Retrieve the value of attribute with the specified name, or null if not
-     * present
-     * 
-     * @param name attribute name
-     * @return attribute value or null if not present
-     */
-    public final String get(String name) {
-        if (this.attributes != null) {
-            return this.attributes.getValue(name);
-        }
-        return null;
-    }
-    
     private static Attributes getAttributes(URI codeSource) {
         if (codeSource == null) {
             return null;
         }
-
+        
         if ("file".equals(codeSource.getScheme())) {
             File file = Files.toFile(codeSource);
-
+            
             if (file.isFile()) {
                 Attributes attributes = MainAttributes.getJarAttributes(file);
                 if (attributes != null) {
@@ -105,8 +91,30 @@ public final class MainAttributes {
                 return attributes;
             }
         }
-
+        
         return new Attributes();
+    }
+    
+    private static Attributes getJarAttributes(File jar) {
+        JarFile jarFile = null;
+        try {
+            jarFile = new JarFile(jar);
+            Manifest manifest = jarFile.getManifest();
+            if (manifest != null) {
+                return manifest.getMainAttributes();
+            }
+        } catch (IOException ex) {
+            // be quiet checkstyle
+        } finally {
+            try {
+                if (jarFile != null) {
+                    jarFile.close();
+                }
+            } catch (IOException e) {
+                // ignore
+            }
+        }
+        return null;
     }
     
     private static Attributes getDirAttributes(File dir) {
@@ -130,32 +138,10 @@ public final class MainAttributes {
                 }
             }
         }
-
+        
         return null;
     }
 
-    private static Attributes getJarAttributes(File jar) {
-        JarFile jarFile = null;
-        try {
-            jarFile = new JarFile(jar);
-            Manifest manifest = jarFile.getManifest();
-            if (manifest != null) {
-                return manifest.getMainAttributes();
-            }
-        } catch (IOException ex) {
-            // be quiet checkstyle
-        } finally {
-            try {
-                if (jarFile != null) {
-                    jarFile.close();
-                }
-            } catch (IOException e) {
-                // ignore
-            }
-        }
-        return null;
-    }
-    
     private static Attributes getNioAttributes(URI uri) {
         try {
             Path manifestPath = Paths.get(uri).resolve(JarFile.MANIFEST_NAME);
@@ -181,8 +167,18 @@ public final class MainAttributes {
         } catch (InvalidPathException ex) {
             ex.printStackTrace();
         }
-
+        
         return null;
+    }
+    
+    /**
+     * Create a MainAttributes instance for the supplied jar file
+     *
+     * @param jar jar file
+     * @return MainAttributes instance
+     */
+    public static MainAttributes of(File jar) {
+        return MainAttributes.of(jar.toURI());
     }
     
     /**
@@ -201,13 +197,17 @@ public final class MainAttributes {
     }
 
     /**
-     * Create a MainAttributes instance for the supplied jar file
-     * 
-     * @param jar jar file
-     * @return MainAttributes instance
+     * Retrieve the value of attribute with the specified name, or null if not
+     * present
+     *
+     * @param name attribute name
+     * @return attribute value or null if not present
      */
-    public static MainAttributes of(File jar) {
-        return MainAttributes.of(jar.toURI());
+    public final String get(String name) {
+        if (this.attributes != null) {
+            return this.attributes.getValue(name);
+        }
+        return null;
     }
 
     /**

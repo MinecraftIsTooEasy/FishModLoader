@@ -18,7 +18,14 @@ package net.fabricmc.loader.impl.discovery;
 
 import net.fabricmc.loader.api.Version;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 final class ModPrioSorter {
 	private static final Comparator<ModCandidate> comparator = new Comparator<ModCandidate>() {
@@ -85,7 +92,7 @@ final class ModPrioSorter {
 
 			//System.out.printf("%d: %s%n", i, mod);
 
-			if (!movedPastRoots && !mod.isRoot()) { // update start index to avoid mixing root and non-root mods (root always has higher prio)
+			if (!movedPastRoots && !mod.isRoot()) { // update initial index to avoid mixing root and non-root mods (root always has higher prio)
 				movedPastRoots = true;
 				startIdx = i;
 			}

@@ -53,10 +53,33 @@ public interface IMixinPlatformAgent {
     public abstract AcceptResult accept(MixinPlatformManager manager, IContainerHandle handle);
     
     /**
+     * Result type returned from {@link IMixinPlatformAgent#accept}
+     */
+    public enum AcceptResult {
+        
+        /**
+         * The container was accepted
+         */
+        ACCEPTED,
+        
+        /**
+         * The container was rejected
+         */
+        REJECTED,
+        
+        /**
+         * The agent encountered an error and no further containers should be
+         * offered
+         */
+        INVALID;
+        
+    }
+
+    /**
      * Get the phase provider for this agent
      */
     public abstract String getPhaseProvider();
-
+    
     /**
      * Called during pre-initialisation, after all tweakers and tweak containers
      * have been added to the environment.
@@ -74,28 +97,5 @@ public interface IMixinPlatformAgent {
      * Called from <tt>inject</tt> in the parent tweaker
      */
     public abstract void inject();
-    
-    /**
-     * Result type returned from {@link IMixinPlatformAgent#accept}
-     */
-    public enum AcceptResult {
-
-        /**
-         * The container was accepted
-         */
-        ACCEPTED,
-
-        /**
-         * The container was rejected
-         */
-        REJECTED,
-
-        /**
-         * The agent encountered an error and no further containers should be
-         * offered
-         */
-        INVALID;
-
-    }
 
 }

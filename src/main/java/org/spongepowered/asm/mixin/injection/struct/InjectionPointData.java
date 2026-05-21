@@ -26,13 +26,16 @@ package org.spongepowered.asm.mixin.injection.struct;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
+import com.google.common.primitives.Ints;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.IInjectionPointContext;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.InjectionPoint.Selector;
+import org.spongepowered.asm.mixin.injection.InjectionPoint;
+import org.spongepowered.asm.mixin.injection.InjectionPoint.RestrictTargetLevel;
+import org.spongepowered.asm.mixin.injection.InjectionPoint.Specifier;
 import org.spongepowered.asm.mixin.injection.modify.LocalVariableDiscriminator;
 import org.spongepowered.asm.mixin.injection.selectors.ITargetSelector;
 import org.spongepowered.asm.mixin.injection.selectors.InvalidSelectorException;
@@ -42,17 +45,20 @@ import org.spongepowered.asm.mixin.injection.throwables.InvalidInjectionPointExc
 import org.spongepowered.asm.mixin.refmap.IMixinContext;
 import org.spongepowered.asm.util.Annotations;
 import org.spongepowered.asm.util.Annotations.Handle;
+import org.spongepowered.asm.util.Bytecode;
 import org.spongepowered.asm.util.IMessageSink;
 import org.spongepowered.asm.util.asm.IAnnotationHandle;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Data read from an {@link org.spongepowered.asm.mixin.injection.At} annotation
+ * Data read from an {@link At} annotation
  * and passed into an InjectionPoint ctor
  */
 public class InjectionPointData {
@@ -61,7 +67,7 @@ public class InjectionPointData {
      * Regex for recognising at declarations
      */
     private static final Pattern AT_PATTERN = InjectionPointData.createPattern(); 
-
+    
     /**
      * K/V arguments parsed from the "args" node in the {@link At} annotation 
      */
@@ -85,8 +91,13 @@ public class InjectionPointData {
     /**
      * Selector parsed from the at argument, only used by slices  
      */
-    private final Selector selector;
+    private final Specifier specifier;
 
+    /**
+     * Target restriction from the at annotation, if present
+     */
+    private final RestrictTargetLevel targetRestriction;
+    
     /**
      * Target 
      */
@@ -112,8 +123,13 @@ public class InjectionPointData {
      */
     private final String id;
     
+    /**
+     * Flags from annotation parser
+     */
+    private final int flags;
+    
     public InjectionPointData(IInjectionPointContext context, String at, List<String> args, String target,
-            String slice, int ordinal, int opcode, String id) {
+            String slice, int ordinal, int opcode, String id, int flags) {
         this.context = context;
         this.at = at;
         this.target = target;
@@ -121,6 +137,7 @@ public class InjectionPointData {
         this.ordinal = Math.max(-1, ordinal);
         this.opcode = opcode;
         this.id = id;
+        this.flags = flags;
         
         this.parseArgs(args);
         
@@ -130,7 +147,9 @@ public class InjectionPointData {
 
         Matcher matcher = InjectionPointData.AT_PATTERN.matcher(at);
         this.type = InjectionPointData.parseType(matcher, at);
-        this.selector = InjectionPointData.parseSelector(matcher);
+        this.specifier = InjectionPointData.parseSpecifier(matcher);
+        
+        this.targetRestriction = this.isUnsafe() ? RestrictTargetLevel.ALLOW_ALL : RestrictTargetLevel.METHODS_ONLY;
     }
 
     private void parseArgs(List<String> args) {
@@ -170,19 +189,28 @@ public class InjectionPointData {
         return this.type;
     }
     
-    /**
-     * Get the selector value parsed from the injector
-     */
-    public Selector getSelector() {
-        return this.selector;
-    }
-    
     private static Pattern createPattern() {
-        return Pattern.compile(String.format("^(.+?)(:(%s))?$", Joiner.on('|').join(Selector.values())));
+        return Pattern.compile(String.format("^(.+?)(:(%s))?$", Joiner.on('|').join(Specifier.values())));
+    }
+
+    private static Specifier parseSpecifier(Matcher matcher) {
+        return matcher.matches() && matcher.group(3) != null ? Specifier.valueOf(matcher.group(3)) : Specifier.DEFAULT;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T extends Enum<T>> T parseEnum(String string, T defaultValue) {
+        try {
+            return (T)Enum.valueOf(defaultValue.getClass(), string);
+        } catch (Exception ex) {
+            return defaultValue;
+        }
     }
     
-    private static Selector parseSelector(Matcher matcher) {
-        return matcher.matches() && matcher.group(3) != null ? Selector.valueOf(matcher.group(3)) : Selector.DEFAULT;
+    /**
+     * Get the specifier value parsed from the injector
+     */
+    public Specifier getSpecifier() {
+        return this.specifier;
     }
     
     /**
@@ -200,10 +228,10 @@ public class InjectionPointData {
     }
     
     /**
-     * Get the injection point context
+     * Get the target restriction specified in the annotation
      */
-    public IInjectionPointContext getContext() {
-        return this.context;
+    public RestrictTargetLevel getTargetRestriction() {
+        return this.targetRestriction;
     }
     
     /**
@@ -253,6 +281,13 @@ public class InjectionPointData {
     public boolean get(String key, boolean defaultValue) {
         return InjectionPointData.parseBoolean(this.get(key, String.valueOf(defaultValue)), defaultValue);
     }
+    
+    /**
+     * Get the injection point context
+     */
+    public IInjectionPointContext getContext() {
+        return this.context;
+    }
 
     /**
      * Get the mixin context
@@ -269,19 +304,16 @@ public class InjectionPointData {
     }
 
     /**
-     * Get the supplied value from the named args as a target selector,
-     * throws an exception if the argument cannot be parsed as a target selector
+     * Get the supplied value from the named args, return defaultValue if the
+     * arg is not set
      *
+     * @param <T> enum type
      * @param key argument name
-     * @return argument value as a target selector
+     * @param defaultValue value to return if the arg is not set
+     * @return argument value or default if not set
      */
-    public ITargetSelector get(String key) {
-        try {
-            return TargetSelector.parseAndValidate(this.get(key, ""), this.context);
-        } catch (InvalidSelectorException ex) {
-            throw new InvalidInjectionPointException(this.getMixin(), ex, "Failed parsing @At(\"%s\").%s \"%s\" on %s",
-                    this.at, key, this.target, this.getDescription());
-        }
+    public <T extends Enum<T>> T get(String key, T defaultValue) {
+        return InjectionPointData.<T>parseEnum(this.get(key, defaultValue.name()), defaultValue);
     }
 
     /**
@@ -326,7 +358,23 @@ public class InjectionPointData {
         }
         return defaultOpcode;
     }
-    
+
+    /**
+     * Get the supplied value from the named args as a target selector,
+     * throws an exception if the argument cannot be parsed as a target selector
+     *
+     * @param key argument name
+     * @return argument value as a target selector
+     */
+    public ITargetSelector get(String key) {
+        try {
+            return TargetSelector.parseAndValidate(this.get(key, ""), this.context);
+        } catch (InvalidSelectorException ex) {
+            throw new InvalidInjectionPointException(this.getMixin(), ex, "Failed parsing @At(\"%s\").%s \"%s\" on %s",
+                    this.at, key, this.target, this.getDescription());
+        }
+    }
+
     /**
      * Get the id specified on the injection point (or null if not specified)
      */
@@ -334,11 +382,6 @@ public class InjectionPointData {
         return this.id;
     }
     
-    @Override
-    public String toString() {
-        return this.type;
-    }
-
     /**
      * Get the target value specified on the injector
      */
@@ -360,6 +403,18 @@ public class InjectionPointData {
                     this.at, this.target, this.getDescription());
         }
     }
+    
+    @Override
+    public String toString() {
+        return this.type;
+    }
+
+    /**
+     * Get a description of this injector for use in error messages
+     */
+    public String getDescription() {
+        return InjectionInfo.describeInjector(this.context.getMixin(), this.context.getAnnotationNode(), this.context.getMethod());
+    }
 
     /**
      * Parse a constructor type from the supplied <tt>at</tt> string
@@ -377,10 +432,33 @@ public class InjectionPointData {
     }
 
     /**
-     * Get a description of this injector for use in error messages
+     * Get a list of opcodes specified in the injection point arguments. The
+     * opcodes can be specified as raw integer values or as their corresponding
+     * constant name from the {@link Opcodes} interface. All the values should
+     * be separated by spaces or commas. The returned array is sorted in order
+     * to make it suitable for use with the {@link Arrays#binarySearch} method.
+     *
+     * @param key argument name
+     * @param defaultValue value to return if the key is not specified
+     * @return parsed opcodes as array or default value if the key is not
+     *      specified in the args
      */
-    public String getDescription() {
-        return InjectionInfo.describeInjector(this.context.getMixin(), this.context.getAnnotationNode(), this.context.getMethod());
+    public int[] getOpcodeList(String key, int[] defaultValue) {
+        String value = this.args.get(key);
+        if (value == null) {
+            return defaultValue;
+        }
+        
+        Set<Integer> parsed = new TreeSet<Integer>();
+        String[] values = value.split("[ ,;]");
+        for (String strOpcode : values) {
+            int opcode = Bytecode.parseOpcodeName(strOpcode.trim());
+            if (opcode > 0) {
+                parsed.add(opcode);
+            }
+        }
+        
+        return Ints.toArray(parsed);
     }
     
     private static int parseInt(String string, int defaultValue) {
@@ -399,4 +477,10 @@ public class InjectionPointData {
         }
     }
 
+    /**
+     * Get whether the <tt>unsafe</tt> option is set on the injection point
+     */
+    public boolean isUnsafe() {
+        return (this.flags & InjectionPoint.Flags.UNSAFE) != 0;
+    }
 }

@@ -25,7 +25,17 @@
 package org.spongepowered.asm.mixin.injection;
 
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.spongepowered.asm.mixin.injection.points.*;
+import org.spongepowered.asm.mixin.injection.points.AfterInvoke;
+import org.spongepowered.asm.mixin.injection.points.BeforeConstant;
+import org.spongepowered.asm.mixin.injection.points.BeforeFieldAccess;
+import org.spongepowered.asm.mixin.injection.points.BeforeFinalReturn;
+import org.spongepowered.asm.mixin.injection.points.BeforeInvoke;
+import org.spongepowered.asm.mixin.injection.points.BeforeNew;
+import org.spongepowered.asm.mixin.injection.points.BeforeReturn;
+import org.spongepowered.asm.mixin.injection.points.BeforeStringInvoke;
+import org.spongepowered.asm.mixin.injection.points.JumpInsnPoint;
+import org.spongepowered.asm.mixin.injection.points.MethodHead;
+import org.spongepowered.asm.mixin.injection.struct.InjectionInfo;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -37,7 +47,7 @@ import java.lang.annotation.Target;
  * {@link InjectionPoint} class to be specified, as well as arguments to be
  * passed to the {@link InjectionPoint} instance to configure it. The data
  * contained in the annotation are wrapped into a
- * {@link org.spongepowered.asm.mixin.injection.struct.InjectionInfo
+ * {@link InjectionInfo
  * InjectionInfo} object before being passed to the {@link InjectionPoint} for
  * parsing. All values are optional apart from {@link #value}, which specifies
  * the type of {@link InjectionPoint} to use. All other parameters depend on the
@@ -97,9 +107,9 @@ public @interface At {
     public String slice() default "";
     
     /**
-     * Shift type for returned opcodes. For example use {@link At.Shift#AFTER
+     * Shift type for returned opcodes. For example use {@link Shift#AFTER
      * AFTER} with an INVOKE InjectionPoint to move the returned opcodes to
-     * <i>after</i> the invoation. Use {@link At.Shift#BY BY} in conjunction
+     * <i>after</i> the invoation. Use {@link Shift#BY BY} in conjunction
      * with the {@link #by} parameter to shift by an arbitrary number of
      * opcodes.
      *
@@ -108,14 +118,14 @@ public @interface At {
     public Shift shift() default Shift.NONE;
     
     /**
-     * If {@link #shift} is specified as {@link At.Shift#BY BY}, specifies the
+     * If {@link #shift} is specified as {@link Shift#BY BY}, specifies the
      * number of opcodes to shift by (negative numbers are allowed). Note that
      * values above <tt>3</tt> should be avoided and in general either replaced
      * with a custom injection point or with sliced injection points. The
      * warning/error threshold is defined by the config (with a hard limit on
      * value of {@link InjectionPoint#MAX_ALLOWED_SHIFT_BY})
      *
-     * @return Amount of shift to apply for the {@link At.Shift#BY BY} shift
+     * @return Amount of shift to apply for the {@link Shift#BY BY} shift
      */
     public int by() default 0;
     
@@ -139,12 +149,6 @@ public @interface At {
     public String target() default "";
     
     /**
-     * Target descriptor used in place of string-based descriptors for
-     * {@link #target}
-     */
-    public Desc desc() default @Desc("");
-    
-    /**
      * Ordinal offset. Many InjectionPoints will return every opcode matching
      * their criteria, specifying <em>ordinal</em> allows a particular opcode to
      * be identified from the returned list. The default value of -1 does not
@@ -156,6 +160,12 @@ public @interface At {
      * @return ordinal value for supported InjectionPoint types
      */
     public int ordinal() default -1;
+    
+    /**
+     * Target descriptor used in place of string-based descriptors for
+     * {@link #target}
+     */
+    public Desc desc() default @Desc("");
     
     /**
      * Target opcode for FIELD and JUMP InjectionPoints. See the javadoc for the
@@ -183,30 +193,65 @@ public @interface At {
     public boolean remap() default true;
     
     /**
+     * In general, injecting into constructors should be treated with care,
+     * since compiled constructors - unlike regular methods - contain other
+     * structural elements of the class, including implied (when not explicit)
+     * superconstructor calls, explicit superconstructor or other delegated
+     * constructor calls, field initialisers and code from initialiser blocks,
+     * and of course the code from the original "constructor".
+     *
+     * <p>This means that unlike targetting a regular method, where it's often
+     * possible to derive a reasonable injection point from the Java source, in
+     * a constructor such assumptions can be dangerous. For example the <tt>HEAD
+     * </tt> of a regular method will always mean "before the first
+     * instruction", however in a constructor it's not possible to reasonably
+     * ascertain what the first instruction will actually be without inspecting
+     * the bytecode. This will certainly be prior to the delegate constructor
+     * call, which might come as a surprise if the delegate constructor is not
+     * explicit. Ultimately this means that for constructor code which appears
+     * before the regular constructor body, the class can be in a
+     * partially-initialised state (during initialisers) or in a
+     * fully-uninitialised state (prior to the delegate constructor call).</p>
+     *
+     * <p>Because of this, by default certain injectors restrict usage to only
+     * <tt>RETURN</tt> opcodes when targetting a constructor, in order to ensure
+     * that the consumers are properly aware of the potential pitfalls. Whilst
+     * it was previously necessary to create a custom injection point in order
+     * to bypass this restriction, setting this option to <tt>true</tt> will
+     * also allow other injectors to act upon constructors, though care should
+     * be taken to ensure that the target is properly specified and attention is
+     * paid to the structure of the target bytecode.</p>
+     *
+     * <strong>FABRIC CHANGE</strong>: true by default.
+     *
+     */
+    public boolean unsafe() default true;
+
+    /**
      * <b>Shift</b> is used to shift resulting opcodes
      */
     public enum Shift {
-
+        
         /**
          * Do not shift the returned opcodes
          */
         NONE,
-
+        
         /**
          * Shift the returned opcodes back one instruction
          */
         BEFORE,
-
+        
         /**
          * Shift the returned opcodes forward one instruction
          */
         AFTER,
-
+        
         /**
          * Shift the returned opcodes by the amount specified in {@link At#by}
          */
         BY
-
+        
     }
-
+    
 }

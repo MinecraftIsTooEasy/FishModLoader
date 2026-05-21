@@ -34,8 +34,8 @@ public class ActivityStack implements IActivityContext {
     
     public static final String GLUE_STRING = " -> ";
     private final Activity head;
-    private String glue;
     private Activity tail;
+    private String glue;
     
     public ActivityStack() {
         this(null, ActivityStack.GLUE_STRING);
@@ -85,6 +85,19 @@ public class ActivityStack implements IActivityContext {
         return this.tail = new Activity(this.tail, String.format(descriptionFormat, args));
     }
     
+    void end(Activity activity) {
+        this.tail = activity.last;
+        this.tail.next = null;
+    }
+
+    /* (non-Javadoc)
+     * @see java.lang.Object#toString()
+     */
+    @Override
+    public String toString() {
+        return this.toString(this.glue);
+    }
+    
     /**
      * Convert this activity stack to a string representation using the
      * specified glue string
@@ -97,7 +110,7 @@ public class ActivityStack implements IActivityContext {
         if (this.head.description == null && this.head.next == null) {
             return "Unknown";
         }
-
+        
         StringBuilder sb = new StringBuilder();
         for (Activity activity = this.head; activity != null; activity = activity.next) {
             if (activity.description != null) {
@@ -110,32 +123,19 @@ public class ActivityStack implements IActivityContext {
         return sb.toString();
     }
 
-    void end(Activity activity) {
-        this.tail = activity.last;
-        this.tail.next = null;
-    }
-    
-    /* (non-Javadoc)
-     * @see java.lang.Object#toString()
-     */
-    @Override
-    public String toString() {
-        return this.toString(this.glue);
-    }
-
     /**
      * An activity node in the activity stack (yes it's actually a doubly-linked
      * list).
      */
     public class Activity implements IActivity {
-
+        
         /**
          * Description of this activity
          */
         public String description;
-
+        
         Activity last, next;
-
+        
         Activity(Activity last, String description) {
             if (last != null) {
                 last.next = this;
@@ -143,7 +143,7 @@ public class ActivityStack implements IActivityContext {
             this.last = last;
             this.description = description;
         }
-
+        
         /**
          * Append text to the activity description
          *
@@ -153,7 +153,7 @@ public class ActivityStack implements IActivityContext {
         public void append(String text) {
             this.description = this.description != null ? this.description + text : text;
         }
-
+        
         /**
          * Append text to the activity description
          *
@@ -164,7 +164,7 @@ public class ActivityStack implements IActivityContext {
         public void append(String textFormat, Object...args) {
             this.append(String.format(textFormat, args));
         }
-
+        
         /**
          * End this activity and remove it (and any descendants)
          */
@@ -176,7 +176,7 @@ public class ActivityStack implements IActivityContext {
                 this.last = null;
             }
         }
-
+        
         /**
          * End this activity (and any descendants) and begin the next activity
          * using the same activity handle
@@ -190,7 +190,7 @@ public class ActivityStack implements IActivityContext {
             }
             this.description = description;
         }
-
+        
         /**
          * End this activity (and any descendants) and begin the next activity
          * using the same activity handle
@@ -205,7 +205,7 @@ public class ActivityStack implements IActivityContext {
             }
             this.next(String.format(descriptionFormat, args));
         }
-
+        
     }
 
 }

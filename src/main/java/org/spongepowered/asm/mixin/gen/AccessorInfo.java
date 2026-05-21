@@ -44,9 +44,14 @@ import org.spongepowered.asm.mixin.transformer.MixinTargetContext;
 import org.spongepowered.asm.service.MixinService;
 import org.spongepowered.asm.util.Annotations;
 import org.spongepowered.asm.util.Bytecode;
+import org.spongepowered.asm.util.asm.MethodNodeEx;
 
 import java.lang.annotation.Annotation;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -321,7 +326,7 @@ public class AccessorInfo extends SpecialMethodInfo {
      * <tt>foo</tt> for example.
      */
     protected String inflectTarget() {
-        return AccessorInfo.inflectTarget(this.method.name, this.type, this.toString(), this,
+        return AccessorInfo.inflectTarget(MethodNodeEx.getName(this.method), this.type, this.toString(), this,
                 this.mixin.getEnvironment().getOption(Option.DEBUG_VERBOSE));
     }
     
@@ -432,7 +437,8 @@ public class AccessorInfo extends SpecialMethodInfo {
         try {
             return result.getSingleResult(true);
         } catch (IllegalStateException ex) {
-            throw new InvalidAccessorException(this, ex.getMessage() + " matching " + this.target + " in " + this.classNode.name + " for " + this);
+            throw new InvalidAccessorException(this, String.format("%s matching %s in %s for %s",
+                    ex.getMessage(), this.target, this.classNode.name, this));
         }
     }
         
@@ -450,7 +456,7 @@ public class AccessorInfo extends SpecialMethodInfo {
                 return new AccessorGeneratorFieldGetter(info);
             }
         },
-
+        
         /**
          * A field setter, accessor must accept single arg of the field type and
          * return void
@@ -461,7 +467,7 @@ public class AccessorInfo extends SpecialMethodInfo {
                 return new AccessorGeneratorFieldSetter(info);
             }
         },
-
+        
         /**
          * An invoker (proxy) method
          */
@@ -471,7 +477,7 @@ public class AccessorInfo extends SpecialMethodInfo {
                 return new AccessorGeneratorMethodProxy(info);
             }
         },
-
+        
         /**
          * An invoker (proxy) method
          */
@@ -481,13 +487,13 @@ public class AccessorInfo extends SpecialMethodInfo {
                 return new AccessorGeneratorObjectFactory(info);
             }
         };
-
+        
         private final Set<String> expectedPrefixes;
-
+        
         private AccessorType(Set<String> expectedPrefixes) {
             this.expectedPrefixes = expectedPrefixes;
         }
-
+        
         /**
          * Returns true if the supplied prefix string is an allowed prefix for
          * this accessor type
@@ -498,7 +504,7 @@ public class AccessorInfo extends SpecialMethodInfo {
         public boolean isExpectedPrefix(String prefix) {
             return this.expectedPrefixes.contains(prefix);
         }
-
+        
         /**
          * Returns all the expected prefixes for this accessor type as a string
          * for debugging/error message purposes
@@ -509,9 +515,9 @@ public class AccessorInfo extends SpecialMethodInfo {
         public Set<String> getExpectedPrefixes() {
             return Collections.<String>unmodifiableSet(this.expectedPrefixes);
         }
-
+        
         abstract AccessorGenerator getGenerator(AccessorInfo info);
-
+    
     }
     
     /**

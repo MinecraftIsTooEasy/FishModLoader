@@ -71,52 +71,6 @@ public final class Quantifier {
     }
     
     /**
-     * Parse a quantifier from the supplied string
-     *
-     * @param string string to parse
-     * @return parsed quantifier, malformed quantifiers return NONE
-     */
-    public static Quantifier parse(String string) {
-        if (string == null || ((string = string.trim()).length() == 0)) {
-            return Quantifier.DEFAULT;
-        }
-
-        if ("*".equals(string)) {
-            return Quantifier.ANY;
-        }
-
-        if ("+".equals(string)) {
-            return Quantifier.PLUS;
-        }
-
-        if (!string.startsWith("{") || !string.endsWith("}") || string.length() < 3) {
-            return Quantifier.NONE; // malformed
-        }
-
-        String inner = string.substring(1, string.length() - 1).trim();
-        if (inner.isEmpty()) {
-            return Quantifier.NONE;
-        }
-
-        String strMin = inner;
-        String strMax = inner;
-
-        int comma = inner.indexOf(',');
-        if (comma > -1) {
-            strMin = inner.substring(0, comma).trim();
-            strMax = inner.substring(comma + 1).trim();
-        }
-
-        try {
-            int min = strMin.length() > 0 ? Integer.parseInt(strMin) : 0;
-            int max = strMax.length() > 0 ? Integer.parseInt(strMax) : Integer.MAX_VALUE;
-            return new Quantifier(min, max);
-        } catch (NumberFormatException ex) {
-            return Quantifier.NONE;
-        }
-    }
-    
-    /**
      * Check whether this is a defaulted qualifier
      */
     public boolean isDefault() {
@@ -149,6 +103,52 @@ public final class Quantifier {
      */
     public int getClampedMax() {
         return this.max < 0 ? 1 : Math.max(this.min, this.max);
+    }
+    
+    /**
+     * Parse a quantifier from the supplied string
+     *
+     * @param string string to parse
+     * @return parsed quantifier, malformed quantifiers return NONE
+     */
+    public static Quantifier parse(String string) {
+        if (string == null || ((string = string.trim()).length() == 0)) {
+            return Quantifier.DEFAULT;
+        }
+        
+        if ("*".equals(string)) {
+            return Quantifier.ANY;
+        }
+        
+        if ("+".equals(string)) {
+            return Quantifier.PLUS;
+        }
+        
+        if (!string.startsWith("{") || !string.endsWith("}") || string.length() < 3) {
+            return Quantifier.NONE; // malformed
+        }
+
+        String inner = string.substring(1, string.length() - 1).trim();
+        if (inner.isEmpty()) {
+            return Quantifier.NONE;
+        }
+        
+        String strMin = inner;
+        String strMax = inner;
+        
+        int comma = inner.indexOf(',');
+        if (comma > -1) {
+            strMin = inner.substring(0, comma).trim();
+            strMax = inner.substring(comma + 1).trim();
+        }
+
+        try {
+            int min = strMin.length() > 0 ? Integer.parseInt(strMin) : 0;
+            int max = strMax.length() > 0 ? Integer.parseInt(strMax) : Integer.MAX_VALUE;
+            return new Quantifier(min, max);
+        } catch (NumberFormatException ex) {
+            return Quantifier.NONE;
+        }
     }
 
     /* (non-Javadoc)

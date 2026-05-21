@@ -30,7 +30,11 @@ import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
-import org.objectweb.asm.tree.*;
+import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.tree.AnnotationNode;
+import org.objectweb.asm.tree.FrameNode;
+import org.objectweb.asm.tree.InsnList;
+import org.objectweb.asm.tree.LabelNode;
 import org.spongepowered.asm.logging.ILogger;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Constant;
@@ -45,7 +49,13 @@ import org.spongepowered.asm.util.Annotations;
 import org.spongepowered.asm.util.Bytecode;
 import org.spongepowered.asm.util.Constants;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Locale;
+import java.util.Set;
 
 /**
  * Special injection point which can be defined by an {@link Constant}
@@ -107,7 +117,7 @@ import java.util.*;
  * 
  * <p>Note that like all standard injection points, this class matches the insn
  * itself, putting the injection point immediately <em>before</em> the access in
- * question. Use {@link org.spongepowered.asm.mixin.injection.At#shift shift}
+ * question. Use {@link At#shift shift}
  * specifier to adjust the matched opcode as necessary.</p>
  */
 @AtCode("CONSTANT")
@@ -136,7 +146,7 @@ public class BeforeConstant extends InjectionPoint {
     private final boolean log;
 
     public BeforeConstant(IMixinContext context, AnnotationNode node, String returnType) {
-        super(Annotations.<String>getValue(node, "slice", ""), Selector.DEFAULT, null);
+        super(Annotations.<String>getValue(node, "slice", ""), Specifier.DEFAULT, null);
         
         Boolean empty = Annotations.<Boolean>getValue(node, "nullValue", (Boolean)null);
         this.ordinal = Annotations.<Integer>getValue(node, "ordinal", Integer.valueOf(-1));
@@ -158,7 +168,7 @@ public class BeforeConstant extends InjectionPoint {
     public BeforeConstant(InjectionPointData data) {
         super(data);
         
-        String strNullValue = data.get("nullValue", null);
+        String strNullValue = data.get("nullValue", (String)null);
         Boolean empty = strNullValue != null ? Boolean.parseBoolean(strNullValue) : null;
         
         this.ordinal = data.getOrdinal();
@@ -167,8 +177,8 @@ public class BeforeConstant extends InjectionPoint {
         this.floatValue = Floats.tryParse(data.get("floatValue", ""));
         this.longValue = Longs.tryParse(data.get("longValue", ""));
         this.doubleValue = Doubles.tryParse(data.get("doubleValue", ""));
-        this.stringValue = data.get("stringValue", null);
-        String strClassValue = data.get("classValue", null);
+        this.stringValue = data.get("stringValue", (String)null);
+        String strClassValue = data.get("classValue", (String)null);
         this.typeValue = strClassValue != null ? Type.getObjectType(strClassValue.replace('.', '/')) : null;
         
         this.matchByType = this.validateDiscriminator(data.getMixin(), "V", empty, "in @At(\"CONSTANT\") args");

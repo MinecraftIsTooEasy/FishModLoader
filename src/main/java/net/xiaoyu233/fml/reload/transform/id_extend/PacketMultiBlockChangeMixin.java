@@ -9,7 +9,6 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Packet97MultiBlockChange.class)
 public class PacketMultiBlockChangeMixin {
@@ -30,8 +29,8 @@ public class PacketMultiBlockChangeMixin {
 //        return chunk.getBlockID(x, y, z) >> 8;
 //    }
 
-    @Inject(method = "<init>(II[SILnet/minecraft/World;)V", at = @At("RETURN"), cancellable = true)
-    public void injectHead(int chunk_x, int chunk_z, short[] local_coords, int num_blocks, World world, CallbackInfo callbackInfo) {
+    @Inject(method = "<init>(II[SILnet/minecraft/World;)V", at = @At("RETURN"))
+    public void injectHead(int chunk_x, int chunk_z, short[] local_coords, int num_blocks, World world) {
         Chunk chunk = world.getChunkFromChunkCoords(chunk_x, chunk_z);
         byte[] bytes = new byte[num_blocks * 6];
         for (int i = 0; i < num_blocks; ++i)
@@ -51,6 +50,6 @@ public class PacketMultiBlockChangeMixin {
             bytes[offset + 5] = (byte)metadata;
         }
         this.bytes = new PacketComponentBytes(bytes, ReflectHelper.dyCast(Packet97MultiBlockChange.class,this));
-        callbackInfo.cancel();
+//        callbackInfo.cancel();
     }
 }

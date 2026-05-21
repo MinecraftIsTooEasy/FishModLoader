@@ -43,8 +43,12 @@ import org.spongepowered.tools.obfuscation.AnnotatedMixinElementHandlerInjector.
 import org.spongepowered.tools.obfuscation.AnnotatedMixinElementHandlerInjector.AnnotatedElementSliceInjectionPoint;
 import org.spongepowered.tools.obfuscation.AnnotatedMixinElementHandlerOverwrite.AnnotatedElementOverwrite;
 import org.spongepowered.tools.obfuscation.interfaces.IMessagerEx.MessageType;
-import org.spongepowered.tools.obfuscation.interfaces.*;
+import org.spongepowered.tools.obfuscation.interfaces.IMessagerSuppressible;
+import org.spongepowered.tools.obfuscation.interfaces.IMixinAnnotationProcessor;
+import org.spongepowered.tools.obfuscation.interfaces.IMixinValidator;
 import org.spongepowered.tools.obfuscation.interfaces.IMixinValidator.ValidationPass;
+import org.spongepowered.tools.obfuscation.interfaces.IObfuscationManager;
+import org.spongepowered.tools.obfuscation.interfaces.ITypeHandleProvider;
 import org.spongepowered.tools.obfuscation.mapping.IMappingConsumer;
 import org.spongepowered.tools.obfuscation.mirror.AnnotationHandle;
 import org.spongepowered.tools.obfuscation.mirror.MethodHandle;
@@ -170,7 +174,7 @@ class AnnotatedMixin implements IMixinContext, IAnnotatedElement {
         this.mappings = this.obf.createMappingConsumer();
         this.messager = ap;
         this.mixin = type;
-        this.handle = new TypeHandle(type);
+        this.handle = new TypeHandle(type, ap.getTypeProvider());
         this.methods = new ArrayList<MethodHandle>(this.handle.getMethods());
         this.virtual = this.handle.getAnnotation(Pseudo.class).exists();
         this.annotation = this.handle.getAnnotation(Mixin.class);
@@ -460,6 +464,11 @@ class AnnotatedMixin implements IMixinContext, IAnnotatedElement {
     @Override
     public String getClassName() {
         return this.getClassRef().replace('/', '.');
+    }
+    
+    @Override
+    public String getTargetClassName() {
+        return this.primaryTarget.toString();
     }
 
     @Override

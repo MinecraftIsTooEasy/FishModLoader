@@ -14,7 +14,6 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLStreamHandler;
-import java.security.Permission;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -72,11 +71,6 @@ public final class CasualStreamHandler extends URLStreamHandler {
 				dumper.accept(url.getPath().substring(1, url.getPath().length() - 6).replace('/', '.'), realStream);
 			}
 			return new ByteArrayInputStream(realStream);
-		}
-
-		@Override
-		public Permission getPermission() {
-			return null;
 		}
 	}
 }

@@ -43,7 +43,14 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -52,23 +59,9 @@ import java.util.regex.Pattern;
  */
 public final class TargetSelector {
     
-    /**
-     * Regex for dynamic selector ids
-     */
-    private static final String DYNAMIC_SELECTOR_ID = "[a-z]+(:[a-z]+)?";
-    /**
-     * Pattern for matching dynamic selectors
-     */
-    private static final Pattern PATTERN_DYNAMIC = Pattern.compile("(?i)^\\x40(" + TargetSelector.DYNAMIC_SELECTOR_ID + ")(\\((.*)\\))?$");
-     /**
-     * Registered dynamic selectors
-     */
-    private static Map<String, DynamicSelectorEntry> dynamicSelectors = new LinkedHashMap<String, DynamicSelectorEntry>();
-    
-    static {
-        TargetSelector.registerBuiltIn(DynamicSelectorDesc.class);
+    private TargetSelector() {
     }
-    
+
     /**
      * Register a dynamic target selector class. The supplied class must be
      * decorated with an {@link SelectorId} annotation for registration to
@@ -82,12 +75,12 @@ public final class TargetSelector {
         if (selectorId == null) {
             throw new IllegalArgumentException("Dynamic target selector class " + type + " is not annotated with @SelectorId");
         }
-
+        
         String annotationNamespace = selectorId.namespace();
         if (!Strings.isNullOrEmpty(annotationNamespace)) {
             namespace = annotationNamespace;
         }
-
+        
         if (Strings.isNullOrEmpty(namespace)) {
             throw new IllegalArgumentException("Dynamic target selector class " + type
                     + " has no namespace. Please specify namespace in SelectorId annotation or declaring configuration");
@@ -99,13 +92,13 @@ public final class TargetSelector {
         } catch (NoSuchMethodException ex) {
             throw new MixinError("Dynamic target selector class " + type.getName() + " does not contain a valid parse method");
         }
-
+        
         String code = entry.getCode();
         if (!Pattern.matches(TargetSelector.DYNAMIC_SELECTOR_ID, code)) {
             throw new IllegalArgumentException("Dynamic target selector class " + type
                     + " has an invalid id. Only alpha characters can be used in selector ids and namespaces");
         }
-
+        
         DynamicSelectorEntry existing = TargetSelector.dynamicSelectors.get(code);
         if (existing != null) { // && !existing.type.equals(type)) {
             MessageRouter.getMessager().printMessage(Kind.WARNING, String.format("Overriding target selector for @%s with %s (previously %s)",
@@ -114,8 +107,27 @@ public final class TargetSelector {
             MessageRouter.getMessager().printMessage(Kind.OTHER, String.format("Registering new target selector for @%s with %s",
                     code, type.getName()));
         }
-
+        
         TargetSelector.dynamicSelectors.put(code, entry);
+    }
+    
+    /**
+     * Regex for dynamic selector ids
+     */
+    private static final String DYNAMIC_SELECTOR_ID = "[a-z]+(:[a-z]+)?";
+    
+    /**
+     * Pattern for matching dynamic selectors
+     */
+    private static final Pattern PATTERN_DYNAMIC = Pattern.compile("(?i)^\\x40(" + TargetSelector.DYNAMIC_SELECTOR_ID + ")(\\((.*)\\))?$");
+    
+     /**
+     * Registered dynamic selectors
+     */
+    private static Map<String, DynamicSelectorEntry> dynamicSelectors = new LinkedHashMap<String, DynamicSelectorEntry>();
+    
+    static {
+        TargetSelector.registerBuiltIn(DynamicSelectorDesc.class);
     }
     
     /**
@@ -134,9 +146,6 @@ public final class TargetSelector {
         }
         TargetSelector.dynamicSelectors.put(entry.id, entry);
         TargetSelector.dynamicSelectors.put("mixin:" + entry.id, entry);
-    }
-    
-    private TargetSelector() {
     }
     
     /**
@@ -246,7 +255,7 @@ public final class TargetSelector {
                 }
             }
         }
-
+        
         return new InvalidSelector(new InvalidSelectorException("Dynamic selector for annotation " + annotation + " is not registered."));
     }
     
@@ -259,7 +268,7 @@ public final class TargetSelector {
      */
     public static ITargetSelector parse(String string, ISelectorContext context) {
         string = string.trim();
-
+        
         // Ending with slash indicates a regex target, no other type of target
         // selector can end (legally) with a forward slash
         if (string.endsWith("/")) {
@@ -268,9 +277,9 @@ public final class TargetSelector {
                 return regexMatcher;
             }
         }
-
+        
         // Starting with @ indicates a dynamic target. Parse as a regular
-        // MemberInfo if the selector does not start with @
+        // MemberInfo if the selector does not initial with @
         if (!string.startsWith("@")) {
             return MemberInfo.parse(string, context);
         }
@@ -279,13 +288,13 @@ public final class TargetSelector {
         if (!dynamic.matches()) {
             return new InvalidSelector(new InvalidSelectorException("Dynamic selector was in an unrecognised format. Parsing selector: " + string));
         }
-
+        
         String selectorId = dynamic.group(1).toLowerCase(Locale.ROOT);
         if (!TargetSelector.dynamicSelectors.containsKey(selectorId)) {
             return new InvalidSelector(new InvalidSelectorException("Dynamic selector with id '@" + dynamic.group(1)
                     + "' is not registered. Parsing selector: " + string));
         }
-
+        
         try {
             return TargetSelector.dynamicSelectors.get(selectorId).parse(Strings.nullToEmpty(dynamic.group(4)).trim(), context);
         } catch (ReflectiveOperationException ex) {
@@ -340,14 +349,14 @@ public final class TargetSelector {
     public static <TNode> Result<TNode> run(Iterable<ITargetSelector> selector, Iterable<ElementNode<TNode>> nodes) {
         ElementNode<TNode> exactMatch = null;
         List<ElementNode<TNode>> candidates = new ArrayList<ElementNode<TNode>>();
-
+        
         for (ITargetSelector target : selector) {
             ElementNode<TNode> selectorExactMatch = TargetSelector.runSelector(target, nodes, candidates);
             if (exactMatch == null) {
                 exactMatch = selectorExactMatch;
             }
         }
-
+        
         return new Result<TNode>(exactMatch, candidates);
     }
     
@@ -371,7 +380,7 @@ public final class TargetSelector {
                 }
             }
         }
-
+        
         if (matchCount < selector.getMinMatchCount()) {
             throw new SelectorConstraintException(selector, String.format("%s did not match the required number of targets (required=%d, matched=%d)",
                     selector, selector.getMinMatchCount(), matchCount));
@@ -386,12 +395,12 @@ public final class TargetSelector {
      * @param <TNode> Node type
      */
     public static class Result<TNode> {
-
+        
         /**
          * Any exact match returned by the query
          */
         public final ElementNode<TNode> exactMatch;
-
+        
         /**
          * All candidates returned by the query
          */
@@ -401,7 +410,7 @@ public final class TargetSelector {
             this.exactMatch = exactMatch;
             this.candidates = candidates;
         }
-
+        
         /**
          * Get only a single result from this handle. Preferentially returns an
          * exact match if one was found, or returns the first result if only one
@@ -424,24 +433,24 @@ public final class TargetSelector {
             }
             throw new IllegalStateException((resultCount == 0 ? "No" : "Multiple") + " candidates were found");
         }
-
+        
     }
 
     /**
      * A dynamic selector registration entry
      */
     static class DynamicSelectorEntry {
-
+        
         final String namespace;
-
+        
         final String id;
-
+        
         final Class<? extends ITargetSelectorDynamic> type;
-
+        
         final Class<? extends Annotation> annotation;
-
+        
         final Method mdParseString, mdParseAnnotation;
-
+        
         DynamicSelectorEntry(String namespace, String id, Class<? extends ITargetSelectorDynamic> type) throws NoSuchMethodException {
             this.namespace = namespace;
             this.id = id;
@@ -454,7 +463,7 @@ public final class TargetSelector {
                 throw new MixinError("parse(String) method for dynamic target selector [" + this.type.getName()
                         + "] must return an ITargetSelectorDynamic subtype");
             }
-
+            
             Class<? extends Annotation> annotation = null;
             Method mdParseAnnotation = null;
 
@@ -462,7 +471,7 @@ public final class TargetSelector {
             if (selectorAnnotation != null) {
                 annotation = selectorAnnotation.value();
                 mdParseAnnotation = type.getDeclaredMethod("parse", IAnnotationHandle.class, ISelectorContext.class);
-
+                
                 if (!Modifier.isStatic(mdParseAnnotation.getModifiers())) {
                     throw new MixinError("parse method for dynamic target selector [" + this.type.getName() + "] must be static");
                 }
@@ -475,19 +484,19 @@ public final class TargetSelector {
             this.annotation = annotation;
             this.mdParseAnnotation = mdParseAnnotation;
         }
-
+        
         String getCode() {
             return (this.namespace != null ? this.namespace + ":" : "") + this.id;
         }
-
+        
         ITargetSelectorDynamic parse(String input, ISelectorContext context) throws ReflectiveOperationException {
             return this.parse(input, context, this.mdParseString);
         }
-
+        
         ITargetSelectorDynamic parse(IAnnotationHandle input, ISelectorContext context) throws ReflectiveOperationException {
             return this.parse(input, context, this.mdParseAnnotation);
         }
-
+        
         ITargetSelectorDynamic parse(Object input, ISelectorContext context, Method parseMethod) throws ReflectiveOperationException {
             try {
                 return (ITargetSelectorDynamic)parseMethod.invoke(null, input, context);

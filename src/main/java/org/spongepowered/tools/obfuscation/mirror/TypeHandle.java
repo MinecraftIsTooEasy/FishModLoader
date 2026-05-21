@@ -30,9 +30,16 @@ import org.spongepowered.asm.mixin.injection.selectors.ITargetSelectorByName;
 import org.spongepowered.asm.obfuscation.mapping.common.MappingMethod;
 import org.spongepowered.asm.util.Bytecode;
 import org.spongepowered.asm.util.asm.IAnnotationHandle;
+import org.spongepowered.tools.obfuscation.interfaces.ITypeHandleProvider;
 import org.spongepowered.tools.obfuscation.mirror.mapping.MappingMethodResolvable;
 
-import javax.lang.model.element.*;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.Modifier;
+import javax.lang.model.element.PackageElement;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
@@ -63,7 +70,13 @@ public class TypeHandle {
      * Actual type element, this is null for inaccessible classes
      */
     private final TypeElement element;
-    
+
+    /**
+     * Type handle provider, we need this since we have to resolve type handles
+     * for related classes (eg. superclass) without using mirror
+     */
+    protected final ITypeHandleProvider typeProvider;
+
     /**
      * Reference to this handle, for serialisation 
      */
@@ -76,10 +89,11 @@ public class TypeHandle {
      * @param pkg Package
      * @param name FQ class name
      */
-    public TypeHandle(PackageElement pkg, String name) {
+    public TypeHandle(PackageElement pkg, String name, ITypeHandleProvider typeProvider) {
         this.name = name.replace('.', '/');
         this.pkg = pkg;
         this.element = null;
+        this.typeProvider = typeProvider;
     }
     
     /**
@@ -87,10 +101,11 @@ public class TypeHandle {
      * 
      * @param element ze element
      */
-    public TypeHandle(TypeElement element) {
+    public TypeHandle(TypeElement element, ITypeHandleProvider typeProvider) {
         this.pkg = TypeUtils.getPackage(element);
         this.name = TypeUtils.getInternalName(element);
         this.element = element;
+        this.typeProvider = typeProvider;
     }
     
     /**
@@ -98,8 +113,8 @@ public class TypeHandle {
      * 
      * @param type type
      */
-    public TypeHandle(DeclaredType type) {
-        this((TypeElement)type.asElement());
+    public TypeHandle(DeclaredType type, ITypeHandleProvider typeProvider) {
+        this((TypeElement)type.asElement(), typeProvider);
     }
     
     /* (non-Javadoc)
@@ -151,11 +166,11 @@ public class TypeHandle {
         if (kind == null || kind.length < 1) {
             return (List<T>)TypeHandle.getEnclosedElements(targetElement);
         }
-
+        
         if (targetElement == null) {
             return Collections.<T>emptyList();
         }
-
+        
         Builder<T> list = ImmutableList.<T>builder();
         for (Element elem : targetElement.getEnclosedElements()) {
             for (ElementKind ek : kind) {
@@ -169,10 +184,17 @@ public class TypeHandle {
         return list.build();
     }
 
+    /**
+     * Returns enclosed elements (methods, fields, etc.)
+     */
+    protected final List<? extends Element> getEnclosedElements() {
+        return TypeHandle.getEnclosedElements(this.getTargetElement());
+    }
+    
     protected static List<? extends Element> getEnclosedElements(TypeElement targetElement) {
         return targetElement != null ? targetElement.getEnclosedElements() : Collections.<Element>emptyList();
     }
-    
+
     /**
      * Get an annotation handle for the specified annotation on this type
      *
@@ -185,12 +207,13 @@ public class TypeHandle {
     }
 
     /**
-     * Returns enclosed elements (methods, fields, etc.)
+     * Returns the enclosed element as a type mirror, or null if this is an
+     * imaginary type
      */
-    protected final List<? extends Element> getEnclosedElements() {
-        return TypeHandle.getEnclosedElements(this.getTargetElement());
+    public TypeMirror getTypeMirror() {
+        return this.getTargetElement() != null ? this.getTargetElement().asType() : null;
     }
-
+    
     /**
      * Returns enclosed elements (methods, fields, etc.) of a particular type
      *
@@ -199,6 +222,16 @@ public class TypeHandle {
      */
     protected <T extends Element> List<T> getEnclosedElements(ElementKind... kind) {
         return TypeHandle.getEnclosedElements(this.getTargetElement(), kind);
+    }
+    
+    /**
+     * Get whether the type handle can return a type mirror for the represented
+     * type. This is true only for types returned by mirror and is not available
+     * for simulated types or classpath types inaccessible via mirror (eg. anon
+     * classes)
+     */
+    public boolean hasTypeMirror() {
+        return this.getTargetElement() != null;
     }
     
     /**
@@ -216,25 +249,7 @@ public class TypeHandle {
             return null;
         }
         
-        return new TypeHandle((DeclaredType)superClass);
-    }
-    
-    /**
-     * Get whether the type handle can return a type mirror for the represented
-     * type. This is true only for types returned by mirror and is not available
-     * for simulated types or classpath types inaccessible via mirror (eg. anon
-     * classes)
-     */
-    public boolean hasTypeMirror() {
-        return this.getTargetElement() != null;
-    }
-    
-    /**
-     * Returns the enclosed element as a type mirror, or null if this is an
-     * imaginary type
-     */
-    public TypeMirror getTypeMirror() {
-        return this.getTargetElement() != null ? this.getTargetElement().asType() : null;
+        return typeProvider.getTypeHandle(superClass);
     }
 
     /**
@@ -260,10 +275,10 @@ public class TypeHandle {
         if (this.getTargetElement() == null) {
             return Collections.<TypeHandle>emptyList();
         }
-
+        
         Builder<TypeHandle> list = ImmutableList.<TypeHandle>builder();
         for (TypeMirror iface : this.getTargetElement().getInterfaces()) {
-            list.add(new TypeHandle((DeclaredType)iface));
+            list.add(typeProvider.getTypeHandle(iface));
         }
         return list.build();
     }
@@ -274,7 +289,27 @@ public class TypeHandle {
     public boolean isSimulated() {
         return false;
     }
-    
+
+    /**
+     * Get methods in this type
+     */
+    public List<MethodHandle> getMethods() {
+        List<MethodHandle> methods = new ArrayList<MethodHandle>();
+        for (ExecutableElement method : this.<ExecutableElement>getEnclosedElements(ElementKind.METHOD)) {
+            MethodHandle handle = new MethodHandle(this, method);
+            methods.add(handle);
+        }
+        return methods;
+    }
+
+    /**
+     * Get whether the element is imaginary (inaccessible via mirror or
+     * classpath)
+     */
+    public boolean isImaginary() {
+        return this.getTargetElement() == null;
+    }
+
     /**
      * Get the TypeReference for this type, used for serialisation
      */
@@ -329,15 +364,11 @@ public class TypeHandle {
     }
     
     /**
-     * Get methods in this type
+     * Gets whether this handle definitely does not represent an interface
      */
-    public List<MethodHandle> getMethods() {
-        List<MethodHandle> methods = new ArrayList<MethodHandle>();
-        for (ExecutableElement method : this.<ExecutableElement>getEnclosedElements(ElementKind.METHOD)) {
-            MethodHandle handle = new MethodHandle(this, method);
-            methods.add(handle);
-        }
-        return methods;
+    public boolean isNotInterface() {
+        TypeElement target = this.getTargetElement();
+        return target != null && !target.getKind().isInterface();
     }
     
     /**
@@ -353,11 +384,22 @@ public class TypeHandle {
     }
     
     /**
-     * Get whether the element is imaginary (inaccessible via mirror or
-     * classpath)
+     * Gets whether this handle is a supertype of the other handle
+     *
+     * @param other the TypeHandle to compare with
      */
-    public boolean isImaginary() {
-        return this.getTargetElement() == null;
+    public boolean isSuperTypeOf(TypeHandle other) {
+        List<TypeHandle> superTypes = new ArrayList<TypeHandle>();
+        if (other.getSuperclass() != null) {
+            superTypes.add(other.getSuperclass());
+        }
+        superTypes.addAll(other.getInterfaces());
+        for (TypeHandle superType : superTypes) {
+            if (this.name.equals(superType.name) || this.isSuperTypeOf(superType)) {
+                return true;
+            }
+        }
+        return false;
     }
     
     /**
@@ -450,7 +492,7 @@ public class TypeHandle {
                 return new FieldHandle(this.getTargetElement(), field, true);
             }
         }
-
+        
         return null;
     }
 

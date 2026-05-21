@@ -28,6 +28,7 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.spongepowered.asm.mixin.Implements;
 import org.spongepowered.asm.mixin.Interface;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.transformer.ClassInfo.Method;
@@ -40,7 +41,7 @@ import java.util.Set;
 
 /**
  * Information about an interface being runtime-patched onto a mixin target
- * class, see {@link org.spongepowered.asm.mixin.Implements Implements}
+ * class, see {@link Implements Implements}
  */
 final class InterfaceInfo {
     

@@ -30,8 +30,16 @@ import org.objectweb.asm.signature.SignatureWriter;
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.util.asm.ASM;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 /**
  * Represents an object-oriented view of a generic class signature. We use ASM's
@@ -1249,42 +1257,20 @@ public class ClassSignature {
     }
     
     /**
-     * Converts this signature into a string representation compatible with the
-     * signature attribute of a Java class
-     * 
-     * @see java.lang.Object#toString()
+     * Returns a lazy-evaluated signature object. For classes with a signature
+     * present this saves having to do the parse until we actually need it. For
+     * classes with no signature we just go ahead and generate it from the
+     * supplied ClassNode while we have it
+     *
+     * @param classNode class node to parse
+     * @return parsed signature or lazy-load handle
      */
-    @Override
-    public String toString() {
-        while (this.rawInterfaces.size() > 0) {
-            this.addRawInterface(this.rawInterfaces.remove());
+    public static ClassSignature ofLazy(ClassNode classNode) {
+        if (classNode.signature != null) {
+            return new Lazy(classNode.signature);
         }
-        
-        StringBuilder sb = new StringBuilder();
-        
-        if (this.types.size() > 0) {
-            boolean valid = false;
-            StringBuilder types = new StringBuilder();
-            for (Entry<TypeVar, TokenHandle> type : this.types.entrySet()) {
-                String bound = type.getValue().asBound();
-                if (!bound.isEmpty()) {
-                    types.append(type.getKey()).append(':').append(bound);
-                    valid = true;
-                }
-            }
-            
-            if (valid) {
-                sb.append('<').append(types).append('>');
-            }
-        }
-        
-        sb.append(this.superClass.asType());
-        
-        for (Token iface : this.interfaces) {
-            sb.append(iface.asType());
-        }
-        
-        return sb.toString();
+
+        return ClassSignature.generate(classNode);
     }
 
     /**
@@ -1321,20 +1307,42 @@ public class ClassSignature {
     }
     
     /**
-     * Returns a lazy-evaluated signature object. For classes with a signature
-     * present this saves having to do the parse until we actually need it. For
-     * classes with no signature we just go ahead and generate it from the
-     * supplied ClassNode while we have it 
-     * 
-     * @param classNode class node to parse
-     * @return parsed signature or lazy-load handle
+     * Converts this signature into a string representation compatible with the
+     * signature attribute of a Java class
+     *
+     * @see Object#toString()
      */
-    public static ClassSignature ofLazy(ClassNode classNode) {
-        if (classNode.signature != null) {
-            return new ClassSignature.Lazy(classNode.signature);
+    @Override
+    public String toString() {
+        while (this.rawInterfaces.size() > 0) {
+            this.addRawInterface(this.rawInterfaces.remove());
         }
-
-        return ClassSignature.generate(classNode);
+        
+        StringBuilder sb = new StringBuilder();
+        
+        if (this.types.size() > 0) {
+            boolean valid = false;
+            StringBuilder types = new StringBuilder();
+            for (Entry<TypeVar, TokenHandle> type : this.types.entrySet()) {
+                String bound = type.getValue().asBound();
+                if (!bound.isEmpty()) {
+                    types.append(type.getKey()).append(':').append(bound);
+                    valid = true;
+                }
+            }
+            
+            if (valid) {
+                sb.append('<').append(types).append('>');
+            }
+        }
+        
+        sb.append(this.superClass.asType());
+        
+        for (Token iface : this.interfaces) {
+            sb.append(iface.asType());
+        }
+        
+        return sb.toString();
     }
 
     /**

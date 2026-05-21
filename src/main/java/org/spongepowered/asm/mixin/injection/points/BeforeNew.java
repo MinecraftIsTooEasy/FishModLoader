@@ -30,6 +30,7 @@ import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.TypeInsnNode;
+import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.InjectionPoint;
 import org.spongepowered.asm.mixin.injection.InjectionPoint.AtCode;
 import org.spongepowered.asm.mixin.injection.selectors.ITargetSelector;
@@ -48,7 +49,7 @@ import java.util.ListIterator;
  * <p>This injection point searches for NEW opcodes matching its arguments and
  * returns a list of insns immediately prior to matching instructions. It
  * accepts the following parameters from
- * {@link org.spongepowered.asm.mixin.injection.At At}:</p>
+ * {@link At At}:</p>
  * 
  * <dl>
  *   <dt><i>named argument:</i> class (or specify using <tt>target</tt></dt>
@@ -84,7 +85,7 @@ import java.util.ListIterator;
  * 
  * <p>Note that like all standard injection points, this class matches the insn
  * itself, putting the injection point immediately <em>before</em> the access in
- * question. Use {@link org.spongepowered.asm.mixin.injection.At#shift shift}
+ * question. Use {@link At#shift shift}
  * specifier to adjust the matched opcode as necessary.</p>
  */
 @AtCode("NEW")
@@ -126,6 +127,30 @@ public class BeforeNew extends InjectionPoint {
     public boolean hasDescriptor() {
         return this.desc != null;
     }
+    
+    public static MethodInsnNode findInitNodeFor(InsnList insns, TypeInsnNode newNode, String desc) {
+        int indexOf = insns.indexOf(newNode);
+        int depth = 0;
+        for (Iterator<AbstractInsnNode> iter = insns.iterator(indexOf); iter.hasNext();) {
+            AbstractInsnNode insn = iter.next();
+            if (insn instanceof MethodInsnNode && insn.getOpcode() == Opcodes.INVOKESPECIAL) {
+                MethodInsnNode methodNode = (MethodInsnNode)insn;
+                if (Constants.CTOR.equals(methodNode.name) && --depth == 0) {
+                    return methodNode.owner.equals(newNode.desc) && (desc == null || methodNode.desc.equals(desc)) ? methodNode : null;
+                }
+            } else if (insn instanceof TypeInsnNode && insn.getOpcode() == Opcodes.NEW) {
+                depth++;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Gets the descriptor from the injection point, can return null
+     */
+    public String getDescriptor() {
+        return this.desc;
+    }
 
     @SuppressWarnings("unchecked")
     @Override
@@ -151,7 +176,7 @@ public class BeforeNew extends InjectionPoint {
         
         if (this.desc != null) {
             for (TypeInsnNode newNode : newNodes) {
-                if (this.findCtor(insns, newNode)) {
+                if (BeforeNew.findInitNodeFor(insns, newNode, this.desc) != null) {
                     nodes.add(newNode);
                     found = true;
                 }
@@ -159,20 +184,6 @@ public class BeforeNew extends InjectionPoint {
         }
 
         return found;
-    }
-
-    protected boolean findCtor(InsnList insns, TypeInsnNode newNode) {
-        int indexOf = insns.indexOf(newNode);
-        for (Iterator<AbstractInsnNode> iter = insns.iterator(indexOf); iter.hasNext();) {
-            AbstractInsnNode insn = iter.next();
-            if (insn instanceof MethodInsnNode && insn.getOpcode() == Opcodes.INVOKESPECIAL) {
-                MethodInsnNode methodNode = (MethodInsnNode)insn;
-                if (Constants.CTOR.equals(methodNode.name) && methodNode.owner.equals(newNode.desc) && methodNode.desc.equals(this.desc)) {
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 
     private boolean matchesOwner(TypeInsnNode insn) {

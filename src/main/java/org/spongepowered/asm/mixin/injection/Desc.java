@@ -27,7 +27,11 @@ package org.spongepowered.asm.mixin.injection;
 import org.spongepowered.asm.mixin.injection.selectors.dynamic.DynamicSelectorDesc;
 import org.spongepowered.asm.mixin.injection.struct.MemberInfo;
 
-import java.lang.annotation.*;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Repeatable;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
  * <p>A descriptor for matching a target element, for details of usage see
@@ -111,7 +115,7 @@ public @interface Desc {
      * The next elements of this descriptor path, evaluated in order for each
      * recurse point.
      */
-    // public Next[] next() default { };
+    public Next[] next() default { };
     
     /**
      * The minimum number of times this selector should match. By default the

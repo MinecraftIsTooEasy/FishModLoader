@@ -28,7 +28,14 @@ import com.google.common.base.Strings;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
-import org.objectweb.asm.tree.*;
+import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.FieldNode;
+import org.objectweb.asm.tree.InsnList;
+import org.objectweb.asm.tree.InvokeDynamicInsnNode;
+import org.objectweb.asm.tree.MethodInsnNode;
+import org.objectweb.asm.tree.MethodNode;
 import org.spongepowered.asm.util.Handles;
 
 import java.util.ArrayList;
@@ -295,49 +302,49 @@ public abstract class ElementNode<TNode> {
      * expressive way
      */
     public static enum NodeType {
-
+        
         /**
          * None or unknown type
          */
         UNDEFINED(false, false, false),
-
+        
         /**
          * A method node
          */
         METHOD(true, false, false),
-
+        
         /**
          * A field node
          */
         FIELD(false, true, false),
-
+        
         /**
          * An invoke instruction
          */
         METHOD_INSN(false, false, true),
-
+        
         /**
          * A get or put field instruction
          */
         FIELD_INSN(false, false, true),
-
+        
         /**
          * An INVOKEDYNAMIC instruction
          */
         INVOKEDYNAMIC_INSN(false, false, true);
-
+        
         /**
          * Whether this node holds a method, implies that calling <tt>getMethod
          * </tt> will return a value
          */
         public final boolean hasMethod;
-
+        
         /**
          * Whether this node holds a field, implies that calling <tt>getField
          * </tt> will return a value
          */
         public final boolean hasField;
-
+        
         /**
          * Whether this node holds an insn, implies that calling <tt>getInsn
          * </tt> will return a value
@@ -349,7 +356,7 @@ public abstract class ElementNode<TNode> {
             this.hasField = isField;
             this.hasInsn = isInsn;
         }
-
+        
     }
     
     /**
@@ -365,32 +372,32 @@ public abstract class ElementNode<TNode> {
             this.owner = owner;
             this.method = method;
         }
-
+        
         @Override
         public NodeType getType() {
             return NodeType.METHOD;
         }
-
+        
         @Override
         public MethodNode getMethod() {
             return this.method;
         }
-
+        
         @Override
         public String getOwner() {
             return this.owner != null ? this.owner.name : null;
         }
-
+        
         @Override
         public String getName() {
             return this.method.name;
         }
-
+        
         @Override
         public String getDesc() {
             return this.method.desc;
         }
-
+        
         @Override
         public String getSignature() {
             return this.method.signature;
@@ -400,17 +407,17 @@ public abstract class ElementNode<TNode> {
         public MethodNode get() {
             return this.method;
         }
-
+        
         @Override
         public boolean equals(Object obj) {
             return this.method.equals(obj);
         }
-
+        
         @Override
         public int hashCode() {
             return this.method.hashCode();
         }
-
+        
     }
     
     /**
@@ -426,7 +433,7 @@ public abstract class ElementNode<TNode> {
             this.owner = owner;
             this.field = field;
         }
-
+        
         @Override
         public NodeType getType() {
             return NodeType.FIELD;
@@ -436,12 +443,12 @@ public abstract class ElementNode<TNode> {
         public boolean isField() {
             return true;
         }
-
+        
         @Override
         public FieldNode getField() {
             return this.field;
         }
-
+        
         @Override
         public String getOwner() {
             return this.owner != null ? this.owner.name : null;
@@ -451,12 +458,12 @@ public abstract class ElementNode<TNode> {
         public String getName() {
             return this.field.name;
         }
-
+        
         @Override
         public String getDesc() {
             return this.field.desc;
         }
-
+        
         @Override
         public String getSignature() {
             return this.field.signature;
@@ -466,12 +473,12 @@ public abstract class ElementNode<TNode> {
         public FieldNode get() {
             return this.field;
         }
-
+        
         @Override
         public boolean equals(Object obj) {
             return this.field.equals(obj);
         }
-
+        
         @Override
         public int hashCode() {
             return this.field.hashCode();
@@ -483,23 +490,23 @@ public abstract class ElementNode<TNode> {
      * ElementNode for MethodInsnNode
      */
     static class ElementNodeMethodInsn extends ElementNode<MethodInsnNode> {
-
+        
         private MethodInsnNode insn;
-
+        
         ElementNodeMethodInsn(MethodInsnNode method) {
             this.insn = method;
         }
-
+        
         @Override
         public NodeType getType() {
             return NodeType.METHOD_INSN;
         }
-
+        
         @Override
         public AbstractInsnNode getInsn() {
             return this.insn;
         }
-
+        
         @Override
         public String getOwner() {
             return this.insn.owner;
@@ -509,27 +516,27 @@ public abstract class ElementNode<TNode> {
         public String getName() {
             return this.insn.name;
         }
-
+        
         @Override
         public String getDesc() {
             return this.insn.desc;
         }
-
+        
         @Override
         public String getSignature() {
             return null;
         }
-
+        
         @Override
         public MethodInsnNode get() {
             return this.insn;
         }
-
+        
         @Override
         public boolean equals(Object obj) {
             return this.insn.equals(obj);
         }
-
+        
         @Override
         public int hashCode() {
             return this.insn.hashCode();
@@ -541,18 +548,18 @@ public abstract class ElementNode<TNode> {
      * ElementNode for InvokeDynamicInsnNode
      */
     static class ElementNodeInvokeDynamicInsn extends ElementNode<InvokeDynamicInsnNode> {
-
+        
         private InvokeDynamicInsnNode insn;
-
+        
         private Type samMethodType;
-
+        
         private Handle implMethod;
-
+        
         private Type instantiatedMethodType;
-
+        
         ElementNodeInvokeDynamicInsn(InvokeDynamicInsnNode invokeDynamic) {
             this.insn = invokeDynamic;
-
+            
             if (invokeDynamic.bsmArgs != null && invokeDynamic.bsmArgs.length > 1) {
                 Object samMethodType = invokeDynamic.bsmArgs[0];
                 Object implMethod = invokeDynamic.bsmArgs[1];
@@ -564,22 +571,22 @@ public abstract class ElementNode<TNode> {
                 }
             }
         }
-
+        
         @Override
         public NodeType getType() {
             return NodeType.INVOKEDYNAMIC_INSN;
         }
-
+        
         @Override
         public boolean isField() {
             return this.implMethod != null && Handles.isField(this.implMethod);
         }
-
+        
         @Override
         public AbstractInsnNode getInsn() {
             return this.insn;
         }
-
+        
         @Override
         public String getOwner() {
             return this.implMethod != null ? this.implMethod.getOwner() : this.insn.name;
@@ -589,42 +596,42 @@ public abstract class ElementNode<TNode> {
         public String getName() {
             return this.insn.name;
         }
-
+        
         @Override
         public String getSyntheticName() {
             return this.implMethod != null ? this.implMethod.getName() : this.insn.name;
         }
-
+        
         @Override
         public String getDesc() {
             return this.implMethod != null ? this.implMethod.getDesc() : this.insn.desc;
         }
-
+        
         @Override
         public String getDelegateDesc() {
             return this.samMethodType != null ? this.samMethodType.getDescriptor() : this.getDesc();
         }
-
+        
         @Override
         public String getImplDesc() {
             return this.instantiatedMethodType != null ? this.instantiatedMethodType.getDescriptor() : this.getDesc();
         }
-
+        
         @Override
         public String getSignature() {
             return null;
         }
-
+        
         @Override
         public InvokeDynamicInsnNode get() {
             return this.insn;
         }
-
+        
         @Override
         public boolean equals(Object obj) {
             return this.insn.equals(obj);
         }
-
+        
         @Override
         public int hashCode() {
             return this.insn.hashCode();
@@ -636,18 +643,18 @@ public abstract class ElementNode<TNode> {
      * ElementNode for FieldInsnNode
      */
     static class ElementNodeFieldInsn extends ElementNode<FieldInsnNode> {
-
+        
         private FieldInsnNode insn;
-
+        
         ElementNodeFieldInsn(FieldInsnNode field) {
             this.insn = field;
         }
-
+        
         @Override
         public NodeType getType() {
             return NodeType.FIELD_INSN;
         }
-
+        
         @Override
         public boolean isField() {
             return true;
@@ -657,7 +664,7 @@ public abstract class ElementNode<TNode> {
         public AbstractInsnNode getInsn() {
             return this.insn;
         }
-
+        
         @Override
         public String getOwner() {
             return this.insn.owner;
@@ -667,27 +674,27 @@ public abstract class ElementNode<TNode> {
         public String getName() {
             return this.insn.name;
         }
-
+        
         @Override
         public String getDesc() {
             return this.insn.desc;
         }
-
+        
         @Override
         public String getSignature() {
             return null;
         }
-
+        
         @Override
         public FieldInsnNode get() {
             return this.insn;
         }
-
+        
         @Override
         public boolean equals(Object obj) {
             return this.insn.equals(obj);
         }
-
+        
         @Override
         public int hashCode() {
             return this.insn.hashCode();
@@ -699,11 +706,11 @@ public abstract class ElementNode<TNode> {
      * Wrapper iterator for method insns
      */
     static class ElementNodeIterator implements Iterator<ElementNode<AbstractInsnNode>> {
-
+        
         private final Iterator<AbstractInsnNode> iter;
-
+        
         private final boolean filterDynamic;
-
+        
         ElementNodeIterator(Iterator<AbstractInsnNode> iter, boolean filterDynamic) {
             this.iter = iter;
             this.filterDynamic = filterDynamic;
@@ -719,18 +726,18 @@ public abstract class ElementNode<TNode> {
             AbstractInsnNode elem = this.iter.next();
             return !this.filterDynamic || (elem != null && elem.getOpcode() == Opcodes.INVOKEDYNAMIC) ? ElementNode.of(elem) : null;
         }
-
+        
     }
     
     /**
      * Wrapper for InsnList which returns node iterator
      */
     static class ElementNodeIterable implements Iterable<ElementNode<AbstractInsnNode>> {
-
+        
         private final Iterable<AbstractInsnNode> iterable;
 
         private final boolean filterDynamic;
-
+        
         public ElementNodeIterable(Iterable<AbstractInsnNode> iterable, boolean filterDynamic) {
             this.iterable = iterable;
             this.filterDynamic = filterDynamic;
@@ -740,7 +747,7 @@ public abstract class ElementNode<TNode> {
         public Iterator<ElementNode<AbstractInsnNode>> iterator() {
             return new ElementNodeIterator(this.iterable.iterator(), this.filterDynamic);
         }
-
+        
     }
     
 }

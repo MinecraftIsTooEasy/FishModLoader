@@ -8,12 +8,25 @@ import net.fabricmc.accesswidener.AccessWidenerReader;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.LanguageAdapter;
 import net.fabricmc.loader.api.ModContainer;
+import net.fabricmc.loader.api.VersionParsingException;
 import net.fabricmc.loader.api.entrypoint.EntrypointContainer;
+import net.fabricmc.loader.api.metadata.ModDependency;
 import net.fabricmc.loader.api.metadata.ModEnvironment;
 import net.fabricmc.loader.impl.ModContainerImpl;
-import net.fabricmc.loader.impl.discovery.*;
+import net.fabricmc.loader.impl.discovery.ArgumentModCandidateFinder;
+import net.fabricmc.loader.impl.discovery.ClasspathModCandidateFinder;
+import net.fabricmc.loader.impl.discovery.DirectoryModCandidateFinder;
+import net.fabricmc.loader.impl.discovery.ModCandidate;
+import net.fabricmc.loader.impl.discovery.ModDiscoverer;
+import net.fabricmc.loader.impl.discovery.ModResolutionException;
+import net.fabricmc.loader.impl.discovery.ModResolver;
 import net.fabricmc.loader.impl.entrypoint.EntrypointStorage;
-import net.fabricmc.loader.impl.metadata.*;
+import net.fabricmc.loader.impl.metadata.BuiltinModMetadata;
+import net.fabricmc.loader.impl.metadata.DependencyOverrides;
+import net.fabricmc.loader.impl.metadata.EntrypointMetadata;
+import net.fabricmc.loader.impl.metadata.LoaderModMetadata;
+import net.fabricmc.loader.impl.metadata.ModDependencyImpl;
+import net.fabricmc.loader.impl.metadata.VersionOverrides;
 import net.fabricmc.loader.impl.util.DefaultLanguageAdapter;
 import net.fabricmc.loader.impl.util.ExceptionUtil;
 import net.fabricmc.loader.impl.util.SystemProperties;
@@ -25,6 +38,7 @@ import net.xiaoyu233.fml.config.InjectionConfig;
 import net.xiaoyu233.fml.relaunch.Launch;
 import net.xiaoyu233.fml.reload.transform.MinecraftServerTrans;
 import net.xiaoyu233.fml.util.Constants;
+import net.xiaoyu233.fml.util.MITEReleaseAccess;
 import net.xiaoyu233.fml.util.RemoteModInfo;
 import net.xiaoyu233.fml.util.UrlUtil;
 import org.apache.logging.log4j.LogManager;
@@ -42,11 +56,20 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-public class FishModLoader{
+public class FishModLoader {
    public static final File CONFIG_DIR = new File("config");
    public static final String VERSION = Constants.VERSION;
    private static final String MOD_ID = Constants.MOD_ID;
@@ -232,10 +255,11 @@ public class FishModLoader{
    }
 
    public static void initModMixin() {
+      System.setProperty("mixin.bootstrapService", net.xiaoyu233.fml.mixin.service.MixinServiceBootstrap.class.getName());
       System.setProperty("mixin.service", net.xiaoyu233.fml.mixin.service.MixinService.class.getName());
 
       MixinBootstrap.init();
-      registerModloaderMixin(Launch.class.getClassLoader());
+      registerModloaderMixin(Launch.knotLoader.getClassLoader());
       Map<String, ModContainerImpl> configToModMap = new HashMap<>();
 
       for (ModContainerImpl mod : mods) {
@@ -405,15 +429,53 @@ public class FishModLoader{
    }
 
    public static List<ModCandidate.BuiltinMod> getBuiltinMods() {
-      return Lists.newArrayList(new ModCandidate.BuiltinMod(Collections.singletonList(UrlUtil.asPath(FishModLoader.class.getProtectionDomain()
-                      .getCodeSource()
-                      .getLocation())),
-                      new BuiltinModMetadata.Builder(MOD_ID, VERSION).setEnvironment(ModEnvironment.UNIVERSAL)
-                              .setName(MOD_ID)
+      ModDependencyImpl javaDep;
+      try {
+         javaDep = new ModDependencyImpl(
+                 ModDependency.Kind.DEPENDS,
+                 "java",
+                 List.of(">=17 <21"));
+      } catch (VersionParsingException e) {
+         throw new RuntimeException(e);
+      }
+
+      return Lists.newArrayList(
+              new ModCandidate.BuiltinMod(
+                      Collections.singletonList(UrlUtil.asPath(FishModLoader.class
+                              .getProtectionDomain()
+                              .getCodeSource()
+                              .getLocation())),
+                      new BuiltinModMetadata.Builder(MOD_ID, VERSION)
+                              .setEnvironment(ModEnvironment.UNIVERSAL)
+                              .setName("FishLoader")
+                              .setDescription("A mod loader for Minecraft is Too Easy Mod")
+                              .addAuthor("Modded MITE Community",
+                                      Map.of(
+                                              "homepage",
+                                              "https://minecraftistooeasy.github.io/",
+                                              "github",
+                                              "https://github.com/MinecraftIsTooEasy"))
+                              .addContributor("XiaoYu233", Map.of("github", "https://github.com/XiaoYuOvO"))
+                              .addContributor("Xy_Luce", Map.of("github", "https://github.com/ysesiq"))
+                              .addContributor("Debris", Map.of("github", "https://github.com/de6ris"))
+                              .addLicense("GPLv3")
+                              .addIcon(16, "assets/ui/icon/fabric_x16.png")
+                              .addDependency(javaDep)
                               .accesswidener("fishmodloader.accesswidener")
                               .build()),
-              new ModCandidate.BuiltinMod(Collections.singletonList(gameJarPath), new BuiltinModMetadata.Builder("minecraft", "1.6.4-mite").setEnvironment(ModEnvironment.UNIVERSAL)
-                      .setName("1.6.4-MITE")
-                      .build()));
+              new ModCandidate.BuiltinMod(
+                      Collections.singletonList(gameJarPath),
+                      new BuiltinModMetadata.Builder("minecraft", "1.6.4-mite")
+                              .setEnvironment(ModEnvironment.UNIVERSAL)
+                              .setName("Minecraft")
+                              .build()),
+               new ModCandidate.BuiltinMod(
+                      Collections.singletonList(gameJarPath),
+                      new BuiltinModMetadata.Builder("mite", String.valueOf(MITEReleaseAccess.miteRelease))
+                              .setEnvironment(ModEnvironment.UNIVERSAL)
+                              .setName("Minecraft is Too Easy")
+                              .addAuthor("Avernite", Map.of("homepage", "https://avernite.ca"))
+                              .build())
+      );
    }
 }

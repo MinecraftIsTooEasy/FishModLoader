@@ -141,21 +141,14 @@ public class SignaturePrinter {
     }
 
     /**
-     * Set modifiers on this signature using the supplied method node
-     * 
-     * @param method method node to read modifiers from
+     * Get the source code name for the specified type
+     *
+     * @param type Type to generate a friendly name for
+     * @return String representation of the specified type, eg "int" for an
+     *         integer primitive or "String" for java.lang.String
      */
-    public void setModifiers(MethodNode method) {
-        String returnType = SignaturePrinter.getTypeName(Type.getReturnType(method.desc), false, this.fullyQualified);
-        if ((method.access & Opcodes.ACC_PUBLIC) != 0) {
-            this.setModifiers("public " + returnType);
-        } else if ((method.access & Opcodes.ACC_PROTECTED) != 0) {
-            this.setModifiers("protected " + returnType);
-        } else if ((method.access & Opcodes.ACC_PRIVATE) != 0) {
-            this.setModifiers("private " + returnType);
-        } else {
-            this.setModifiers(returnType);
-        }
+    public static String getTypeName(Type type) {
+        return SignaturePrinter.getTypeName(type, false, true);
     }
     
     /**
@@ -213,6 +206,18 @@ public class SignaturePrinter {
      *
      * @param type Type to generate a friendly name for
      * @param box True to return the equivalent boxing type for primitives
+     * @return String representation of the specified type, eg "int" for an
+     *         integer primitive or "String" for java.lang.String
+     */
+    public static String getTypeName(Type type, boolean box) {
+        return SignaturePrinter.getTypeName(type, box, false);
+    }
+    
+    /**
+     * Get the source code name for the specified type
+     *
+     * @param type Type to generate a friendly name for
+     * @param box True to return the equivalent boxing type for primitives
      * @param fullyQualified fully-qualify class names
      * @return String representation of the specified type, eg "int" for an
      *         integer primitive or "String" for java.lang.String
@@ -243,60 +248,26 @@ public class SignaturePrinter {
                 return "Object";
         }
     }
-    
-    private static Type getElementType(Type type) {
-        try {
-            return type.getElementType();
-        } catch (Exception ex) {
-            return Type.getObjectType("InvalidType");
-        }
-    }
-
-    private StringBuilder appendType(StringBuilder sb, String typeName, String name) {
-        if (!this.fullyQualified) {
-            typeName = typeName.substring(typeName.lastIndexOf('.') + 1);
-        }
-        sb.append(typeName);
-        if (typeName.endsWith("CallbackInfoReturnable")) {
-            sb.append('<').append(SignaturePrinter.getTypeName(this.returnType, true, this.fullyQualified)).append('>');
-        }
-        if (name != null) {
-            sb.append(' ').append(name);
-        }
-        return sb;
-    }
 
     /**
-     * Get the source code name for the specified type
-     * 
-     * @param type Type to generate a friendly name for
-     * @return String representation of the specified type, eg "int" for an
-     *         integer primitive or "String" for java.lang.String
+     * Set modifiers on this signature using the supplied method node
+     *
+     * @param method method node to read modifiers from
      */
-    public static String getTypeName(Type type) {
-        return SignaturePrinter.getTypeName(type, false, true);
-    }
-
-    /**
-     * Get the source code name for the specified type
-     * 
-     * @param type Type to generate a friendly name for
-     * @param box True to return the equivalent boxing type for primitives 
-     * @return String representation of the specified type, eg "int" for an
-     *         integer primitive or "String" for java.lang.String
-     */
-    public static String getTypeName(Type type, boolean box) {
-        return SignaturePrinter.getTypeName(type, box, false);
-    }
-
-    private static String getClassName(Type type) {
-        try {
-            return type.getClassName();
-        } catch (Exception ex) {
-            return "InvalidType";
+    public void setModifiers(MethodNode method) {
+        String returnType = SignaturePrinter.getTypeName(Type.getReturnType(method.desc), false, this.fullyQualified);
+        String staticType = (method.access & Opcodes.ACC_STATIC) != 0 ? "static " : "";
+        if ((method.access & Opcodes.ACC_PUBLIC) != 0) {
+            this.setModifiers("public " + staticType + returnType);
+        } else if ((method.access & Opcodes.ACC_PROTECTED) != 0) {
+            this.setModifiers("protected " + staticType + returnType);
+        } else if ((method.access & Opcodes.ACC_PRIVATE) != 0) {
+            this.setModifiers("private " + staticType + returnType);
+        } else {
+            this.setModifiers(staticType + returnType);
         }
     }
-    
+
     private StringBuilder appendArgs(StringBuilder sb, boolean typesOnly, boolean pretty) {
         sb.append('(');
         for (int var = 0; var < this.argTypes.length; var++) {
@@ -332,6 +303,36 @@ public class SignaturePrinter {
                     sb.append(' ').append(name);
                 }
                 return sb;
+        }
+    }
+
+    private StringBuilder appendType(StringBuilder sb, String typeName, String name) {
+        if (!this.fullyQualified) {
+            typeName = typeName.substring(typeName.lastIndexOf('.') + 1);
+        }
+        sb.append(typeName);
+        if (typeName.endsWith("CallbackInfoReturnable")) {
+            sb.append('<').append(SignaturePrinter.getTypeName(this.returnType, true, this.fullyQualified)).append('>');
+        }
+        if (name != null) {
+            sb.append(' ').append(name);
+        }
+        return sb;
+    }
+    
+    private static Type getElementType(Type type) {
+        try {
+            return type.getElementType();
+        } catch (Exception ex) {
+            return Type.getObjectType("InvalidType");
+        }
+    }
+
+    private static String getClassName(Type type) {
+        try {
+            return type.getClassName();
+        } catch (Exception ex) {
+            return "InvalidType";
         }
     }
     

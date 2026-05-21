@@ -161,11 +161,6 @@ public interface ITargetSelector {
     public abstract int getMinMatchCount();
     
     /**
-     * Maximum number of candidates this selector can match
-     */
-    public abstract int getMaxMatchCount();
-    
-    /**
      * Test whether this selector matches the supplied element node
      *
      * @param node node node to test
@@ -175,56 +170,61 @@ public interface ITargetSelector {
     public abstract <TNode> MatchResult match(ElementNode<TNode> node);
     
     /**
+     * Maximum number of candidates this selector can match
+     */
+    public abstract int getMaxMatchCount();
+    
+    /**
      * Available selector reconfigurations
      */
     public enum Configure {
-
+        
         /**
          * Configure this selector for matching members in a class. Usually used
          * to set defaults for match limits based on role.
          */
         SELECT_MEMBER(0),
-
+        
         /**
          * Configure this selector for matching field and method instructions in
          * a method body. Usually used to set defaults for match limits.
          */
         SELECT_INSTRUCTION(0),
-
+        
         /**
          * Where supported, changes the owner selection to the specified value.
          */
         MOVE(1),
-
+        
         /**
          * Where supported, changes the owner selection to match all owners,
          * retaining other properties.
          */
         ORPHAN(0),
-
+        
         /**
          * Where supported, changes the descriptor to the specified value.
          */
         TRANSFORM(1),
-
+        
         /**
          * Where supported, changes the descriptor to match all target
          * descriptors, retaining other properties
          */
         PERMISSIVE(0),
-
+        
         /**
          * Where supported, removes the min and max limits for the selector,
          * allowing it to return as many or as few matches as required.
          */
         CLEAR_LIMITS(0);
-
+        
         private int requiredArgs;
 
         private Configure(int requiredArgs) {
             this.requiredArgs = requiredArgs;
         }
-
+        
         public void checkArgs(String... args) throws IllegalArgumentException {
             int argc = args == null ? 0 : args.length;
             if (argc < this.requiredArgs) {
@@ -232,7 +232,7 @@ public interface ITargetSelector {
                         + " but received " + argc);
             }
         }
-
+        
     }
 
 }

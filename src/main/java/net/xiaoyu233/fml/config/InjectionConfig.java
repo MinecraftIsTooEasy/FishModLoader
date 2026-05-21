@@ -66,7 +66,7 @@ public class InjectionConfig {
 
     public org.spongepowered.asm.mixin.transformer.Config toConfig(ClassLoader classLoader, IMixinService mixinService, MixinEnvironment environment){
         MixinConfig config = this.toMixinConfig(classLoader);
-        config.onLoad(mixinService,this.name,environment);
+        config.onLoad(mixinService, this.name, environment, null);
         return new org.spongepowered.asm.mixin.transformer.Config(config);
     }
 
@@ -100,7 +100,7 @@ public class InjectionConfig {
         private final String name;
         private final MixinEnvironment.Phase targetPhase;
         private final Package transformPackage;
-        private  MixinEnvironment.CompatibilityLevel compatibleLevel = MixinEnvironment.CompatibilityLevel.JAVA_17;
+        private  MixinEnvironment.CompatibilityLevel compatibleLevel = MixinEnvironment.CompatibilityLevel.JAVA_21;
         private  int defaultRequiredInjection = 0;
         private  String minMixinVersion = MixinEnvironment.getDefaultEnvironment().getVersion();
         private  boolean required = false;

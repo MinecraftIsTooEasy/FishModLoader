@@ -25,8 +25,6 @@
 package org.spongepowered.asm.mixin.transformer.ext.extensions;
 
 import com.google.common.io.Files;
-import com.google.common.io.MoreFiles;
-import com.google.common.io.RecursiveDeleteOption;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.tree.ClassNode;
 import org.spongepowered.asm.logging.ILogger;
@@ -75,7 +73,7 @@ public class ExtensionClassExporter implements IExtension {
         this.decompiler = this.initDecompiler(env, new File(Constants.DEBUG_OUTPUT_DIR, ExtensionClassExporter.EXPORT_JAVA_DIR));
 
         try {
-            MoreFiles.deleteRecursively(this.classExportDir.toPath(), RecursiveDeleteOption.ALLOW_INSECURE);
+            org.spongepowered.asm.util.Files.deleteRecursively(this.classExportDir);
         } catch (IOException ex) {
             ExtensionClassExporter.logger.debug("Error cleaning class output directory: {}", ex.getMessage());
         }

@@ -24,6 +24,7 @@
  */
 package org.spongepowered.tools.obfuscation;
 
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.selectors.ISelectorContext;
 import org.spongepowered.asm.mixin.injection.selectors.ITargetSelector;
 import org.spongepowered.asm.mixin.injection.selectors.ITargetSelectorByName;
@@ -44,7 +45,11 @@ import org.spongepowered.tools.obfuscation.interfaces.IMessagerSuppressible;
 import org.spongepowered.tools.obfuscation.interfaces.IMixinAnnotationProcessor;
 import org.spongepowered.tools.obfuscation.interfaces.IObfuscationManager;
 import org.spongepowered.tools.obfuscation.mapping.IMappingConsumer;
-import org.spongepowered.tools.obfuscation.mirror.*;
+import org.spongepowered.tools.obfuscation.mirror.AnnotationHandle;
+import org.spongepowered.tools.obfuscation.mirror.FieldHandle;
+import org.spongepowered.tools.obfuscation.mirror.MethodHandle;
+import org.spongepowered.tools.obfuscation.mirror.TypeHandle;
+import org.spongepowered.tools.obfuscation.mirror.TypeUtils;
 
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
@@ -77,118 +82,6 @@ abstract class AnnotatedMixinElementHandler {
         this.obf = ap.getObfuscationManager();
     }
 
-    /**
-     * Check constraints for the specified annotation based on token values in
-     * the current environment
-     *
-     * @param method Annotated method
-     * @param annotation Annotation to check constraints
-     */
-    protected final void checkConstraints(ExecutableElement method, AnnotationHandle annotation) {
-        try {
-            Constraint constraint = ConstraintParser.parse(annotation.<String>getValue("constraints"));
-            try {
-                constraint.check(this.ap.getTokenProvider());
-            } catch (ConstraintViolationException ex) {
-                this.ap.printMessage(MessageType.CONSTRAINT_VIOLATION, ex.getMessage(), method, annotation.asMirror());
-            }
-        } catch (InvalidConstraintException ex) {
-            this.ap.printMessage(MessageType.INVALID_CONSTRAINT, ex.getMessage(), method, annotation.asMirror(), SuppressedBy.CONSTRAINTS);
-        }
-    }
-    
-    /**
-     * Checks whether the specified method exists in all targets and raises
-     * warnings where appropriate
-     */
-    protected final void validateTargetMethod(ExecutableElement method, AnnotationHandle annotation, AliasedElementName name, String type,
-            boolean overwrite, boolean merge) {
-        String signature = TypeUtils.getJavaSignature(method);
-
-        for (TypeHandle target : this.mixin.getTargets()) {
-            if (target.isImaginary()) {
-                continue;
-            }
-
-            // Find method as-is
-            MethodHandle targetMethod = target.findMethod(method);
-
-            // Find method without prefix
-            if (targetMethod == null && name.hasPrefix()) {
-                targetMethod = target.findMethod(name.baseName(), signature);
-            }
-
-            // Check aliases
-            if (targetMethod == null && name.hasAliases()) {
-                for (String alias : name.getAliases()) {
-                    if ((targetMethod = target.findMethod(alias, signature)) != null) {
-                        break;
-                    }
-                }
-            }
-
-            if (targetMethod != null) {
-                if (overwrite) {
-                    this.validateMethodVisibility(method, annotation, type, target, targetMethod);
-                }
-            } else if (!merge) {
-                this.printMessage(MessageType.TARGET_ELEMENT_NOT_FOUND, "Cannot find target for " + type + " method in " + target,
-                        method, annotation, SuppressedBy.TARGET);
-            }
-        }
-    }
-    
-    private void validateMethodVisibility(ExecutableElement method, AnnotationHandle annotation, String type, TypeHandle target,
-            MethodHandle targetMethod) {
-        Visibility visTarget = targetMethod.getVisibility();
-        if (visTarget == null) {
-            return;
-        }
-
-        Visibility visMethod = TypeUtils.getVisibility(method);
-        String visibility = "visibility of " + visTarget + " method in " + target;
-        if (visTarget.ordinal() > visMethod.ordinal()) {
-            this.printMessage(MessageType.METHOD_VISIBILITY, visMethod + " " + type + " method cannot reduce " + visibility, method, annotation,
-                    SuppressedBy.VISIBILITY);
-        } else if (visTarget == Visibility.PRIVATE && visMethod.ordinal() > visTarget.ordinal()) {
-            this.printMessage(MessageType.METHOD_VISIBILITY, visMethod + " " + type + " method will upgrade " + visibility, method, annotation,
-                    SuppressedBy.VISIBILITY);
-        }
-    }
-
-    /**
-     * Checks whether the specified field exists in all targets and raises
-     * warnings where appropriate
-     */
-    protected final void validateTargetField(VariableElement field, AnnotationHandle annotation, AliasedElementName name, String type) {
-        String fieldType = field.asType().toString();
-
-        for (TypeHandle target : this.mixin.getTargets()) {
-            if (target.isImaginary()) {
-                continue;
-            }
-
-            // Search for field
-            FieldHandle targetField = target.findField(field);
-            if (targetField != null) {
-                continue;
-            }
-
-            // Try search by alias
-            List<String> aliases = name.getAliases();
-            for (String alias : aliases) {
-                if ((targetField = target.findField(alias, fieldType)) != null) {
-                    break;
-                }
-            }
-
-            if (targetField == null) {
-                this.ap.printMessage(MessageType.TARGET_ELEMENT_NOT_FOUND, "Cannot find target for " + type + " field in " + target,
-                        field, annotation.asMirror(), SuppressedBy.TARGET);
-            }
-        }
-    }
-    
     private IMappingConsumer getMappings() {
         if (this.mappings == null) {
             IMappingConsumer mappingConsumer = this.mixin.getMappings();
@@ -200,14 +93,14 @@ abstract class AnnotatedMixinElementHandler {
         }
         return this.mappings;
     }
-
+    
     protected final void addFieldMappings(String mcpName, String mcpSignature, ObfuscationData<MappingField> obfData) {
         for (ObfuscationType type : obfData) {
             MappingField obfField = obfData.get(type);
             this.addFieldMapping(type, mcpName, obfField.getSimpleName(), mcpSignature, obfField.getDesc());
         }
     }
-
+    
     /**
      * Add a field mapping to the local table
      */
@@ -223,7 +116,7 @@ abstract class AnnotatedMixinElementHandler {
         MappingField to = new MappingField(this.classRef, obfName, obfSignature);
         this.getMappings().addFieldMapping(type, from, to);
     }
-
+    
     protected final void addMethodMappings(String mcpName, String mcpSignature, ObfuscationData<MappingMethod> obfData) {
         for (ObfuscationType type : obfData) {
             MappingMethod obfMethod = obfData.get(type);
@@ -248,6 +141,126 @@ abstract class AnnotatedMixinElementHandler {
     }
 
     /**
+     * Check constraints for the specified annotation based on token values in
+     * the current environment
+     *
+     * @param method Annotated method
+     * @param annotation Annotation to check constraints
+     */
+    protected final void checkConstraints(ExecutableElement method, AnnotationHandle annotation) {
+        try {
+            Constraint constraint = ConstraintParser.parse(annotation.<String>getValue("constraints"));
+            try {
+                constraint.check(this.ap.getTokenProvider());
+            } catch (ConstraintViolationException ex) {
+                this.ap.printMessage(MessageType.CONSTRAINT_VIOLATION, ex.getMessage(), method, annotation.asMirror());
+            }
+        } catch (InvalidConstraintException ex) {
+            this.ap.printMessage(MessageType.INVALID_CONSTRAINT, ex.getMessage(), method, annotation.asMirror(), SuppressedBy.CONSTRAINTS);
+        }
+    }
+
+    protected final void validateTarget(Element element, AnnotationHandle annotation, AliasedElementName name, String type) {
+        if (element instanceof ExecutableElement) {
+            this.validateTargetMethod((ExecutableElement)element, annotation, name, type, false, false);
+        } else if (element instanceof VariableElement) {
+            this.validateTargetField((VariableElement)element, annotation, name, type);
+        }
+    }
+
+    /**
+     * Checks whether the specified method exists in all targets and raises
+     * warnings where appropriate
+     */
+    protected final void validateTargetMethod(ExecutableElement method, AnnotationHandle annotation, AliasedElementName name, String type,
+            boolean overwrite, boolean merge) {
+        String signature = TypeUtils.getJavaSignature(method);
+
+        for (TypeHandle target : this.mixin.getTargets()) {
+            if (target.isImaginary()) {
+                continue;
+            }
+            
+            // Find method as-is
+            MethodHandle targetMethod = target.findMethod(method);
+            
+            // Find method without prefix
+            if (targetMethod == null && name.hasPrefix()) {
+                targetMethod = target.findMethod(name.baseName(), signature);
+            }
+            
+            // Check aliases
+            if (targetMethod == null && name.hasAliases()) {
+                for (String alias : name.getAliases()) {
+                    if ((targetMethod = target.findMethod(alias, signature)) != null) {
+                        break;
+                    }
+                }
+            }
+            
+            if (targetMethod != null) {
+                if (overwrite) {
+                    this.validateMethodVisibility(method, annotation, type, target, targetMethod);
+                }
+            } else if (!merge) {
+                this.printMessage(MessageType.TARGET_ELEMENT_NOT_FOUND, "Cannot find target for " + type + " method in " + target,
+                        method, annotation, SuppressedBy.TARGET);
+            }
+        }
+    }
+
+    private void validateMethodVisibility(ExecutableElement method, AnnotationHandle annotation, String type, TypeHandle target,
+            MethodHandle targetMethod) {
+        Visibility visTarget = targetMethod.getVisibility();
+        if (visTarget == null) {
+            return;
+        }
+        
+        Visibility visMethod = TypeUtils.getVisibility(method);
+        String visibility = "visibility of " + visTarget + " method in " + target;
+        if (visTarget.ordinal() > visMethod.ordinal()) {
+            this.printMessage(MessageType.METHOD_VISIBILITY, visMethod + " " + type + " method cannot reduce " + visibility, method, annotation,
+                    SuppressedBy.VISIBILITY);
+        } else if (visTarget == Visibility.PRIVATE && visMethod.ordinal() > visTarget.ordinal()) {
+            this.printMessage(MessageType.METHOD_VISIBILITY, visMethod + " " + type + " method will upgrade " + visibility, method, annotation,
+                    SuppressedBy.VISIBILITY);
+        }
+    }
+
+    /**
+     * Checks whether the specified field exists in all targets and raises
+     * warnings where appropriate
+     */
+    protected final void validateTargetField(VariableElement field, AnnotationHandle annotation, AliasedElementName name, String type) {
+        String fieldType = field.asType().toString();
+
+        for (TypeHandle target : this.mixin.getTargets()) {
+            if (target.isImaginary()) {
+                continue;
+            }
+            
+            // Search for field
+            FieldHandle targetField = target.findField(field);
+            if (targetField != null) {
+                continue;
+            }
+            
+            // Try search by alias
+            List<String> aliases = name.getAliases();
+            for (String alias : aliases) {
+                if ((targetField = target.findField(alias, fieldType)) != null) {
+                    break;
+                }
+            }
+            
+            if (targetField == null) {
+                this.ap.printMessage(MessageType.TARGET_ELEMENT_NOT_FOUND, "Cannot find target for " + type + " field in " + target,
+                        field, annotation.asMirror(), SuppressedBy.TARGET);
+            }
+        }
+    }
+    
+    /**
      * Checks whether the referenced method exists in all targets and raises
      * warnings where appropriate
      */
@@ -255,29 +268,21 @@ abstract class AnnotatedMixinElementHandler {
         if (!(targetSelector instanceof ITargetSelectorByName)) {
             return;
         }
-
+        
         ITargetSelectorByName nameRef = (ITargetSelectorByName)targetSelector;
         String signature = nameRef.toDescriptor();
-
+        
         for (TypeHandle target : this.mixin.getTargets()) {
             if (target.isImaginary()) {
                 continue;
             }
-
+            
             MethodHandle targetMethod = target.findMethod(nameRef.getName(), signature);
             if (targetMethod == null) {
                 this.ap.printMessage(MessageType.TARGET_ELEMENT_NOT_FOUND, "Cannot find target method \"" + nameRef.getName()
                         + nameRef.getDesc() + "\" for " + subject + " in " + target, elem.getElement(), elem.getAnnotation().asMirror(),
                         SuppressedBy.TARGET);
             }
-        }
-    }
-    
-    protected final void validateTarget(Element element, AnnotationHandle annotation, AliasedElementName name, String type) {
-        if (element instanceof ExecutableElement) {
-            this.validateTargetMethod((ExecutableElement)element, annotation, name, type, false, false);
-        } else if (element instanceof VariableElement) {
-            this.validateTargetField((VariableElement)element, annotation, name, type);
         }
     }
     
@@ -295,9 +300,9 @@ abstract class AnnotatedMixinElementHandler {
      * @param <E> type of inner element
      */
     abstract static class AnnotatedElement<E extends Element> implements IAnnotatedElement {
-
+        
         protected final E element;
-
+        
         protected final AnnotationHandle annotation;
 
         private final String desc;
@@ -311,19 +316,19 @@ abstract class AnnotatedMixinElementHandler {
         public E getElement() {
             return this.element;
         }
-
+        
         public AnnotationHandle getAnnotation() {
             return this.annotation;
         }
-
+        
         public String getSimpleName() {
             return this.getElement().getSimpleName().toString();
         }
-
+        
         public String getDesc() {
             return this.desc;
         }
-
+        
         public final void printMessage(IMessagerEx messager, MessageType type, CharSequence msg) {
             messager.printMessage(type, msg, this.element, this.annotation.asMirror());
         }
@@ -331,18 +336,18 @@ abstract class AnnotatedMixinElementHandler {
         public final void printMessage(IMessagerSuppressible messager, MessageType type, CharSequence msg, SuppressedBy suppressedBy) {
             messager.printMessage(type, msg, this.element, this.annotation.asMirror(), suppressedBy);
         }
-
+        
         @Override
         public IAnnotationHandle getAnnotation(Class<? extends Annotation> annotationClass) {
             return AnnotationHandle.of(this.element, annotationClass);
         }
-
+        
     }
 
     abstract static class AnnotatedElementExecutable extends AnnotatedElement<ExecutableElement> implements ISelectorContext {
-
+        
         private final IMixinContext context;
-
+        
         private final String selectorCoordinate;
 
         public AnnotatedElementExecutable(ExecutableElement element, AnnotationHandle annotation, IMixinContext context, String selectorCoordinate) {
@@ -350,12 +355,12 @@ abstract class AnnotatedMixinElementHandler {
             this.context = context;
             this.selectorCoordinate = selectorCoordinate;
         }
-
+        
         @Override
         public ISelectorContext getParent() {
             return null;
         }
-
+        
         @Override
         public IMixinContext getMixin() {
             return this.context;
@@ -368,19 +373,19 @@ abstract class AnnotatedMixinElementHandler {
                 public IAnnotationHandle getAnnotation(Class<? extends Annotation> annotationClass) {
                     return AnnotationHandle.of(AnnotatedElementExecutable.this.getElement(), annotationClass);
                 }
-
+                
                 @Override
                 public String toString() {
                     return AnnotatedElementExecutable.this.getElement().getSimpleName().toString();
                 }
             };
         }
-
+        
         @Override
         public IAnnotationHandle getSelectorAnnotation() {
             return this.getAnnotation();
         }
-
+        
         @Override
         public String getSelectorCoordinate(boolean leaf) {
             return leaf ? this.selectorCoordinate : TypeUtils.getName(this.element);
@@ -390,64 +395,69 @@ abstract class AnnotatedMixinElementHandler {
         public String remap(String reference) {
             return reference;
         }
-
+        
+        @Override
+        public String getElementDescription() {
+            return String.format("%s annotation on %s", this.getAnnotation(), this);
+        }
+        
         @Override
         public String toString() {
             return TypeUtils.getName(this.element);
         }
-
+        
     }
 
     /**
      * A name of an element which may have aliases
      */
     static class AliasedElementName {
-
+        
         /**
          * The original name including any original prefix (the "actual" name)
          */
         protected final String originalName;
-
+        
         /**
          * Aliases declared by the annotation (if any), never null
          */
         private final List<String> aliases;
-
+        
         private boolean caseSensitive;
-
+        
         public AliasedElementName(Element element, AnnotationHandle annotation) {
             this.originalName = element.getSimpleName().toString();
             this.aliases = annotation.<String>getList("aliases");
         }
-
+        
         public AliasedElementName(MethodHandle method, AnnotationHandle annotation) {
             this.originalName = method.getName();
             this.aliases = annotation.<String>getList("aliases");
         }
-
+        
         public AliasedElementName setCaseSensitive(boolean caseSensitive) {
             this.caseSensitive = caseSensitive;
             return this;
         }
-
+        
         public boolean isCaseSensitive() {
             return this.caseSensitive;
         }
-
+        
         /**
          * Get whether this member has any aliases defined
          */
         public boolean hasAliases() {
             return this.aliases.size() > 0;
         }
-
+        
         /**
          * Get this member's aliases
          */
         public List<String> getAliases() {
             return this.aliases;
         }
-
+        
         /**
          * Gets the original name of the member (including prefix)
          */
@@ -467,47 +477,47 @@ abstract class AnnotatedMixinElementHandler {
 
     /**
      * Convenience class to store information about an
-     * {@link org.spongepowered.asm.mixin.Shadow}ed member's names
+     * {@link Shadow}ed member's names
      */
     static class ShadowElementName extends AliasedElementName {
-
+        
         /**
          * True if the real element is prefixed
          */
         private final boolean hasPrefix;
-
+        
         /**
          * Expected prefix read from the annotation, this is set even if
          * {@link #hasPrefix} is false
          */
         private final String prefix;
-
+        
         /**
          * The base name without the prefix
          */
         private final String baseName;
-
+        
         /**
          * Obfuscated name (once determined)
          */
         private String obfuscated;
-
+        
         ShadowElementName(Element element, AnnotationHandle shadow) {
             super(element, shadow);
-
+            
             this.prefix = shadow.<String>getValue("prefix", "shadow$");
-
+            
             boolean hasPrefix = false;
             String name = this.originalName;
             if (name.startsWith(this.prefix)) {
                 hasPrefix = true;
                 name = name.substring(this.prefix.length());
             }
-
+            
             this.hasPrefix = hasPrefix;
             this.obfuscated = this.baseName = name;
         }
-
+        
         /* (non-Javadoc)
          * @see java.lang.Object#toString()
          */
@@ -515,12 +525,12 @@ abstract class AnnotatedMixinElementHandler {
         public String toString() {
             return this.baseName;
         }
-
+        
         @Override
         public String baseName() {
             return this.baseName;
         }
-
+        
         /**
          * Sets the obfuscated name for this element
          *
@@ -542,7 +552,7 @@ abstract class AnnotatedMixinElementHandler {
             this.obfuscated = name;
             return this;
         }
-
+        
         @Override
         public boolean hasPrefix() {
             return this.hasPrefix;
@@ -554,21 +564,21 @@ abstract class AnnotatedMixinElementHandler {
         public String prefix() {
             return this.hasPrefix ? this.prefix : "";
         }
-
+        
         /**
          * Get the base name
          */
         public String name() {
             return this.prefix(this.baseName);
         }
-
+        
         /**
          * Gets the obfuscated name (including prefix where appropriate
          */
         public String obfuscated() {
             return this.prefix(this.obfuscated);
         }
-
+        
         /**
          * Apply the prefix (if any) to the specified string
          *
@@ -578,7 +588,7 @@ abstract class AnnotatedMixinElementHandler {
         public String prefix(String name) {
             return this.hasPrefix ? this.prefix + name : name;
         }
-
+        
     }
 
     protected static <T extends IMapping<T>> ObfuscationData<T> stripOwnerData(ObfuscationData<T> data) {

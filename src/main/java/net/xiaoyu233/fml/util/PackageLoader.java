@@ -92,7 +92,7 @@ public class PackageLoader {
                         ClassReader reader = new ClassReader(jar.getInputStream(entry));
                         ClassNode classNode = new ClassNode();
                         reader.accept(classNode,0);
-                        classNode.accept(new ClassVisitor(Opcodes.ASM8){});
+                        classNode.accept(new ClassVisitor(Opcodes.ASM9){});
                         List<AnnotationNode> visibleAnnotations = classNode.invisibleAnnotations;
                         if (visibleAnnotations != null && !visibleAnnotations.isEmpty()){
                             for (AnnotationNode visibleAnnotation : visibleAnnotations) {
@@ -122,7 +122,7 @@ public class PackageLoader {
         // 定义一个枚举的集合 并进行循环来处理这个目录下的things
         Enumeration<URL> dirs;
         try {
-            dirs = Thread.currentThread().getContextClassLoader().getResources(packageDirName);
+            dirs = classLoader.getResources(packageDirName);
             // 循环迭代下去
             if (dirs.hasMoreElements()){
                 while (dirs.hasMoreElements()) {

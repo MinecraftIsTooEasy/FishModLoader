@@ -27,6 +27,7 @@ package org.spongepowered.asm.mixin.injection.points;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.LdcInsnNode;
+import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.InjectionPoint.AtCode;
 import org.spongepowered.asm.mixin.injection.selectors.ITargetSelector;
 import org.spongepowered.asm.mixin.injection.selectors.ITargetSelectorByName;
@@ -50,7 +51,7 @@ import java.util.Collection;
  * payload can be specified with the <b>ldc</b> named argument (see below)</p>
  * 
  * <p>The following parameters from
- * {@link org.spongepowered.asm.mixin.injection.At At} are accepted</p>
+ * {@link At At} are accepted</p>
  * 
  * <dl>
  *   <dt>target</dt>
@@ -79,7 +80,7 @@ import java.util.Collection;
  * 
  * <p>Note that like all standard injection points, this class matches the insn
  * itself, putting the injection point immediately <em>before</em> the access in
- * question. Use {@link org.spongepowered.asm.mixin.injection.At#shift shift}
+ * question. Use {@link At#shift shift}
  * specifier to adjust the matched opcode as necessary.</p>
  */
 @AtCode("INVOKE_STRING")
@@ -99,7 +100,7 @@ public class BeforeStringInvoke extends BeforeInvoke {
 
     public BeforeStringInvoke(InjectionPointData data) {
         super(data);
-        this.ldcValue = data.get("ldc", null);
+        this.ldcValue = data.get("ldc", (String)null);
         
         if (this.ldcValue == null) {
             throw new IllegalArgumentException(this.getClass().getSimpleName() + " requires named argument \"ldc\" to specify the desired target");

@@ -32,6 +32,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInjector;
 import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 import org.spongepowered.asm.mixin.injection.code.Injector;
 import org.spongepowered.asm.mixin.injection.struct.InjectionInfo.AnnotationType;
+import org.spongepowered.asm.mixin.injection.struct.InjectionInfo.InjectorOrder;
 import org.spongepowered.asm.mixin.transformer.MixinTargetContext;
 import org.spongepowered.asm.util.Annotations;
 
@@ -39,6 +40,7 @@ import org.spongepowered.asm.util.Annotations;
  * Information about a callback to inject, usually specified by {@link Inject}
  */
 @AnnotationType(Inject.class)
+@InjectorOrder(InjectorOrder.DEFAULT)
 public class CallbackInjectionInfo extends InjectionInfo {
 
     protected CallbackInjectionInfo(MixinTargetContext mixin, MethodNode method, AnnotationNode annotation) {

@@ -24,6 +24,8 @@
  */
 package org.spongepowered.asm.util;
 
+import java.util.Optional;
+
 /**
  * Utility methods for obfuscation tasks
  */
@@ -79,12 +81,18 @@ public abstract class ObfuscationUtil {
     private static String remapDescriptor(String desc, IClassRemapper remapper, boolean unmap) {
         StringBuilder sb = new StringBuilder();
         StringBuilder token = null;
+        boolean remapped = false;
 
         for (int pos = 0; pos < desc.length(); pos++) {
             char c = desc.charAt(pos);
             if (token != null) {
                 if (c == ';') {
-                    sb.append('L').append(ObfuscationUtil.remap(token.toString(), remapper, unmap)).append(';');
+                    String tokenStr = token.toString();
+                    Optional<String> remappedStr = ObfuscationUtil.remap(tokenStr, remapper, unmap);
+                    if (remappedStr.isPresent()) {
+                        remapped = true;
+                    }
+                    sb.append('L').append(remappedStr.orElse(tokenStr)).append(';');
                     token = null;
                 } else {
                     token.append(c);
@@ -102,12 +110,12 @@ public abstract class ObfuscationUtil {
             throw new IllegalArgumentException("Invalid descriptor '" + desc + "', missing ';'");
         }
         
-        return sb.toString();
+        return remapped ? sb.toString() : null;
     }
 
-    private static Object remap(String typeName, IClassRemapper remapper, boolean unmap) {
+    private static Optional<String> remap(String typeName, IClassRemapper remapper, boolean unmap) {
         String result = unmap ? remapper.unmap(typeName) : remapper.map(typeName);
-        return result != null ? result : typeName;
+        return Optional.ofNullable(result);
     }
 
 }

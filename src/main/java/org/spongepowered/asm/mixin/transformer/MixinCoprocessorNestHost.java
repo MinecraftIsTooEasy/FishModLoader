@@ -30,7 +30,13 @@ import org.spongepowered.asm.mixin.transformer.throwables.MixinTransformerError;
 import org.spongepowered.asm.util.LanguageFeatures;
 import org.spongepowered.asm.util.asm.ClassNodeAdapter;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * In Java 11 and above, access control semantics for inner members are reified
@@ -99,4 +105,8 @@ class MixinCoprocessorNestHost extends MixinCoprocessor {
         return true;
     }
 
+    @Override
+    public boolean couldTransform(String className) {
+        return this.nestHosts.containsKey(className);
+    }
 }

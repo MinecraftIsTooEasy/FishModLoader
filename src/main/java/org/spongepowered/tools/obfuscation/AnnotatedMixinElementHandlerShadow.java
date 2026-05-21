@@ -24,6 +24,7 @@
  */
 package org.spongepowered.tools.obfuscation;
 
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.obfuscation.mapping.IMapping;
 import org.spongepowered.asm.obfuscation.mapping.IMapping.Type;
 import org.spongepowered.asm.obfuscation.mapping.common.MappingField;
@@ -148,7 +149,7 @@ class AnnotatedMixinElementHandlerShadow extends AnnotatedMixinElementHandler {
     }
 
     /**
-     * Register a {@link org.spongepowered.asm.mixin.Shadow} field or method
+     * Register a {@link Shadow} field or method
      */
     public void registerShadow(AnnotatedElementShadow<?, ?> elem) {
         this.validateTarget(elem.getElement(), elem.getAnnotation(), elem.getName(), "@Shadow");

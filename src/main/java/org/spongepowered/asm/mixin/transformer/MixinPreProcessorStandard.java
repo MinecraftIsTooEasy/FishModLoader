@@ -25,18 +25,29 @@
 package org.spongepowered.asm.mixin.transformer;
 
 import com.google.common.base.Strings;
+import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
-import org.objectweb.asm.tree.*;
+import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.tree.AnnotationNode;
+import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.FieldNode;
+import org.objectweb.asm.tree.InvokeDynamicInsnNode;
+import org.objectweb.asm.tree.MethodInsnNode;
+import org.objectweb.asm.tree.MethodNode;
 import org.spongepowered.asm.logging.ILogger;
-import org.spongepowered.asm.mixin.*;
+import org.spongepowered.asm.mixin.Dynamic;
+import org.spongepowered.asm.mixin.MixinEnvironment;
 import org.spongepowered.asm.mixin.MixinEnvironment.CompatibilityLevel;
 import org.spongepowered.asm.mixin.MixinEnvironment.Option;
+import org.spongepowered.asm.mixin.Overwrite;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.extensibility.IActivityContext.IActivity;
 import org.spongepowered.asm.mixin.gen.Accessor;
 import org.spongepowered.asm.mixin.gen.Invoker;
 import org.spongepowered.asm.mixin.gen.throwables.InvalidAccessorException;
-import org.spongepowered.asm.mixin.throwables.ClassMetadataNotFoundException;
+import org.spongepowered.asm.mixin.struct.MemberRef;
 import org.spongepowered.asm.mixin.throwables.MixinException;
 import org.spongepowered.asm.mixin.transformer.ClassInfo.Field;
 import org.spongepowered.asm.mixin.transformer.ClassInfo.Method;
@@ -83,11 +94,12 @@ import java.util.Iterator;
  */
 class MixinPreProcessorStandard {
     
+    protected final Profiler profiler = Profiler.getProfiler("mixin");
+    
     /**
      * Logger
      */
     private static final ILogger logger = MixinService.getService().getLogger("mixin");
-    protected final Profiler profiler = Profiler.getProfiler("mixin");
 
     /**
      * The mixin
@@ -144,7 +156,7 @@ class MixinPreProcessorStandard {
             
             activity.next("Prepare method");
             for (MixinMethodNode mixinMethod : this.classNode.mixinMethods) {
-                Method method = this.mixin.getClassInfo().findMethod(mixinMethod);
+                Method method = this.mixin.getClassInfo().findMethod(mixinMethod, mixinMethod.access | ClassInfo.INCLUDE_INITIALISERS);
                 IActivity methodActivity = this.activities.begin(mixinMethod.toString());
                 this.prepareMethod(mixinMethod, method);
                 methodActivity.end();
@@ -395,9 +407,6 @@ class MixinPreProcessorStandard {
         Method method = this.getSpecialMethod(mixinMethod, type);
         MethodNode target = context.findMethod(mixinMethod, annotation);
         if (target == null) {
-            if (type.isOverwrite) {
-                return false;
-            }
             target = context.findRemappedMethod(mixinMethod);
             if (target == null) {
                 throw new InvalidMixinException(this.mixin,
@@ -583,6 +592,7 @@ class MixinPreProcessorStandard {
             FieldNode target = context.findField(mixinField, shadow);
             if (target == null) {
                 if (shadow == null) {
+                    context.addMixinField(mixinField);
                     continue;
                 }
                 target = context.findRemappedField(mixinField);
@@ -595,17 +605,13 @@ class MixinPreProcessorStandard {
                 mixinField.name = field.renameTo(target.name);
             }
             
-            if (!Bytecode.compareFlags(mixinField, target, Opcodes.ACC_STATIC)) {
-                throw new InvalidMixinException(this.mixin, String.format("STATIC modifier of @Shadow field %s in %s does not match the target",
-                        mixinField.name, this.mixin));
-            }
-            
             if (field.isUnique()) {
-                if ((mixinField.access & (Opcodes.ACC_PRIVATE | Opcodes.ACC_PROTECTED)) != 0) {
+                if (Bytecode.getVisibility(mixinField).isLessThan(Visibility.PUBLIC)) {
                     String uniqueName = context.getUniqueName(mixinField);
                     MixinPreProcessorStandard.logger.log(this.mixin.getLoggingLevel(), "Renaming @Unique field {}{} to {} in {}",
                             mixinField.name, mixinField.desc, uniqueName, this.mixin);
                     mixinField.name = field.renameTo(uniqueName);
+                    context.addMixinField(mixinField);
                     continue;
                 }
 
@@ -619,8 +625,21 @@ class MixinPreProcessorStandard {
 
                 iter.remove();
                 continue;
+            } else if (!Bytecode.compareFlags(mixinField, target, Opcodes.ACC_STATIC)) {
+                if (isShadow) {
+                    throw new InvalidMixinException(this.mixin, String.format("STATIC modifier of @Shadow field %s in %s does not match the target",
+                            mixinField.name, this.mixin));
+                } else {
+                    throw new InvalidMixinException(this.mixin, String.format("Field %s in %s conflicts with %sstatic field in the target (%s)",
+                            mixinField.name, mixin, Bytecode.isStatic(target) ? "" : "non-", context.getTarget()));
+                }
             }
             
+            if (!Bytecode.compareFlags(mixinField, target, Opcodes.ACC_STATIC)) {
+                throw new InvalidMixinException(this.mixin, String.format("STATIC modifier of @Shadow field %s in %s does not match the target",
+                        mixinField.name, this.mixin));
+            }
+
             // Check that the shadow field has a matching descriptor
             if (!target.desc.equals(mixinField.desc)) {
                 throw new InvalidMixinException(this.mixin, String.format("The field %s in the target class has a conflicting signature",
@@ -701,6 +720,8 @@ class MixinPreProcessorStandard {
                     this.transformMethod((MethodInsnNode)insn);
                 } else if (insn instanceof FieldInsnNode) {
                     this.transformField((FieldInsnNode)insn);
+                } else if (insn instanceof InvokeDynamicInsnNode) {
+                    this.transformInvokeDynamic((InvokeDynamicInsnNode)insn);
                 }
                 activity.end();
             }
@@ -708,36 +729,66 @@ class MixinPreProcessorStandard {
         methodActivity.end();
     }
 
-    protected void transformMethod(MethodInsnNode methodNode) {
-        IActivity activity = this.activities.begin("%s::%s%s", methodNode.owner, methodNode.name, methodNode.desc);
+    protected void transformInvokeDynamic(InvokeDynamicInsnNode invokeDynamicNode) {
+        IActivity activity = this.activities.begin("%s%s", invokeDynamicNode.name, invokeDynamicNode.desc);
         Section metaTimer = this.profiler.begin("meta");
-        ClassInfo owner = ClassInfo.forDescriptor(methodNode.owner, TypeLookup.DECLARED_TYPE);
-        if (owner == null) {
-            throw new ClassMetadataNotFoundException(methodNode.owner.replace('/', '.'));
+
+        MemberRef.Handle ref = new MemberRef.Handle(invokeDynamicNode.bsm);
+        transformMemberReference(ref);
+        invokeDynamicNode.bsm = ref.getMethodHandle();
+
+        for (int i = 0; i < invokeDynamicNode.bsmArgs.length; i++) {
+            if (invokeDynamicNode.bsmArgs[i] instanceof Handle) {
+                ref = new MemberRef.Handle((Handle) invokeDynamicNode.bsmArgs[i]);
+                transformMemberReference(ref);
+                invokeDynamicNode.bsmArgs[i] = ref.getMethodHandle();
+            }
         }
 
-        Method method = owner.findMethodInHierarchy(methodNode, SearchType.ALL_CLASSES, ClassInfo.INCLUDE_PRIVATE);
         metaTimer.end();
-        
-        if (method != null && method.isRenamed()) {
-            methodNode.name = method.getName();
-        }
         activity.end();
     }
 
+    protected void transformMethod(MethodInsnNode methodNode) {
+        MemberRef.Method ref = new MemberRef.Method(methodNode);
+        transformMemberReference(ref);
+    }
+
     protected void transformField(FieldInsnNode fieldNode) {
-        IActivity activity = this.activities.begin("%s::%s:%s", fieldNode.owner, fieldNode.name, fieldNode.desc);
-        Section metaTimer = this.profiler.begin("meta");
-        ClassInfo owner = ClassInfo.forDescriptor(fieldNode.owner, TypeLookup.DECLARED_TYPE);
-        if (owner == null) {
-            throw new ClassMetadataNotFoundException(fieldNode.owner.replace('/', '.'));
+        MemberRef.Field ref = new MemberRef.Field(fieldNode);
+        transformMemberReference(ref);
+    }
+
+    protected void transformMemberReference(MemberRef ref) {
+        if (!ClassInfo.isMixin(ref.getOwner())) {
+            // No need to transform anything
+            return;
         }
-        
-        Field field = owner.findField(fieldNode, ClassInfo.INCLUDE_PRIVATE);
+        IActivity activity = this.activities.begin("%s::%s:%s", ref.getOwner(), ref.getName(), ref.getDesc());
+        Section metaTimer = this.profiler.begin("meta");
+
+        ClassInfo owner = ClassInfo.forDescriptor(ref.getOwner(), TypeLookup.DECLARED_TYPE);
+        if (owner == null) {
+            throw new RuntimeException(new ClassNotFoundException(ref.getOwner().replace('/', '.')));
+        }
+
+        ClassInfo.Member member;
+        if (ref.isField()) {
+            int includeStatic = ((ref.getOpcode() == Opcodes.GETSTATIC || ref.getOpcode() == Opcodes.PUTSTATIC)
+                    ? ClassInfo.INCLUDE_STATIC : 0);
+            member = owner.findFieldInHierarchy(ref.getName(), ref.getDesc(), SearchType.ALL_CLASSES, ClassInfo.INCLUDE_PRIVATE | includeStatic);
+        } else {
+            int includeStatic = (ref.getOpcode() == Opcodes.INVOKESTATIC
+                    ? ClassInfo.INCLUDE_STATIC : 0);
+            Method method = owner.findMethodInHierarchy(ref.getName(), ref.getDesc(), SearchType.ALL_CLASSES, ClassInfo.INCLUDE_PRIVATE | includeStatic);
+
+            //Accessors are never renamed, despite it appearing as if they have been
+            member = method != null && !method.isAccessor() ? method : null;
+        }
+
         metaTimer.end();
-        
-        if (field != null && field.isRenamed()) {
-            fieldNode.name = field.getName();
+        if (member != null && member.isRenamed()) {
+            ref.setName(member.getName());
         }
         activity.end();
     }
@@ -772,17 +823,17 @@ class MixinPreProcessorStandard {
      * Types of annotated special method handled by the preprocessor
      */
     enum SpecialMethod {
-
+        
         MERGE(true),
         OVERWRITE(true, Overwrite.class),
         SHADOW(false, Shadow.class),
         ACCESSOR(false, Accessor.class),
         INVOKER(false, Invoker.class);
-
+        
         final boolean isOverwrite;
-
+        
         final Class<? extends Annotation> annotation;
-
+        
         final String description;
 
         private SpecialMethod(boolean isOverwrite, Class<? extends Annotation> type) {
@@ -790,18 +841,18 @@ class MixinPreProcessorStandard {
             this.annotation = type;
             this.description = "@" + Annotations.getSimpleName(type);
         }
-
+        
         private SpecialMethod(boolean isOverwrite) {
             this.isOverwrite = isOverwrite;
             this.annotation = null;
             this.description = "overwrite";
         }
-
+        
         @Override
         public String toString() {
             return this.description;
         }
-
+        
     }
 
 }

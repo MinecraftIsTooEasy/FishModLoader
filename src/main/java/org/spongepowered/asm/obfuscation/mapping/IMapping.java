@@ -32,17 +32,17 @@ package org.spongepowered.asm.obfuscation.mapping;
 public interface IMapping<TMapping> {
 
     /**
-     * Get the mapping type (field, method, class, package)
-     */
-    public abstract Type getType();
-    
-    /**
      * Create a clone of this mapping with a new owner
      *
      * @param newOwner new owner
      * @return cloned mapping
      */
     public abstract TMapping move(String newOwner);
+    
+    /**
+     * Get the mapping type (field, method, class, package)
+     */
+    public abstract Type getType();
     
     /**
      * Create a clone of this mapping with a new name

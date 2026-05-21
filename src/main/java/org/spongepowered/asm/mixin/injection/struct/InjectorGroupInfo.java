@@ -31,7 +31,11 @@ import org.spongepowered.asm.mixin.injection.throwables.InjectionValidationExcep
 import org.spongepowered.asm.service.MixinService;
 import org.spongepowered.asm.util.Annotations;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 
 /**
  * Information store for injector groups
@@ -143,6 +147,17 @@ public class InjectorGroupInfo {
     }
     
     /**
+     * Add a new member to this group
+     *
+     * @param member injector to add
+     * @return fluent interface
+     */
+    public InjectorGroupInfo add(InjectionInfo member) {
+        this.members.add(member);
+        return this;
+    }
+    
+    /**
      * Validate all members in this group
      *
      * @return fluent interface
@@ -153,12 +168,12 @@ public class InjectorGroupInfo {
             // I have no idea how we got here, but it's not an error :/
             return this;
         }
-
+        
         int total = 0;
         for (InjectionInfo member : this.members) {
             total += member.getInjectedCallbackCount();
         }
-
+        
         int min = this.getMinRequired();
         int max = this.getMaxAllowed();
         if (total < min) {
@@ -167,18 +182,7 @@ public class InjectorGroupInfo {
         } else if (total > max) {
             throw new InjectionValidationException(this, String.format("maximum of %d invocation(s) allowed but %d succeeded", max, total));
         }
-
-        return this;
-    }
-    
-    /**
-     * Add a new member to this group
-     * 
-     * @param member injector to add
-     * @return fluent interface
-     */
-    public InjectorGroupInfo add(InjectionInfo member) {
-        this.members.add(member);
+        
         return this;
     }
     
@@ -186,11 +190,11 @@ public class InjectorGroupInfo {
      * Storage for injector groups
      */
     public static final class Map extends HashMap<String, InjectorGroupInfo> {
-
+        
         private static final long serialVersionUID = 1L;
-
-        private static final InjectorGroupInfo NO_GROUP = new InjectorGroupInfo("NONE", true);
-
+        
+        private final InjectorGroupInfo noGroup = new InjectorGroupInfo("NONE", true);
+        
         @Override
         public InjectorGroupInfo get(Object key) {
             return this.forName(key.toString());
@@ -211,7 +215,7 @@ public class InjectorGroupInfo {
             }
             return value;
         }
-
+        
         /**
          * Parse a group from the specified method, use the default group name
          * if no group name is specified on the annotation
@@ -223,7 +227,7 @@ public class InjectorGroupInfo {
         public InjectorGroupInfo parseGroup(MethodNode method, String defaultGroup) {
             return this.parseGroup(Annotations.getInvisible(method, Group.class), defaultGroup);
         }
-
+        
         /**
          * Parse a group from the specified annotation, use the default group
          * name if no group name is specified on the annotation
@@ -234,28 +238,28 @@ public class InjectorGroupInfo {
          */
         public InjectorGroupInfo parseGroup(AnnotationNode annotation, String defaultGroup) {
             if (annotation == null) {
-                return InjectorGroupInfo.Map.NO_GROUP;
+                return noGroup;
             }
-
+            
             String name = Annotations.<String>getValue(annotation, "name");
             if (name == null || name.isEmpty()) {
                 name = defaultGroup;
             }
             InjectorGroupInfo groupInfo = this.forName(name);
-
+            
             Integer min = Annotations.<Integer>getValue(annotation, "min");
             if (min != null && min.intValue() != -1) {
                 groupInfo.setMinRequired(min.intValue());
             }
-
+            
             Integer max = Annotations.<Integer>getValue(annotation, "max");
             if (max != null && max.intValue() != -1) {
                 groupInfo.setMaxAllowed(max.intValue());
             }
-
+            
             return groupInfo;
         }
-
+        
         /**
          * Validate all groups in this collection
          *
@@ -266,6 +270,6 @@ public class InjectorGroupInfo {
                 group.validate();
             }
         }
-
+        
     }
 }

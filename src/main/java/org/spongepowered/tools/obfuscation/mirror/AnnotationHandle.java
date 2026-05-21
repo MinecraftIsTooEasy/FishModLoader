@@ -28,7 +28,12 @@ import com.google.common.collect.ImmutableList;
 import org.objectweb.asm.Type;
 import org.spongepowered.asm.util.asm.IAnnotationHandle;
 
-import javax.lang.model.element.*;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.AnnotationValue;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
@@ -72,25 +77,28 @@ public final class AnnotationHandle implements IAnnotationHandle {
         if (list == null) {
             return Collections.<T>emptyList();
         }
-
+        
         List<T> unfolded = new ArrayList<T>(list.size());
         for (AnnotationValue value : list) {
             unfolded.add((T)value.getValue());
         }
-
+        
         return unfolded;
+    }
+    
+    /* (non-Javadoc)
+     * @see org.spongepowered.asm.util.asm.IAnnotationHandle#getDesc()
+     */
+    @Override
+    public String getDesc() {
+        if (this.annotation == null) {
+            return "java/lang/Annotation";
+        }
+        return TypeUtils.getInternalName(this.annotation.getAnnotationType());
     }
     
     public static AnnotationMirror asMirror(IAnnotationHandle handle) {
         return handle instanceof AnnotationHandle ? ((AnnotationHandle)handle).asMirror() : null;
-    }
-    
-    @Override
-    public String toString() {
-        if (this.annotation == null) {
-            return "@{UnknownAnnotation}";
-        }
-        return "@" + this.annotation.getAnnotationType().asElement().getSimpleName();
     }
     
     /**
@@ -104,15 +112,12 @@ public final class AnnotationHandle implements IAnnotationHandle {
         return this.annotation != null;
     }
 
-    /* (non-Javadoc)
-     * @see org.spongepowered.asm.util.asm.IAnnotationHandle#getDesc()
-     */
     @Override
-    public String getDesc() {
+    public String toString() {
         if (this.annotation == null) {
-            return "java/lang/Annotation";
+            return "@{UnknownAnnotation}";
         }
-        return TypeUtils.getInternalName(this.annotation.getAnnotationType());
+        return "@" + this.annotation.getAnnotationType().asElement().getSimpleName();
     }
     
     /**
@@ -130,7 +135,7 @@ public final class AnnotationHandle implements IAnnotationHandle {
         if (this.annotation == null) {
             return defaultValue;
         }
-
+        
         AnnotationValue value = this.getAnnotationValue(key);
         if (defaultValue instanceof Enum && value != null) {
             VariableElement varValue = (VariableElement)value.getValue();
@@ -139,7 +144,7 @@ public final class AnnotationHandle implements IAnnotationHandle {
             }
             return (T)Enum.valueOf((Class<? extends Enum>)defaultValue.getClass(), varValue.getSimpleName().toString());
         }
-
+        
         return value != null ? (T)value.getValue() : defaultValue;
     }
 
@@ -239,12 +244,12 @@ public final class AnnotationHandle implements IAnnotationHandle {
         if (val == null) {
             return Collections.<IAnnotationHandle>emptyList();
         }
-
+        
         // Fix for JDT, single values are just returned as a bare AnnotationMirror
         if (val instanceof AnnotationMirror) {
             return ImmutableList.<IAnnotationHandle>of(AnnotationHandle.of((AnnotationMirror)val));
         }
-
+        
         @SuppressWarnings("unchecked") List<AnnotationValue> list = (List<AnnotationValue>)val;
         List<AnnotationHandle> annotations = new ArrayList<AnnotationHandle>(list.size());
         for (AnnotationValue value : list) {

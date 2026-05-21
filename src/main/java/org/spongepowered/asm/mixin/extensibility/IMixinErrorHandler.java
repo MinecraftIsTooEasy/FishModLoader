@@ -25,6 +25,7 @@
 package org.spongepowered.asm.mixin.extensibility;
 
 import org.spongepowered.asm.logging.Level;
+import org.spongepowered.asm.mixin.throwables.MixinApplyError;
 
 /**
  * Interface for objects which want to perform custom behaviour when fatal mixin
@@ -91,25 +92,25 @@ public interface IMixinErrorHandler {
      * {@link #WARN} otherwise.
      */
     public static enum ErrorAction {
-
+        
         /**
          * Take no action, this should be treated as a non-critical error and
          * processing should continue
          */
         NONE(Level.INFO),
-
+        
         /**
          * Generate a warning but continue processing
          */
         WARN(Level.WARN),
-
+        
         /**
          * Throw a
-         * {@link org.spongepowered.asm.mixin.throwables.MixinApplyError} to
+         * {@link MixinApplyError} to
          * halt further processing if possible
          */
         ERROR(Level.FATAL);
-
+        
         /**
          * Logging level for the specified error action
          */

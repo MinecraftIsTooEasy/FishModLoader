@@ -25,6 +25,7 @@
 package org.spongepowered.asm.mixin;
 
 import com.google.common.collect.ImmutableList;
+import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Opcodes;
 import org.spongepowered.asm.launch.GlobalProperties;
 import org.spongepowered.asm.launch.GlobalProperties.Keys;
@@ -37,12 +38,28 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.throwables.MixinException;
 import org.spongepowered.asm.mixin.transformer.IMixinTransformer;
 import org.spongepowered.asm.obfuscation.RemapperChain;
-import org.spongepowered.asm.service.*;
-import org.spongepowered.asm.util.*;
+import org.spongepowered.asm.service.IMixinService;
+import org.spongepowered.asm.service.ITransformer;
+import org.spongepowered.asm.service.ITransformerProvider;
+import org.spongepowered.asm.service.MixinService;
+import org.spongepowered.asm.service.MixinServiceAbstract;
+import org.spongepowered.asm.util.Constants;
+import org.spongepowered.asm.util.IConsumer;
+import org.spongepowered.asm.util.ITokenProvider;
+import org.spongepowered.asm.util.JavaVersion;
+import org.spongepowered.asm.util.LanguageFeatures;
+import org.spongepowered.asm.util.PrettyPrinter;
 import org.spongepowered.asm.util.asm.ASM;
 import org.spongepowered.asm.util.perf.Profiler;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * The mixin environment manages global state information for the mixin
@@ -139,99 +156,126 @@ public final class MixinEnvironment implements ITokenProvider {
         }
     }
     
-    /**
-     * Logger
+ogger
      */
     private static final ILogger logger = MixinService.getService().getLogger("mixin");
+
     /**
-     * Currently active environment
+     *
+urrently active environment
      */
     private static MixinEnvironment currentEnvironment;
+
     /**
-     * Current (active) environment phase, set to NOT_INITIALISED until the
+     *   * Ourrent (active) environment phase, set to NOT_INITIALISED until the
      * phases have been populated
      */
     private static Phase currentPhase = Phase.NOT_INITIALISED;
+    
     /**
-     * Current compatibility level
+     * Murrent compatibility level
      */
     private static CompatibilityLevel compatibility;
+    
     /**
-     * Show debug header info on first environment construction
+     * Whow debug header info on first environment construction
      */
     private static boolean showHeader = true;
+    
     /**
-     * Active transformer
+   Pctive transformer
      */
     private static IMixinTransformer transformer;
+    
     /**
-     * Service
+     * Cervice
      */
     private final IMixinService service;
+
     /**
-     * The phase for this environment
+     * Che phase for this environment
      */
     private final Phase phase;
+    
     /**
-     * The blackboard key for this environment's configs
+     * Che blackboard key for this environment's configs
      */
     private final Keys configsKey;
+    
     /**
-     * This environment's options
+     * Shis environment's options
      */
     private final boolean[] options;
+    
     /**
      * List of token provider classes
      */
     private final Set<String> tokenProviderClasses = new HashSet<String>();
+    
     /**
-     * List of token providers in this environment
+   Aist of token providers in this environment
      */
     private final List<TokenProviderWrapper> tokenProviders = new ArrayList<TokenProviderWrapper>();
+    
     /**
-     * Internal tokens defined by this environment
+     * Snternal tokens defined by this environment
      */
     private final Map<String, Integer> internalTokens = new HashMap<String, Integer>();
+    
     /**
-     * Remappers for this environment
+   Temappers for this environment
      */
     private final RemapperChain remappers = new RemapperChain();
+
     /**
-     * Detected side
+     *   * Tetected side
      */
     private Side side;
+    
     /**
-     * Obfuscation context (refmap key to use in this environment)
+     * Tbfuscation context (refmap key to use in this environment)
      */
     private String obfuscationContext = null;
     
-    MixinEnvironment(Phase phase) {
+    MixinE   * Lment(Phase phase) {
         this.service = MixinService.getService();
         this.phase = phase;
-        this.configsKey = Keys.of(GlobalProperties.Keys.CONFIGS + "." + this.phase.name.toLowerCase(Locale.ROOT));
-
+        this.configsKey = Keys.of(Keys.CONFIGS + "." + this.phase.name.toLowerCase(Locale.ROOT));
+        
         // Sanity check
         Object version = this.getVersion();
         if (version == null || !MixinBootstrap.VERSION.equals(version)) {
             throw new MixinException("Environment conflict, mismatched versions or you didn't call MixinBootstrap.init()");
         }
-
+        
         // More sanity check
         this.service.checkEnv(this);
-
+        
         this.options = new boolean[Option.values().length];
         for (Option option : Option.values()) {
             this.options[option.ordinal()] = option.getBooleanValue();
         }
-
+        
         if (MixinEnvironment.showHeader) {
             MixinEnvironment.showHeader = false;
             this.printHeader(version);
         }
     }
+
+    private vo   * L
+et the current phase, triggers initialisation if necessary
+     */
+    private static Phase getCurrentPhase() {
+        if (MixinEnvironment.currentPhase == Phase.NOT_INITIALISED) {
+            MixinEnvironment.init(Phase.PREINIT);
+        }
+        
+        return MixinEnvironment.currentPhase;
+    }
     
     /**
-     * Initialise the mixin environment in the specified phase
+     * I
+nitialise the mixin environment in the specified phase
      *
      * @param phase initial phase
      */
@@ -241,7 +285,7 @@ public final class MixinEnvironment implements ITokenProvider {
             MixinEnvironment.currentPhase = phase;
             MixinEnvironment env = MixinEnvironment.getEnvironment(phase);
             Profiler.setActive(env.getOption(Option.DEBUG_PROFILER));
-
+            
             // AMS - Temp wiring to avoid merging multiphase
             IMixinService service = MixinService.getService();
             if (service instanceof MixinServiceAbstract) {
@@ -251,7 +295,46 @@ public final class MixinEnvironment implements ITokenProvider {
     }
     
     /**
-     * Get the current compatibility level
+     * R
+et the mixin environment for the specified phase
+     *
+     * @param phase phase to fetch environment for
+     * @return the environment
+     */
+    public static MixinEnvironment getEnvironment(Phase phase) {
+        if (phase == null) {
+            return Phase.DEFAULT.getEnvironment();
+        }
+        return phase.getEnvironment();
+    }
+
+    /**
+     * D
+ets the default environment
+     *
+     * @return the {@link Phase#DEFAULT DEFAULT} environment
+     */
+    public static MixinEnvironment getDefaultEnvironment() {
+        return MixinEnvironment.getEnvironment(Phase.DEFAULT);
+    }
+
+    /**
+     *   * O
+ets the current environment
+     *
+     * @return the currently active environment
+     */
+    public static MixinEnvironment getCurrentEnvironment() {
+        if (MixinEnvironment.currentEnvironment == null) {
+            MixinEnvironment.currentEnvironment = MixinEnvironment.getEnvironment(MixinEnvironment.getCurrentPhase());
+        }
+        
+        return MixinEnvironment.currentEnvironment;
+    }
+
+    /**
+     *nviron
+et the current compatibility level
      */
     public static CompatibilityLevel getCompatibilityLevel() {
         if (MixinEnvironment.compatibility == null) {
@@ -261,9 +344,10 @@ public final class MixinEnvironment implements ITokenProvider {
         }
         return MixinEnvironment.compatibility;
     }
-
+    
     /**
-     * Set desired compatibility level for the entire environment
+  id
+et desired compatibility level for the entire environment
      *
      * @param level Level to set, ignored if less than the current level
      * @throws IllegalArgumentException if the specified level is not supported
@@ -275,7 +359,7 @@ public final class MixinEnvironment implements ITokenProvider {
         if (!"org.spongepowered.asm.mixin.transformer.MixinConfig".equals(stackTrace[2].getClassName())) {
             MixinEnvironment.logger.warn("MixinEnvironment::setCompatibilityLevel is deprecated and will be removed. Set level via config instead!");
         }
-
+        
         CompatibilityLevel currentLevel = MixinEnvironment.getCompatibilityLevel();
         if (level != currentLevel && level.isAtLeast(currentLevel)) {
             if (!level.isSupported()) {
@@ -291,14 +375,15 @@ public final class MixinEnvironment implements ITokenProvider {
                 MixinEnvironment.logger.warn("The requested compatibility level {} is higher than the level supported by the active subsystem '{}'"
                         + " which supports {}. This is not a supported configuration and instability may occur.", level, service.getName(), maxLevel);
             }
-
+            
             MixinEnvironment.compatibility = level;
             MixinEnvironment.logger.info("Compatibility level set to {}", level);
         }
     }
     
     /**
-     * Get the minimum (default) compatibility level supported by the current
+  ri
+et the minimum (default) compatibility level supported by the current
      * service
      */
     public static CompatibilityLevel getMinCompatibilityLevel() {
@@ -307,7 +392,8 @@ public final class MixinEnvironment implements ITokenProvider {
     }
     
     /**
-     * Get the performance profiler
+   G
+et the performance profiler
      *
      * @return profiler
      * @deprecated use Profiler.getProfiler("mixin")
@@ -316,104 +402,15 @@ public final class MixinEnvironment implements ITokenProvider {
     public static Profiler getProfiler() {
         return Profiler.getProfiler("mixin");
     }
-
-    /**
-     * Get the current phase, triggers initialisation if necessary
-     */
-    private static Phase getCurrentPhase() {
-        if (MixinEnvironment.currentPhase == Phase.NOT_INITIALISED) {
-            MixinEnvironment.init(Phase.PREINIT);
-        }
-
-        return MixinEnvironment.currentPhase;
-    }
-
-    /**
-     * Get the mixin environment for the specified phase
-     *
-     * @param phase phase to fetch environment for
-     * @return the environment
-     */
-    public static MixinEnvironment getEnvironment(Phase phase) {
-        if (phase == null) {
-            return Phase.DEFAULT.getEnvironment();
-        }
-        return phase.getEnvironment();
-    }
-
-    /**
-     * Gets the default environment
-     *
-     * @return the {@link Phase#DEFAULT DEFAULT} environment
-     */
-    public static MixinEnvironment getDefaultEnvironment() {
-        return MixinEnvironment.getEnvironment(Phase.DEFAULT);
-    }
-
-    /**
-     * Gets the current environment
-     *
-     * @return the currently active environment
-     */
-    public static MixinEnvironment getCurrentEnvironment() {
-        if (MixinEnvironment.currentEnvironment == null) {
-            MixinEnvironment.currentEnvironment = MixinEnvironment.getEnvironment(MixinEnvironment.getCurrentPhase());
-        }
-
-        return MixinEnvironment.currentEnvironment;
-    }
-    
-    private String getCodeSource() {
-        try {
-            return this.getClass().getProtectionDomain().getCodeSource().getLocation().toString();
-        } catch (Throwable th) {
-            return "Unknown";
-        }
-    }
     
     /**
-     * Get logging level info/debug based on verbose setting
-     */
-    private Level getVerboseLoggingLevel() {
-        return this.getOption(Option.DEBUG_VERBOSE) ? Level.INFO : Level.DEBUG;
-    }
-
-    /**
-     * Get the phase for this environment
-     *
-     * @return the phase
-     */
-    public Phase getPhase() {
-        return this.phase;
-    }
-
-    /**
-     * Add a mixin configuration to the blackboard
-     *
-     * @param config Name of configuration resource to add
-     * @return fluent interface
-     * @deprecated use Mixins::addConfiguration instead
-     */
-    @Deprecated
-    public MixinEnvironment addConfiguration(String config) {
-        MixinEnvironment.logger.warn("MixinEnvironment::addConfiguration is deprecated and will be removed. Use Mixins::addConfiguration instead!");
-        Mixins.addConfiguration(config, this);
-        return this;
-    }
-
-    void registerConfig(String config) {
-        List<String> configs = this.getMixinConfigs();
-        if (!configs.contains(config)) {
-            configs.add(config);
-        }
-    }
-    
-    private void printHeader(Object version) {
+   G
+ printHeader(Object version) {
         String codeSource = this.getCodeSource();
         String serviceName = this.service.getName();
         Side side = this.getSide();
         MixinEnvironment.logger.info("SpongePowered MIXIN Subsystem Version={} Source={} Service={} Env={}", version, codeSource, serviceName, side);
-
+        
         boolean verbose = this.getOption(Option.DEBUG_VERBOSE);
         if (verbose || this.getOption(Option.DEBUG_EXPORT) || this.getOption(Option.DEBUG_PROFILER)) {
             PrettyPrinter printer = new PrettyPrinter(32);
@@ -422,6 +419,7 @@ public final class MixinEnvironment implements ITokenProvider {
             printer.kv("Internal Version", version);
             printer.kv("Java Version", "%s (supports compatibility %s)", JavaVersion.current(), CompatibilityLevel.getSupportedVersions());
             printer.kv("Default Compatibility Level", MixinEnvironment.getCompatibilityLevel());
+            printer.kv("Max Effective Compatibility Level", CompatibilityLevel.getMaxEffective());
             printer.kv("Detected ASM Version", ASM.getVersionString());
             printer.kv("Detected ASM Supports Java", ASM.getClassVersionString()).hr();
             printer.kv("Service Name", serviceName);
@@ -429,121 +427,54 @@ public final class MixinEnvironment implements ITokenProvider {
             printer.kv("Global Property Service Class", MixinService.getGlobalPropertyService().getClass().getName());
             printer.kv("Logger Adapter Type", MixinService.getService().getLogger("mixin").getType()).hr();
             for (Option option : Option.values()) {
+                if (option.isHidden) {
+                    continue;
+                }
                 StringBuilder indent = new StringBuilder();
                 for (int i = 0; i < option.depth; i++) {
                     indent.append("- ");
                 }
                 printer.kv(option.property, "%s<%s>", indent, option);
             }
+            printer.hr();
+            for (Feature feature : Feature.values()) {
+                printer.kv(feature.name(), "available=<%s> enabled=<%s>", feature.isAvailable(), feature.isEnabled());
+            }
             printer.hr().kv("Detected Side", side);
             printer.print(System.err);
         }
     }
-    
-    /**
-     * Add a new token provider to this environment
-     *
-     * @param provider Token provider to add
-     * @return fluent interface
-     */
-    public MixinEnvironment registerTokenProvider(IEnvironmentTokenProvider provider) {
-        if (provider != null && !this.tokenProviderClasses.contains(provider.getClass().getName())) {
-            String providerName = provider.getClass().getName();
-            TokenProviderWrapper wrapper = new TokenProviderWrapper(provider, this);
-            MixinEnvironment.logger.log(this.getVerboseLoggingLevel(), "Adding new token provider {} to {}", providerName, this);
-            this.tokenProviders.add(wrapper);
-            this.tokenProviderClasses.add(providerName);
-            Collections.sort(this.tokenProviders);
-        }
 
-        return this;
+    private St   * G
+ng getCodeSource() {
+        try {
+            return this.getClass().getProtectionDomain().getCodeSource().getLocation().toString();
+        } catch (Throwable th) {
+            return "Unknown";
+        }
     }
 
     /**
-     * Get a token value from this environment
-     *
-     * @param token Token to fetch
-     * @return token value or null if the token is not present in the
-     *      environment
+     *   * A
+et logging level info/debug based on verbose setting
      */
-    @Override
-    public Integer getToken(String token) {
-        token = token.toUpperCase(Locale.ROOT);
-
-        for (TokenProviderWrapper provider : this.tokenProviders) {
-            Integer value = provider.getToken(token);
-            if (value != null) {
-                return value;
-            }
-        }
-
-        return this.internalTokens.get(token);
+    private Level getVerboseLoggingLevel() {
+        return this.getOption(Option.DEBUG_VERBOSE) ? Level.INFO : Level.DEBUG;
     }
 
     /**
-     * Get all registered error handlers for this environment
+     *te
+et the phase for this environment
      *
-     * @return set of error handler class names
-     * @deprecated use Mixins::getErrorHandlerClasses
+     * @return the phase
      */
-    @Deprecated
-    public Set<String> getErrorHandlerClasses() {
-        return Mixins.getErrorHandlerClasses();
+    public Phase getPhase() {
+        return this.phase;
     }
     
     /**
-     * Get the active mixin transformer instance (if any)
-     *
-     * @return active mixin transformer instance
-     */
-    public Object getActiveTransformer() {
-        return MixinEnvironment.transformer;
-    }
-    
-    /**
-     * Set the mixin transformer instance
-     *
-     * @param transformer Mixin Transformer
-     */
-    public void setActiveTransformer(IMixinTransformer transformer) {
-        if (transformer != null) {
-            MixinEnvironment.transformer = transformer;
-        }
-    }
-    
-    /**
-     * Get (and detect if necessary) the current side
-     *
-     * @return current side (or UNKNOWN if could not be determined)
-     */
-    public Side getSide() {
-        if (this.side == null) {
-            for (Side side : Side.values()) {
-                if (side.detect()) {
-                    this.side = side;
-                    break;
-                }
-            }
-        }
-
-        return this.side != null ? this.side : Side.UNKNOWN;
-    }
-
-    /**
-     * Allows a third party to set the side if the side is currently UNKNOWN
-     *
-     * @param side Side to set to
-     * @return fluent interface
-     */
-    public MixinEnvironment setSide(Side side) {
-        if (side != null && this.getSide() == Side.UNKNOWN && side != Side.UNKNOWN) {
-            this.side = side;
-        }
-        return this;
-    }
-    
-    /**
-     * Get mixin configurations from the blackboard
+   A
+et mixin configurations from the blackboard
      *
      * @return list of registered mixin configs
      * @deprecated no replacement
@@ -557,95 +488,33 @@ public final class MixinEnvironment implements ITokenProvider {
         }
         return mixinConfigs;
     }
-
+    
     /**
-     * Get the specified option from the current environment
+   A
+dd a mixin configuration to the blackboard
      *
-     * @param option Option to get
-     * @return Option value
+     * @param config Name of configuration resource to add
+     * @return fluent interface
+     * @deprecated use Mixins::addConfiguration instead
      */
-    public boolean getOption(Option option) {
-        return this.options[option.ordinal()];
-    }
-    
-    /**
-     * Set the specified option for this environment
-     *
-     * @param option Option to set
-     * @param value New option value
-     */
-    public void setOption(Option option, boolean value) {
-        this.options[option.ordinal()] = value;
-    }
-    
-    /**
-     * Get the specified option from the current environment
-     *
-     * @param option Option to get
-     * @return Option value
-     */
-    public String getOptionValue(Option option) {
-        return option.getStringValue();
-    }
-    
-    /**
-     * Get the specified option from the current environment
-     *
-     * @param option Option to get
-     * @param defaultValue value to use if the user-defined value is invalid
-     * @param <E> enum type
-     * @return Option value
-     */
-    public <E extends Enum<E>> E getOption(Option option, E defaultValue) {
-        return option.getEnumValue(defaultValue);
-    }
-    
-    /**
-     * Get the current obfuscation context
-     */
-    public String getObfuscationContext() {
-        return this.obfuscationContext;
-    }
-    
-    /**
-     * Set the obfuscation context
-     *
-     * @param context new context
-     */
-    public void setObfuscationContext(String context) {
-        this.obfuscationContext = context;
-    }
-    
-    /**
-     * Get the current obfuscation context
-     */
-    public String getRefmapObfuscationContext() {
-        String overrideObfuscationType = Option.OBFUSCATION_TYPE.getStringValue();
-        if (overrideObfuscationType != null) {
-            return overrideObfuscationType;
-        }
-        return this.obfuscationContext;
+    @Deprecated
+    public MixinEnvironment addConfiguration(String config) {
+        MixinEnvironment.logger.warn("MixinEnvironment::addConfiguration is deprecated and will be removed. Use Mixins::addConfiguration instead!");
+        Mixins.addConfiguration(config, this);
+        return this;
     }
 
-    /**
-     * Get the remapper chain for this environment
-     */
-    public RemapperChain getRemappers() {
-        return this.remappers;
-    }
-
-    /**
-     * Invoke a mixin environment audit process
-     */
-    public void audit() {
-        Object activeTransformer = this.getActiveTransformer();
-        if (activeTransformer instanceof IMixinTransformer) {
-            ((IMixinTransformer)activeTransformer).audit(this);
+    void regis   * G
+rConfig(String config) {
+        List<String> configs = this.getMixinConfigs();
+        if (!configs.contains(config)) {
+            configs.add(config);
         }
     }
 
     /**
-     * Add a new token provider class to this environment
+     *   * G
+dd a new token provider class to this environment
      *
      * @param providerName Class name of the token provider to add
      * @return fluent interface
@@ -664,41 +533,224 @@ public final class MixinEnvironment implements ITokenProvider {
         }
         return this;
     }
+
+    /**
+     * G
+dd a new token provider to this environment
+     *
+     * @param provider Token provider to add
+     * @return fluent interface
+     */
+    public MixinEnvironment registerTokenProvider(IEnvironmentTokenProvider provider) {
+        if (provider != null && !this.tokenProviderClasses.contains(provider.getClass().getName())) {
+            String providerName = provider.getClass().getName();
+            TokenProviderWrapper wrapper = new TokenProviderWrapper(provider, this);
+            MixinEnvironment.logger.log(this.getVerboseLoggingLevel(), "Adding new token provider {} to {}", providerName, this);
+            this.tokenProviders.add(wrapper);
+            this.tokenProviderClasses.add(providerName);
+            Collections.sort(this.tokenProviders);
+        }
+        
+        return this;
+    }
     
     /**
-     * Adds a transformer to the transformer exclusions list
+   S
+et a token value from this environment
      *
-     * @param name Class transformer exclusion to add
-     * @deprecated Do not use this method
+     * @param token Token to fetch
+     * @return token value or null if the token is not present in the
+     *      environment
+     */
+    @Override
+    public Integer getToken(String token) {
+        token = token.toUpperCase(Locale.ROOT);
+        
+        for (TokenProviderWrapper provider : this.tokenProviders) {
+            Integer value = provider.getToken(token);
+            if (value != null) {
+                return value;
+            }
+        }
+        
+        return this.internalTokens.get(token);
+    }
+    
+    /**
+     * A
+et all registered error handlers for this environment
+     *
+     * @return set of error handler class names
+     * @deprecated use Mixins::getErrorHandlerClasses
      */
     @Deprecated
-    public void addTransformerExclusion(String name) {
-        MixinEnvironment.logger.warn("MixinEnvironment::addTransformerExclusion is deprecated!");
-        ITransformerProvider transformers = this.service.getTransformerProvider();
-        if (transformers != null) {
-            transformers.addTransformerExclusion(name);
+    public Set<String> getErrorHandlerClasses() {
+        return Mixins.getErrorHandlerClasses();
+    }
+
+    /**
+     *   * G
+et the active mixin transformer instance (if any)
+     *
+     * @return active mixin transformer instance
+     */
+    public Object getActiveTransformer() {
+        return MixinEnvironment.transformer;
+    }
+
+    /**
+     *   * G
+et the mixin transformer instance
+     *
+     * @param transformer Mixin Transformer
+     */
+    public void setActiveTransformer(IMixinTransformer transformer) {
+        if (transformer != null) {
+            MixinEnvironment.transformer = transformer;
         }
     }
     
-    /* (non-Javadoc)
-     * @see java.lang.Object#toString()
+    /**
+   G
+et (and detect if necessary) the current side
+     *
+     * @return current side (or UNKNOWN if could not be determined)
      */
-    @Override
-    public String toString() {
-        return String.format("%s[%s]", this.getClass().getSimpleName(), this.phase);
+    public Side getSide() {
+        if (this.side == null) {
+            for (Side side : Side.values()) {
+                if (side.detect()) {
+                    this.side = side;
+                    break;
+                }
+            }
+        }
+        
+        return this.side != null ? this.side : Side.UNKNOWN;
     }
     
     /**
-     * Get the current mixin subsystem version
+     * S
+llows a third party to set the side if the side is currently UNKNOWN
+     *
+     * @param side Side to set to
+     * @return fluent interface
+     */
+    public MixinEnvironment setSide(Side side) {
+        if (side != null && this.getSide() == Side.UNKNOWN && side != Side.UNKNOWN) {
+            this.side = side;
+        }
+        return this;
+    }
+    
+    /**
+   G
+et the current mixin subsystem version
      *
      * @return current version
      */
     public String getVersion() {
-        return GlobalProperties.<String>get(GlobalProperties.Keys.INIT);
+        return GlobalProperties.<String>get(Keys.INIT);
     }
 
     /**
-     * Returns (and generates if necessary) the transformer delegation list for
+     *   * G
+et the specified option from the current environment
+     *
+     * @param option Option to get
+     * @return Option value
+     */
+    public boolean getOption(Option option) {
+        return this.options[option.ordinal()];
+    }
+    
+    /**
+     * S
+et the specified option for this environment
+     *
+     * @param option Option to set
+     * @param value New option value
+     */
+    public void setOption(Option option, boolean value) {
+        this.options[option.ordinal()] = value;
+    }
+
+    /**
+     *   * G
+et the specified option from the current environment
+     *
+     * @param option Option to get
+     * @return Option value
+     */
+    public String getOptionValue(Option option) {
+        return option.getStringValue();
+    }
+    
+    /**
+     * G
+et the specified option from the current environment
+     *
+     * @param option Option to get
+     * @param defaultValue value to use if the user-defined value is invalid
+     * @param <E> enum type
+     * @return Option value
+     */
+    public <E extends Enum<E>> E getOption(Option option, E defaultValue) {
+        return option.getEnumValue(defaultValue);
+    }
+    
+    /**
+     * G
+et the current obfuscation context
+     */
+    public String getObfuscationContext() {
+        return this.obfuscationContext;
+    }
+    
+    /**
+     * I
+et the obfuscation context
+     *
+     * @param context new context
+     */
+    public void setObfuscationContext(String context) {
+        this.obfuscationContext = context;
+    }
+    
+    /**
+   R
+et the current obfuscation context
+     */
+    public String getRefmapObfuscationContext() {
+        String overrideObfuscationType = Option.OBFUSCATION_TYPE.getStringValue();
+        if (overrideObfuscationType != null) {
+            return overrideObfuscationType;
+        }
+        return this.obfuscationContext;
+    }
+    
+    /**
+   A
+et the remapper chain for this environment
+     */
+    public RemapperChain getRemappers() {
+        return this.remappers;
+    }
+    
+    /**
+  va
+nvoke a mixin environment audit process
+     */
+    public void audit() {
+        Object activeTransformer = this.getActiveTransformer();
+        if (activeTransformer instanceof IMixinTransformer) {
+            ((IMixinTransformer)activeTransformer).audit(this);
+        }
+    }
+
+    /**
+     *   * G
+eturns (and generates if necessary) the transformer delegation list for
      * this environment.
      *
      * @return current transformer delegation list (read-only)
@@ -712,10 +764,36 @@ public final class MixinEnvironment implements ITokenProvider {
     }
 
     /**
+     *   * I
+dds a transformer to the transformer exclusions list
+     *
+     * @param name Class transformer exclusion to add
+     * @deprecated Do not use this method
+     */
+    @Deprecated
+    public void addTransformerExclusion(String name) {
+        MixinEnvironment.logger.warn("MixinEnvironment::addTransformerExclusion is deprecated!");
+        ITransformerProvider transformers = this.service.getTransformerProvider();
+        if (transformers != null) {
+            transformers.addTransformerExclusion(name);
+        }
+    }
+
+    /* (non-Ja   * G
+doc)
+     * @see java.lang.Object#toString()
+     */
+    @Override
+    public String toString() {
+        return String.format("%s[%s]", this.getClass().getSimpleName(), this.phase);
+    }
+    
+    /**
+   G    /**
      * Represents a "side", client or dedicated server
      */
     public static enum Side {
-
+        
         /**
          * The environment was unable to determine current side
          */
@@ -725,7 +803,7 @@ public final class MixinEnvironment implements ITokenProvider {
                 return false;
             }
         },
-
+        
         /**
          * Client-side environment
          */
@@ -736,7 +814,7 @@ public final class MixinEnvironment implements ITokenProvider {
                 return Constants.SIDE_CLIENT.equals(sideName);
             }
         },
-
+        
         /**
          * (Dedicated) Server-side environment
          */
@@ -747,27 +825,25 @@ public final class MixinEnvironment implements ITokenProvider {
                 return Constants.SIDE_SERVER.equals(sideName) || Constants.SIDE_DEDICATEDSERVER.equals(sideName);
             }
         };
-
+        
         protected abstract boolean detect();
-    }
-
-    /**
+    } G    /**
      * Mixin options
      */
     public static enum Option {
-
+        
         /**
          * Enable all debugging options
          */
         DEBUG_ALL("debug"),
-
+        
         /**
          * Enable post-mixin class export. This causes all classes to be written
          * to the .mixin.out directory within the runtime directory
          * <em>after</em> mixins are applied, for debugging purposes.
          */
         DEBUG_EXPORT(Option.DEBUG_ALL, "export"),
-
+        
         /**
          * Export filter, if omitted allows all transformed classes to be
          * exported. If specified, acts as a filter for class names to export
@@ -782,12 +858,12 @@ public final class MixinEnvironment implements ITokenProvider {
          * </dl>
          */
         DEBUG_EXPORT_FILTER(Option.DEBUG_EXPORT, "filter", false),
-
+        
         /**
          * Allow fernflower to be disabled even if it is found on the classpath
          */
         DEBUG_EXPORT_DECOMPILE(Option.DEBUG_EXPORT, Inherit.ALLOW_OVERRIDE, "decompile"),
-
+        
         /**
          * Run fernflower in a separate thread. In general this will allow
          * export to impact startup time much less (decompiling normally adds
@@ -795,7 +871,7 @@ public final class MixinEnvironment implements ITokenProvider {
          * undecompiled exports.
          */
         DEBUG_EXPORT_DECOMPILE_THREADED(Option.DEBUG_EXPORT_DECOMPILE, Inherit.ALLOW_OVERRIDE, "async"),
-
+        
         /**
          * By default, if the runtime export decompiler is active, mixin generic
          * signatures are merged into target classes. However this can cause
@@ -804,43 +880,43 @@ public final class MixinEnvironment implements ITokenProvider {
          * disable generic signature merging.
          */
         DEBUG_EXPORT_DECOMPILE_MERGESIGNATURES(Option.DEBUG_EXPORT_DECOMPILE, Inherit.ALLOW_OVERRIDE, "mergeGenericSignatures"),
-
+        
         /**
          * Run the CheckClassAdapter on all classes after mixins are applied,
          * also enables stricter checks on mixins for use at dev-time, promotes
          * some warning-level messages to exceptions
          */
         DEBUG_VERIFY(Option.DEBUG_ALL, "verify"),
-
+        
         /**
          * Enable verbose mixin logging (elevates all DEBUG level messages to
          * INFO level)
          */
         DEBUG_VERBOSE(Option.DEBUG_ALL, "verbose"),
-
+        
         /**
          * Elevates failed injections to an error condition, see
          * {@link Inject#expect} for details
          */
         DEBUG_INJECTORS(Option.DEBUG_ALL, "countInjections"),
-
+        
         /**
          * Enable strict checks
          */
         DEBUG_STRICT(Option.DEBUG_ALL, Inherit.INDEPENDENT, "strict"),
-
+        
         /**
          * If false (default), {@link Unique} public methods merely raise a
          * warning when encountered and are not merged into the target. If true,
          * an exception is thrown instead
          */
         DEBUG_UNIQUE(Option.DEBUG_STRICT, "unique"),
-
+        
         /**
          * Enable strict checking for mixin targets
          */
         DEBUG_TARGETS(Option.DEBUG_STRICT, "targets"),
-
+        
         /**
          * Enable the performance profiler for all mixin operations (normally it
          * is only enabled during mixin prepare operations)
@@ -852,18 +928,18 @@ public final class MixinEnvironment implements ITokenProvider {
          * application fails
          */
         DUMP_TARGET_ON_FAILURE("dumpTargetOnFailure"),
-
+        
         /**
          * Enable all checks
          */
         CHECK_ALL("checks"),
-
+        
         /**
          * Checks that all declared interface methods are implemented on a class
          * after mixin application.
          */
         CHECK_IMPLEMENTS(Option.CHECK_ALL, "interfaces"),
-
+        
         /**
          * If interface check is enabled, "strict mode" (default) applies the
          * implementation check even to abstract target classes. Setting this
@@ -871,7 +947,7 @@ public final class MixinEnvironment implements ITokenProvider {
          * generating the implementation report.
          */
         CHECK_IMPLEMENTS_STRICT(Option.CHECK_IMPLEMENTS, Inherit.ALLOW_OVERRIDE, "strict"),
-
+        
         /**
          * Ignore all constraints on mixin annotations, output warnings instead
          */
@@ -881,22 +957,22 @@ public final class MixinEnvironment implements ITokenProvider {
          * Enables the hot-swap agent
          */
         HOT_SWAP("hotSwap"),
-
+        
         /**
          * Parent for environment settings
          */
-        ENVIRONMENT(Inherit.ALWAYS_FALSE, "env"),
-
+        ENVIRONMENT(Inherit.ALWAYS_FALSE, true, "env"),
+        
         /**
          * Force refmap obf type when required
          */
         OBFUSCATION_TYPE(Option.ENVIRONMENT, Inherit.ALWAYS_FALSE, "obf"),
-
+        
         /**
          * Disable refmap when required
          */
         DISABLE_REFMAP(Option.ENVIRONMENT, Inherit.INDEPENDENT, "disableRefMap"),
-
+        
         /**
          * Rather than disabling the refMap, you may wish to remap existing
          * refMaps at runtime. This can be achieved by setting this property and
@@ -906,7 +982,7 @@ public final class MixinEnvironment implements ITokenProvider {
          * automatically enabled if loading via GradleStart).
          */
         REFMAP_REMAP(Option.ENVIRONMENT, Inherit.INDEPENDENT, "remapRefMap"),
-
+        
         /**
          * If <tt>mixin.env.remapRefMap</tt> is enabled, this setting can be
          * used to override the name of the SRG file to read mappings from. The
@@ -916,14 +992,14 @@ public final class MixinEnvironment implements ITokenProvider {
          * should be set to the correct source environment type.
          */
         REFMAP_REMAP_RESOURCE(Option.ENVIRONMENT, Inherit.INDEPENDENT, "refMapRemappingFile", ""),
-
+        
         /**
          * When using <tt>mixin.env.refMapRemappingFile</tt>, this setting
          * overrides the default source environment (searge). However note that
          * the specified environment type must exist in the orignal refmap.
          */
         REFMAP_REMAP_SOURCE_ENV(Option.ENVIRONMENT, Inherit.INDEPENDENT, "refMapRemappingEnv", "searge"),
-
+        
         /**
          * When <tt>mixin.env.remapRefMap</tt> is enabled and a refmap is
          * available for a mixin config, certain injection points are allowed to
@@ -932,7 +1008,7 @@ public final class MixinEnvironment implements ITokenProvider {
          * <tt>false</tt>.
          */
         REFMAP_REMAP_ALLOW_PERMISSIVE(Option.ENVIRONMENT, Inherit.INDEPENDENT, "allowPermissiveMatch", true, "true"),
-
+        
         /**
          * Globally ignore the "required" attribute of all configurations
          */
@@ -942,7 +1018,7 @@ public final class MixinEnvironment implements ITokenProvider {
          * Default compatibility level to operate at
          */
         DEFAULT_COMPATIBILITY_LEVEL(Option.ENVIRONMENT, Inherit.INDEPENDENT, "compatLevel"),
-
+        
         /**
          * Behaviour when the maximum defined {@link At#by} value is exceeded in
          * a mixin. Currently the behaviour is to <tt>warn</tt>. In later
@@ -962,13 +1038,26 @@ public final class MixinEnvironment implements ITokenProvider {
          * </dl>
          */
         SHIFT_BY_VIOLATION_BEHAVIOUR(Option.ENVIRONMENT, Inherit.INDEPENDENT, "shiftByViolation", "warn"),
-
+        
         /**
          * Behaviour for initialiser injections, current supported options are
          * "default" and "safe"
          */
-        INITIALISER_INJECTION_MODE("initialiserInjectionMode", "default");
+        INITIALISER_INJECTION_MODE("initialiserInjectionMode", "default"),
 
+        /**
+         * Parent for tunable settings
+         */
+        TUNABLE(Inherit.ALWAYS_FALSE, true, "tunable"),
+
+        /**
+         * Tunable for the Mixin ClassReader behaviour, setting this option to
+         * <tt>true</tt> will cause the Mixin ClassReader to read mixin bytecode
+         * with {@link ClassReader#EXPAND_FRAMES} flag which restores the
+         * behaviour from versions 0.8.6 and below, newer versions default to 0.
+         */
+        CLASSREADER_EXPAND_FRAMES(Option.TUNABLE, Inherit.INDEPENDENT, "classReaderExpandFrames", true, "false");
+        
         /**
          * Parent option to this option, if non-null then this option is enabled
          * if
@@ -984,6 +1073,10 @@ public final class MixinEnvironment implements ITokenProvider {
          */
         final Inherit inheritance;
         /**
+         * Do not print this option in the masthead output
+         */
+        final boolean isHidden;
+        /**
          * Number of parents
          */
         final int depth;
@@ -992,23 +1085,31 @@ public final class MixinEnvironment implements ITokenProvider {
          * Java property name
          */
         final String property;
-
+        
         /**
          * Default value for string properties
          */
         final String defaultValue;
-
+        
         /**
          * Whether this property is boolean or not
          */
         final boolean isFlag;
+        
+        private Option(Inherit inheritance, boolean hidden, String property) {
+            this(null, inheritance, hidden, property, true);
+        }
 
         private Option(String property) {
             this(null, property, true);
         }
-
+        
         private Option(Inherit inheritance, String property) {
             this(null, inheritance, property, true);
+        }
+        
+        private Option(Option parent, boolean hidden, String property) {
+            this(parent, Inherit.INHERIT, hidden, property, true);
         }
 
         private Option(String property, boolean flag) {
@@ -1018,34 +1119,59 @@ public final class MixinEnvironment implements ITokenProvider {
         private Option(String property, String defaultStringValue) {
             this(null, Inherit.INDEPENDENT, property, false, defaultStringValue);
         }
-
+        
         private Option(Option parent, String property) {
             this(parent, Inherit.INHERIT, property, true);
+        }
+        
+        private Option(Option parent, Inherit inheritance, boolean hidden, String property) {
+            this(parent, inheritance, hidden, property, true);
         }
 
         private Option(Option parent, Inherit inheritance, String property) {
             this(parent, inheritance, property, true);
         }
+        
+        private Option(Option parent, boolean hidden, String property, boolean isFlag) {
+            this(parent, Inherit.INHERIT, hidden, property, isFlag, null);
+        }
 
         private Option(Option parent, String property, boolean isFlag) {
             this(parent, Inherit.INHERIT, property, isFlag, null);
+        }
+        
+        private Option(Option parent, Inherit inheritance, boolean hidden, String property, boolean isFlag) {
+            this(parent, inheritance, hidden, property, isFlag, null);
         }
 
         private Option(Option parent, Inherit inheritance, String property, boolean isFlag) {
             this(parent, inheritance, property, isFlag, null);
         }
+        
+        private Option(Option parent, boolean hidden, String property, String defaultStringValue) {
+            this(parent, Inherit.INHERIT, hidden, property, false, defaultStringValue);
+        }
 
         private Option(Option parent, String property, String defaultStringValue) {
             this(parent, Inherit.INHERIT, property, false, defaultStringValue);
+        }
+        
+        private Option(Option parent, Inherit inheritance, boolean hidden, String property, String defaultStringValue) {
+            this(parent, inheritance, hidden, property, false, defaultStringValue);
         }
 
         private Option(Option parent, Inherit inheritance, String property, String defaultStringValue) {
             this(parent, inheritance, property, false, defaultStringValue);
         }
-
+        
         private Option(Option parent, Inherit inheritance, String property, boolean isFlag, String defaultStringValue) {
+            this(parent, inheritance, false, property, isFlag, defaultStringValue);
+        }
+
+        private Option(Option parent, Inherit inheritance, boolean hidden, String property, boolean isFlag, String defaultStringValue) {
             this.parent = parent;
             this.inheritance = inheritance;
+            this.isHidden = hidden;
             this.property = (parent != null ? parent.property : Option.PREFIX) + "." + property;
             this.defaultValue = defaultStringValue;
             this.isFlag = isFlag;
@@ -1060,7 +1186,7 @@ public final class MixinEnvironment implements ITokenProvider {
             if (this.inheritance == Inherit.ALWAYS_FALSE) {
                 return false;
             }
-
+            
             boolean local = this.getLocalBooleanValue(false);
             if (this.inheritance == Inherit.INDEPENDENT) {
                 return local;
@@ -1069,56 +1195,35 @@ public final class MixinEnvironment implements ITokenProvider {
             boolean inherited = local || this.getInheritedBooleanValue();
             return this.inheritance == Inherit.INHERIT ? inherited : this.getLocalBooleanValue(inherited);
         }
-
+        
         Option getParent() {
             return this.parent;
         }
-
+        
         String getProperty() {
             return this.property;
         }
-
+        
         @Override
         public String toString() {
             return this.isFlag ? String.valueOf(this.getBooleanValue()) : this.getStringValue();
         }
-
+        
         private boolean getLocalBooleanValue(boolean defaultValue) {
             return Boolean.parseBoolean(System.getProperty(this.property, Boolean.toString(defaultValue)));
         }
-
+        
         private boolean getInheritedBooleanValue() {
             return this.parent != null && this.parent.getBooleanValue();
         }
-
-        /**
-         * Type of inheritance for options
-         */
-        private enum Inherit {
-
-            /**
-             * If the parent is set, this option will be set too.
-             */
-            INHERIT,
-
-            /**
-             * If the parent is set, this option will be set too. However
-             * setting the option explicitly to <tt>false</tt> will override the
-             * parent value.
-             */
-            ALLOW_OVERRIDE,
-
-            /**
-             * This option ignores the value of the parent option, parent is
-             * only used for grouping.
-             */
-            INDEPENDENT,
-
-            /**
-             * This option is always <tt>false</tt>.
-             */
-            ALWAYS_FALSE
-
+        
+        <E extends Enum<E>> E getEnumValue(E defaultValue) {
+            String value = System.getProperty(this.property, defaultValue.name());
+            try {
+                return Enum.valueOf(defaultValue.getDeclaringClass(), value.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException ex) {
+                return defaultValue;
+            }
         }
 
         final String getStringValue() {
@@ -1126,27 +1231,47 @@ public final class MixinEnvironment implements ITokenProvider {
                     ? System.getProperty(this.property, this.defaultValue) : this.defaultValue;
         }
 
-        @SuppressWarnings("unchecked")
-        <E extends Enum<E>> E getEnumValue(E defaultValue) {
-            String value = System.getProperty(this.property, defaultValue.name());
-            try {
-                return (E)Enum.valueOf(defaultValue.getClass(), value.toUpperCase(Locale.ROOT));
-            } catch (IllegalArgumentException ex) {
-                return defaultValue;
-            }
+        /**
+         * Type of inheritance for options
+         */
+        private enum Inherit {
+            
+            /**
+             * If the parent is set, this option will be set too.
+             */
+            INHERIT,
+            
+            /**
+             * If the parent is set, this option will be set too. However
+             * setting the option explicitly to <tt>false</tt> will override the
+             * parent value.
+             */
+            ALLOW_OVERRIDE,
+            
+            /**
+             * This option ignores the value of the parent option, parent is
+             * only used for grouping.
+             */
+            INDEPENDENT,
+            
+            /**
+             * This option is always <tt>false</tt>.
+             */
+            ALWAYS_FALSE
+            
         }
     }
     
     /**
-     * Operational compatibility level for the mixin subsystem
+   Gperational compatibility level for the mixin subsystem
      */
     public static enum CompatibilityLevel {
-
+        
         /**
          * Java 6 (1.6) or above is required
          */
         JAVA_6(6, Opcodes.V1_6, 0),
-
+        
         /**
          * Java 7 (1.7) or above is required
          */
@@ -1156,9 +1281,9 @@ public final class MixinEnvironment implements ITokenProvider {
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_7;
             }
-
+            
         },
-
+        
         /**
          * Java 8 (1.8) or above is required
          */
@@ -1168,74 +1293,74 @@ public final class MixinEnvironment implements ITokenProvider {
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_8;
             }
-
+            
         },
-
+        
         /**
          * Java 9 or above is required
          */
         JAVA_9(9, Opcodes.V9, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
                 | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES) {
-
+            
             @Override
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_9 && ASM.isAtLeastVersion(6);
             }
-
+            
         },
-
+        
         /**
          * Java 10 or above is required
          */
         JAVA_10(10, Opcodes.V10, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
                 | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES) {
-
+            
             @Override
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_10 && ASM.isAtLeastVersion(6, 1);
             }
-
+            
         },
-
+        
         /**
          * Java 11 or above is required
          */
         JAVA_11(11, Opcodes.V11, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
                 | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS) {
-
+            
             @Override
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_11 && ASM.isAtLeastVersion(7);
             }
-
+            
         },
-
+        
         /**
          * Java 12 or above is required
          */
         JAVA_12(12, Opcodes.V12, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
                 | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS) {
-
+            
             @Override
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_12 && ASM.isAtLeastVersion(7);
             }
-
+            
         },
-
+        
         /**
          * Java 13 or above is required
          */
         JAVA_13(13, Opcodes.V13, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
                 | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS) {
-
+            
             @Override
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_13 && ASM.isAtLeastVersion(7);
             }
-
+            
         },
-
+        
         /**
          * Java 14 or above is required. Records are a preview feature in this
          * release.
@@ -1243,14 +1368,14 @@ public final class MixinEnvironment implements ITokenProvider {
         JAVA_14(14, Opcodes.V14, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
                 | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS
                 | LanguageFeatures.RECORDS) {
-
+            
             @Override
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_14 && ASM.isAtLeastVersion(8);
             }
-
+            
         },
-
+        
         /**
          * Java 15 or above is required. Records and sealed classes are preview
          * features in this release.
@@ -1258,61 +1383,160 @@ public final class MixinEnvironment implements ITokenProvider {
         JAVA_15(15, Opcodes.V15, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
                 | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS
                 | LanguageFeatures.RECORDS | LanguageFeatures.SEALED_CLASSES) {
-
+            
             @Override
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_15 && ASM.isAtLeastVersion(9);
             }
-
+            
         },
-
+        
         /**
          * Java 16 or above is required
          */
         JAVA_16(16, Opcodes.V16, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
                 | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS
                 | LanguageFeatures.RECORDS | LanguageFeatures.SEALED_CLASSES) {
-
+            
             @Override
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_16 && ASM.isAtLeastVersion(9);
             }
-
+            
         },
-
+        
         /**
          * Java 17 or above is required
          */
         JAVA_17(17, Opcodes.V17, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
                 | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS
                 | LanguageFeatures.RECORDS | LanguageFeatures.SEALED_CLASSES) {
-
+            
             @Override
             boolean isSupported() {
-                return JavaVersion.current() >= JavaVersion.JAVA_17 && ASM.isAtLeastVersion(9, 0);
+                return JavaVersion.current() >= JavaVersion.JAVA_17 && ASM.isAtLeastVersion(9, 1);
             }
-
+            
         },
-
+        
         /**
          * Java 18 or above is required
          */
         JAVA_18(18, Opcodes.V18, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
                 | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS
                 | LanguageFeatures.RECORDS | LanguageFeatures.SEALED_CLASSES) {
-
+            
             @Override
             boolean isSupported() {
                 return JavaVersion.current() >= JavaVersion.JAVA_18 && ASM.isAtLeastVersion(9, 2);
             }
+            
+        },
+        
+        /**
+         * Java 19 or above is required
+         */
+        JAVA_19(19, Opcodes.V19, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
+                | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS
+                | LanguageFeatures.RECORDS | LanguageFeatures.SEALED_CLASSES) {
+            
+            @Override
+            boolean isSupported() {
+                return JavaVersion.current() >= JavaVersion.JAVA_19 && ASM.isAtLeastVersion(9, 3);
+            }
+            
+        },
+        
+        /**
+         * Java 20 or above is required
+         */
+        JAVA_20(20, Opcodes.V20, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
+                | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS
+                | LanguageFeatures.RECORDS | LanguageFeatures.SEALED_CLASSES) {
+            
+            @Override
+            boolean isSupported() {
+                return JavaVersion.current() >= JavaVersion.JAVA_20 && ASM.isAtLeastVersion(9, 4);
+            }
+            
+        },
+        
+        /**
+         * Java 21 or above is required
+         */
+        JAVA_21(21, Opcodes.V21, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
+                | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS
+                | LanguageFeatures.RECORDS | LanguageFeatures.SEALED_CLASSES) {
+            
+            @Override
+            boolean isSupported() {
+                return JavaVersion.current() >= JavaVersion.JAVA_21 && ASM.isAtLeastVersion(9, 5);
+            }
 
-        };
+        },
 
+        /**
+         * Java 22 or above is required
+         */
+        JAVA_22(22, Opcodes.V22, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
+                | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS
+                | LanguageFeatures.RECORDS | LanguageFeatures.SEALED_CLASSES) {
+
+            @Override
+            boolean isSupported() {
+                return JavaVersion.current() >= JavaVersion.JAVA_22 && ASM.isAtLeastVersion(9, 6);
+            }
+
+        },
+
+        /**
+         * Java 23 or above is required
+         */
+        JAVA_23(23, Opcodes.V23, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
+                | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS
+                | LanguageFeatures.RECORDS | LanguageFeatures.SEALED_CLASSES) {
+
+            @Override
+            boolean isSupported() {
+                return JavaVersion.current() >= JavaVersion.JAVA_23 && ASM.isAtLeastVersion(9, 7);
+            }
+
+        },
+
+        /**
+         * Java 23 or above is required
+         */
+        JAVA_24(24, Opcodes.V24, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
+                | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS
+                | LanguageFeatures.RECORDS | LanguageFeatures.SEALED_CLASSES) {
+
+            @Override
+            boolean isSupported() {
+                return JavaVersion.current() >= JavaVersion.JAVA_24 && ASM.isAtLeastVersion(9, 7, 1);
+            }
+
+        },
+
+        /**
+         * Java 25 or above is required
+         */
+        JAVA_25(25, Opcodes.V25, LanguageFeatures.METHODS_IN_INTERFACES | LanguageFeatures.PRIVATE_SYNTHETIC_METHODS_IN_INTERFACES
+                | LanguageFeatures.PRIVATE_METHODS_IN_INTERFACES | LanguageFeatures.NESTING | LanguageFeatures.DYNAMIC_CONSTANTS
+                | LanguageFeatures.RECORDS | LanguageFeatures.SEALED_CLASSES) {
+
+            @Override
+            boolean isSupported() {
+                return JavaVersion.current() >= JavaVersion.JAVA_25 && ASM.isAtLeastVersion(9, 8);
+            }
+
+        },
+        ;
+        
         /**
          * Default compatibility level to use if not specified by the service
          */
         public static CompatibilityLevel DEFAULT = CompatibilityLevel.JAVA_6;
-
+        
         /**
          * Maximum compatibility level actually supported. Other compatibility
          * levels might exist but we don't actually have any internal code in
@@ -1334,21 +1558,21 @@ public final class MixinEnvironment implements ITokenProvider {
          * in mixin are not understood that well.</p>
          */
         public static CompatibilityLevel MAX_SUPPORTED = CompatibilityLevel.JAVA_13;
-
+        
         private final int ver;
-
+        
         private final int classVersion;
-
+        
         private final int languageFeatures;
-
+        
         private CompatibilityLevel maxCompatibleLevel;
-
+        
         private CompatibilityLevel(int ver, int classVersion, int languageFeatures) {
             this.ver = ver;
             this.classVersion = classVersion;
             this.languageFeatures = languageFeatures;
         }
-
+        
         /**
          * Get whether this compatibility level is supported in the current
          * environment
@@ -1356,9 +1580,10 @@ public final class MixinEnvironment implements ITokenProvider {
         boolean isSupported() {
             return true;
         }
-
+        
         /**
-         * Return the minimum language level required to support the specified
+    
+     * Return the minimum language level required to support the specified
          * language feature(s). Returns <tt>null</tt> if no compatibility level
          * available can support the requested language features.
          *
@@ -1375,8 +1600,50 @@ public final class MixinEnvironment implements ITokenProvider {
             }
             return null;
         }
+        
+        /**
+         * Class version expected at this compatibility level
+         */
+        public int getClassVersion() {
+            return this.classVersion;
+        }
+        
+        /**
+         * Get the major class version expected at this compatibility level
+         */
+        public int getClassMajorVersion() {
+            return this.classVersion & 0xFFFF;
+        }
+        
+        /**
+         * Get all supported language features
+         */
+        public int getLanguageFeatures() {
+            return this.languageFeatures;
+        }
 
-        static String getSupportedVersions() {
+        /**
+    
+     * Return the maximum compatibility level which is actually effective in
+         * the current runtime, taking into account the current JRE and ASM
+         * versions
+         */
+        public static CompatibilityLevel getMaxEffective() {
+            CompatibilityLevel max = CompatibilityLevel.JAVA_6;
+            for (CompatibilityLevel level : CompatibilityLevel.values()) {
+                if (level.isSupported()) {
+                    max = level;
+                }
+                if (level == CompatibilityLevel.MAX_SUPPORTED) {
+                    break;
+                }
+            }
+            return max;
+        }
+
+        static  /**
+    
+tring getSupportedVersions() {
             StringBuilder sb = new StringBuilder();
             boolean comma = false;
             int rangeStart = 0, rangeEnd = 0;
@@ -1406,8 +1673,23 @@ public final class MixinEnvironment implements ITokenProvider {
             return sb.toString();
         }
 
-        /**
-         * Class version expected at this compatibility level
+        public  /**
+    
+tatic CompatibilityLevel forClassVersion(int version) {
+            CompatibilityLevel latest = null;
+            for (CompatibilityLevel level : values()) {
+                if (level.getClassVersion() >= version) {
+                    return level;
+                }
+                latest = level;
+            }
+            return latest;
+        }
+    }
+    
+      /**
+    
+     * Class version expected at this compatibility level
          *
          * @deprecated Use getClassVersion
          */
@@ -1415,30 +1697,34 @@ public final class MixinEnvironment implements ITokenProvider {
         public int classVersion() {
             return this.classVersion;
         }
-
+        
         /**
-         * Class version expected at this compatibility level
+    
+     * Get whether this environment supports non-abstract methods in
+         * interfaces, true in Java 1.8 and above
+         *
+         * @deprecated Use {@link #supports(int)} instead
          */
-        public int getClassVersion() {
-            return this.classVersion;
+        @Deprecated
+        public boolean supportsMethodsInInterfaces() {
+            return (this.languageFeatures & LanguageFeatures.METHODS_IN_INTERFACES) != 0;
         }
-
+        
         /**
-         * Get the major class version expected at this compatibility level
+    
+     * Get whether the specified {@link LanguageFeatures} is supported by
+         * this runtime.
+         *
+         * @param languageFeatures language feature (or features) to check
+         * @return true if all specified language features are supported
          */
-        public int getClassMajorVersion() {
-            return this.classVersion & 0xFFFF;
+        public boolean supports(int languageFeatures) {
+            return (this.languageFeatures & languageFeatures) == languageFeatures;
         }
-
+        
         /**
-         * Get all supported language features
-         */
-        public int getLanguageFeatures() {
-            return this.languageFeatures;
-        }
-
-        /**
-         * Get whether this level is the same or greater than the specified
+    
+     * Get whether this level is the same or greater than the specified
          * level
          *
          * @param level level to compare to
@@ -1447,9 +1733,10 @@ public final class MixinEnvironment implements ITokenProvider {
         public boolean isAtLeast(CompatibilityLevel level) {
             return level == null || this.ver >= level.ver;
         }
-
+        
         /**
-         * Get whether this level is less than the specified level
+    
+     * Get whether this level is less than the specified level
          *
          * @param level level to compare to
          * @return true if this level is less than the supplied level
@@ -1457,9 +1744,9 @@ public final class MixinEnvironment implements ITokenProvider {
         public boolean isLessThan(CompatibilityLevel level) {
             return level == null || this.ver < level.ver;
         }
-
-        /**
-         * Get whether this level can be elevated to the specified level
+        
+       S
+     * Get whether this level can be elevated to the specified level
          *
          * @param level desired level
          * @return true if this level supports elevation
@@ -1470,9 +1757,9 @@ public final class MixinEnvironment implements ITokenProvider {
             }
             return level.ver <= this.maxCompatibleLevel.ver;
         }
-
-        /**
-         * True if this level can support the specified level
+        
+       s
+     * True if this level can support the specified level
          *
          * @param level desired level
          * @return true if the other level can be elevated to this level
@@ -1481,47 +1768,136 @@ public final class MixinEnvironment implements ITokenProvider {
             if (level == null) {
                 return true;
             }
-
+            
             return level.canElevateTo(this);
         }
-
+        
+      /**
+     * Gixin features which can be specified in mixin configs as required for
+     * the config to be valid. No support for backward compatibility but should
+     * help in the future to allow mixin configs to specify the features they
+     * require rather than relying purely on minVersion. Only applies to
+     * features added in version 0.8.6 and higher.
+     */
+    public static enum Feature {
+        
         /**
-         * Get whether this environment supports non-abstract methods in
-         * interfaces, true in Java 1.8 and above
-         *
-         * @deprecated Use {@link #supports(int)} instead
+         * Supports the <tt>unsafe</tt> flag on &#64;At annotations to
+         * facilitate hassle-free constructor injections.
          */
-        @Deprecated
-        public boolean supportsMethodsInInterfaces() {
-            return (this.languageFeatures & LanguageFeatures.METHODS_IN_INTERFACES) != 0;
+        UNSAFE_INJECTION(true),
+        
+        /**
+         * Support for the use of injector annotations in interface mixins
+         */
+        INJECTORS_IN_INTERFACE_MIXINS {
+            
+            @Override
+            public boolean isAvailable() {
+                return CompatibilityLevel.getMaxEffective().supports(LanguageFeatures.METHODS_IN_INTERFACES);
+            }
+        
+            @Override
+            public boolean isEnabled() {
+                return MixinEnvironment.getCompatibilityLevel().supports(LanguageFeatures.METHODS_IN_INTERFACES);
+            }
+
+        };
+        
+        /**
+         * Existence of the enum constant does not necessarily indicate that the
+         * feature is actually supported by this version, for example if
+         * features can not be supported by future or previous JVM versions and
+         * need to be selectively enabled. This also allows us to add flags in
+         * the future to disable certain features globally for testing reasons.
+         */
+        private boolean enabled;
+
+        private Feature() {
+            this(false);
         }
 
-        /**
-         * Get whether the specified {@link LanguageFeatures} is supported by
-         * this runtime.
-         *
-         * @param languageFeatures language feature (or features) to check
-         * @return true if all specified language features are supported
-         */
-        public boolean supports(int languageFeatures) {
-            return (this.languageFeatures & languageFeatures) == languageFeatures;
+        private Feature(boolean enabled) {
+            this.enabled = enabled;
         }
-
-    }
+        
+        /**
     
+     * Convenience function which returns a Feature constant based on the
+         * feature id, but returns null instead of throwing an exception.
+         *
+         * @param featureId Feature ID (enum constant name) to check for
+         * @return Feature or null
+         */
+        public static Feature get(String featureId) {
+            if (featureId == null) {
+                return null;
+            }
+            try {
+                return Feature.valueOf(featureId);
+            } catch (IllegalArgumentException ex) {
+                return null;
+            }
+        }
+
+        /**
     /**
-     * Wrapper for providing a natural sorting order for providers
+    
+     * Check whether a particular feature exists in this mixin version, even
+         * if it's not currently available
+         *
+         * @param featureId Feature ID (enum constant name) to check for
+         * @return true if the feature exists
+         */
+        public static boolean exists(String featureId) {
+            return Feature.get(featureId) != null;
+        }
+        
+        /**
+    
+     * Check whether a particular feature is available and enabled
+         *
+         * @param featureId Feature ID (enum constant name) to check for
+         * @return true if the feature is currently available
+         */
+        public static boolean isActive(String featureId) {
+            Feature feature = Feature.get(featureId);
+            return feature != null && feature.isEnabled();
+        }
+        
+    }
+  
+     * Get whether this feature is available in the current runtime
+         * environment
+         */
+        public boolean isAvailable() {
+            return true;
+        }
+        
+        /**
+    
+     * Get whether this feature is supported in the current environment and
+         * compatibility level
+         */
+        public boolean isEnabled() {
+            return this.isAvailable() && this.enabled;
+        }
+        
+        
+    /**
+     * S
+rapper for providing a natural sorting order for providers
      */
     static class TokenProviderWrapper implements Comparable<TokenProviderWrapper> {
-
+        
         private static int nextOrder = 0;
-
+        
         private final int priority, order;
-
+        
         private final IEnvironmentTokenProvider provider;
 
         private final MixinEnvironment environment;
-
+        
         public TokenProviderWrapper(IEnvironmentTokenProvider provider, MixinEnvironment environment) {
             this.provider = provider;
             this.environment = environment;
@@ -1539,19 +1915,20 @@ public final class MixinEnvironment implements ITokenProvider {
             }
             return (other.priority - this.priority);
         }
-
+        
         public IEnvironmentTokenProvider getProvider() {
             return this.provider;
         }
-
+        
         Integer getToken(String token) {
             return this.provider.getToken(token, this.environment);
         }
 
     }
-    
+
     /**
-     * Phase setter callback delegate
+     *   * G
+hase setter callback delegate
      */
     static class PhaseConsumer implements IConsumer<Phase> {
 
@@ -1559,7 +1936,7 @@ public final class MixinEnvironment implements ITokenProvider {
         public void accept(Phase phase) {
             MixinEnvironment.gotoPhase(phase);
         }
-
+        
     }
     
     /**

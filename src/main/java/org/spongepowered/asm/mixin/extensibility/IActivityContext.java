@@ -95,7 +95,7 @@ public interface IActivityContext {
          * @param text Text to append
          */
         void append(String text);
-
+        
     }
 
 }

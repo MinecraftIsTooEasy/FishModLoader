@@ -9,6 +9,7 @@ public class PacketRegisterEvent {
         this.registerer = registerer;
     }
 
+    @Deprecated(since = "4.0.0")
     public void register(boolean clientProcess, boolean serverProcess, Class<?> packetClass) {
         this.registerer.register(IdUtil.getNextPacketID(), clientProcess, serverProcess, packetClass);
     }

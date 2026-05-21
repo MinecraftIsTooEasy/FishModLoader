@@ -25,24 +25,27 @@ public class IdUtil {
         return nextEnchantmentID++;
     }
 
-    @Deprecated(since = "3.5.0")
+    @Deprecated(since = "4.0.0")
     public static int getNextItemID() {
         return nextItemID++;
     }
 
-    @Deprecated(since = "3.5.0")
+    @Deprecated(since = "4.0.0")
     public static int getNextBlockID() {
         return nextBlockID--;
     }
 
+    @Deprecated(since = "4.0.0")
     public static int getNextAchievementID(){
         return nextAchievementID++;
     }
 
+    @Deprecated(since = "4.0.0")
     public static int getNextEntityID(){
         return nextEntityID++;
     }
 
+    @Deprecated(since = "4.0.0")
     public static int getNextPacketID(){
         return nextPacketID++;
     }
@@ -51,6 +54,7 @@ public class IdUtil {
         return nextRenderType++;
     }
 
+    @Deprecated(since = "4.0.0")
     public static int getNextPotionId(){
         return NEXT_POTION_ID.getNext();
     }

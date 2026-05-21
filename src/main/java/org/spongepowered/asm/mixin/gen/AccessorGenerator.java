@@ -27,8 +27,8 @@ package org.spongepowered.asm.mixin.gen;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.MethodNode;
-import org.spongepowered.asm.mixin.injection.throwables.InvalidInjectionException;
-import org.spongepowered.asm.mixin.refmap.IMixinContext;
+import org.spongepowered.asm.mixin.gen.throwables.InvalidAccessorException;
+import org.spongepowered.asm.service.MixinService;
 import org.spongepowered.asm.util.asm.ASM;
 
 import java.util.ArrayList;
@@ -44,20 +44,28 @@ public abstract class AccessorGenerator {
     protected final AccessorInfo info;
 
     /**
-     * True for static field, false for instance field 
+     * True for static target, false for instance target 
      */
     protected final boolean targetIsStatic;
+    
+    /**
+     * True if the target is in an interface
+     */
+    protected final boolean targetIsInterface;
 
     public AccessorGenerator(AccessorInfo info, boolean isStatic) {
         this.info = info;
         this.targetIsStatic = isStatic;
+        this.targetIsInterface = info.getTargetClassInfo().isInterface();
     }
 
     protected void checkModifiers() {
-        if (this.info.isStatic() && !this.targetIsStatic) {
-            IMixinContext context = this.info.getMixin();
-            throw new InvalidInjectionException(context, String.format("%s is invalid. Accessor method is%s static but the target is not.",
-                    this.info, this.info.isStatic() ? "" : " not"));
+        if (this.info.isStatic() != this.targetIsStatic) {
+            if (!this.targetIsStatic) {
+                throw new InvalidAccessorException(this.info, String.format("%s is invalid. Accessor method is static but the target is not.", this.info));
+            } else {
+                MixinService.getService().getLogger("mixin").info("{} should be static as its target is", this.info);
+            }
         }
     }
 

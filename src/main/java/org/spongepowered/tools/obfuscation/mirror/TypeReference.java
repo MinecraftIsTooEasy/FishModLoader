@@ -24,8 +24,8 @@
  */
 package org.spongepowered.tools.obfuscation.mirror;
 
-import javax.annotation.processing.ProcessingEnvironment;
-import javax.lang.model.element.TypeElement;
+import org.spongepowered.tools.obfuscation.interfaces.ITypeHandleProvider;
+
 import java.io.Serializable;
 
 /**
@@ -81,15 +81,14 @@ public class TypeReference implements Serializable, Comparable<TypeReference> {
     /**
      * Fetch or attempt to generate the type handle
      * 
-     * @param processingEnv environment to create handle if it needs to be
+     * @param typeHandleProvider provider to create handle if it needs to be
      *      regenerated
      * @return type handle
      */
-    public TypeHandle getHandle(ProcessingEnvironment processingEnv) {
+    public TypeHandle getHandle(ITypeHandleProvider typeHandleProvider) {
         if (this.handle == null) {
-            TypeElement element = processingEnv.getElementUtils().getTypeElement(this.getClassName());
             try {
-                this.handle = new TypeHandle(element);
+                this.handle = typeHandleProvider.getTypeHandle(this.name);
             } catch (Exception ex) {
                 // Class probably doesn't exist in scope :/
                 ex.printStackTrace();

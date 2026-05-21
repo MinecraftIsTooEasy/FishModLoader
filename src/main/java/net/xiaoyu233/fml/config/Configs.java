@@ -13,14 +13,14 @@ public class Configs {
 
     public static final ConfigRoot CONFIG = new ConfigRoot(Constants.FML_CONFIG_VERSION).withComment("FishModLoader配置文件").
             addEntry(new ConfigCategory("Fix").withComment("修复")
-                    .addEntry(new ConfigEntry<>("TNTFix", Codec.BOOLEAN, true, Fix.TNTFix).withComment("修复TNT刷物品漏洞"))).
+                    .addEntry(new ConfigEntry<>("TNTFix", Codec.BOOLEAN, true, Fix.TNT_FIX).withComment("修复TNT刷物品漏洞"))).
             addEntry(new ConfigCategory("Server").withComment("服务端")
                     .addEntry(new ConfigEntry<>("allowClientMods", Codec.BOOLEAN, true, Server.ALLOW_CLIENT_MODS).withComment("允许客户端使用客户端模组(如坐标器)"))).
             addEntry(new ConfigCategory("Client").withComment("客户端")
                     .addEntry(new ConfigEntry<>("fpsLimit", Codec.INTEGER, 120, Client.FPS_LIMIT).withComment("FPS最大值"))).
             addEntry(new ConfigCategory("Debug").withComment("调试").
                     addEntry(new ConfigEntry<>("debug", Debug.DEBUG).withComment("开启调试模式")).
-                    addEntry(new ConfigEntry<>("dev_env", Debug.DEVENV).withComment("开发环境下自动开启MITE的DEV模式")).
+                    addEntry(new ConfigEntry<>("dev_env", Debug.DEV_ENV).withComment("开发环境下自动开启MITE的DEV模式")).
                     addEntry(new ConfigEntry<>("print_entity_damage_info", Debug.PRINT_ENTITY_DAMAGE_INFO).withComment("输出实体受到伤害信息")).
                     addEntry(new ConfigEntry<>("printClassloadInfo", Codec.BOOLEAN, false, Debug.PRINT_CLASSLOAD_INFO).withComment("输出类加载信息")).
                     addEntry(new ConfigCategory("DumpClass").withComment("类导出").
@@ -36,7 +36,7 @@ public class Configs {
     }
 
     public static class Fix {
-        public static final FieldReference<Boolean> TNTFix = new FieldReference<>(true);
+        public static final FieldReference<Boolean> TNT_FIX = new FieldReference<>(true);
     }
 
     public static class Server {
@@ -49,7 +49,7 @@ public class Configs {
 
     public static class Debug {
         public static final FieldReference<Boolean> DEBUG = new FieldReference<>(false);
-        public static final FieldReference<Boolean> DEVENV = new FieldReference<>(true);
+        public static final FieldReference<Boolean> DEV_ENV = new FieldReference<>(true);
         public static final FieldReference<Boolean> PRINT_CLASSLOAD_INFO = new FieldReference<>(false);
         public static final FieldReference<Boolean> PRINT_ENTITY_DAMAGE_INFO = new FieldReference<>(true);
 

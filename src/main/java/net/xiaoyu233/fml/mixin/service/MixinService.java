@@ -11,7 +11,14 @@ import org.spongepowered.asm.logging.ILogger;
 import org.spongepowered.asm.mixin.MixinEnvironment;
 import org.spongepowered.asm.mixin.transformer.IMixinTransformer;
 import org.spongepowered.asm.mixin.transformer.IMixinTransformerFactory;
-import org.spongepowered.asm.service.*;
+import org.spongepowered.asm.service.IClassBytecodeProvider;
+import org.spongepowered.asm.service.IClassProvider;
+import org.spongepowered.asm.service.IClassTracker;
+import org.spongepowered.asm.service.IMixinAuditTrail;
+import org.spongepowered.asm.service.IMixinInternal;
+import org.spongepowered.asm.service.IMixinService;
+import org.spongepowered.asm.service.ITransformer;
+import org.spongepowered.asm.service.ITransformerProvider;
 import org.spongepowered.asm.util.ReEntranceLock;
 
 import java.io.IOException;
@@ -52,14 +59,19 @@ public class MixinService implements IMixinService, IClassProvider, IClassByteco
       return getClassNode(name, true);
    }
 
-   @Override
-   public ClassNode getClassNode(String name, boolean runTransformers) throws ClassNotFoundException, IOException {
-      ClassReader reader = new ClassReader(getClassBytes(name, runTransformers));
-      ClassNode node = new ClassNode();
-      reader.accept(node, 0);
-      return node;
-   }
+	@Override
+	public ClassNode getClassNode(String name, boolean runTransformers) throws ClassNotFoundException, IOException {
+		return getClassNode(name, runTransformers, 0);
+	}
 
+	@Override
+	public ClassNode getClassNode(String name, boolean runTransformers, int readerFlags) throws ClassNotFoundException, IOException {
+		ClassReader reader = new ClassReader(getClassBytes(name, runTransformers));
+		ClassNode node = new ClassNode();
+		reader.accept(node, readerFlags);
+		return node;
+	}
+   
    @Override
    public URL[] getClassPath() {
       // Mixin 0.7.x only uses getClassPath() to find itself; we implement CodeSource correctly,
@@ -200,12 +212,12 @@ public class MixinService implements IMixinService, IClassProvider, IClassByteco
 
    @Override
    public MixinEnvironment.CompatibilityLevel getMinCompatibilityLevel() {
-      return MixinEnvironment.CompatibilityLevel.JAVA_8;
+      return MixinEnvironment.CompatibilityLevel.JAVA_21;
    }
 
    @Override
    public MixinEnvironment.CompatibilityLevel getMaxCompatibilityLevel() {
-      return MixinEnvironment.CompatibilityLevel.JAVA_17;
+      return MixinEnvironment.CompatibilityLevel.JAVA_25;
    }
 
    @Override

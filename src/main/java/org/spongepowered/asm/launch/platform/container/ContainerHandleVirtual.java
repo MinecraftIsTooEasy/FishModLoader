@@ -24,7 +24,12 @@
  */
 package org.spongepowered.asm.launch.platform.container;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * A virtual container, used to marshal other containers around
@@ -55,6 +60,16 @@ public class ContainerHandleVirtual implements IContainerHandle {
      */
     public ContainerHandleVirtual(String name) {
         this.name = name;
+    }
+    
+    @Override
+    public String getId() {
+        return this.name;
+    }
+    
+    @Override
+    public String getDescription() {
+        return this.toString();
     }
     
     /**

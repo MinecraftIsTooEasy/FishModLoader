@@ -28,13 +28,14 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.InsnList;
-import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 import org.spongepowered.asm.mixin.injection.InjectionPoint;
 import org.spongepowered.asm.mixin.injection.InjectionPoint.RestrictTargetLevel;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
+import org.spongepowered.asm.mixin.injection.code.IInsnListEx;
 import org.spongepowered.asm.mixin.injection.code.Injector;
 import org.spongepowered.asm.mixin.injection.code.InjectorTarget;
+import org.spongepowered.asm.mixin.injection.code.InsnListEx;
 import org.spongepowered.asm.mixin.injection.struct.InjectionInfo;
 import org.spongepowered.asm.mixin.injection.struct.InjectionNodes.InjectionNode;
 import org.spongepowered.asm.mixin.injection.struct.InjectionPointData;
@@ -57,14 +58,25 @@ import java.util.List;
  */
 public class ModifyVariableInjector extends Injector {
 
+    private static final String KEY_INFO = "mv.info";
+    private static final String KEY_TARGET = "mv.target";
+
     @Override
-    protected boolean findTargetNodes(MethodNode into, InjectionPoint injectionPoint, InjectorTarget injectorTarget,
-            Collection<AbstractInsnNode> nodes) {
-        if (injectionPoint instanceof LocalVariableInjectionPoint) {
-            return ((LocalVariableInjectionPoint)injectionPoint).find(this.info, injectorTarget.getSlice(injectionPoint), nodes,
-                    injectorTarget.getTarget());
+    protected boolean findTargetNodes(InjectorTarget target, InjectionPoint injectionPoint, Collection<AbstractInsnNode> nodes) {
+        InsnListEx slice = (InsnListEx)target.getSlice(injectionPoint);
+        slice.decorate(ModifyVariableInjector.KEY_TARGET, target.getTarget());
+        slice.decorate(ModifyVariableInjector.KEY_INFO, this.info);
+        
+        boolean found = injectionPoint instanceof LocalVariableInjectionPoint
+                ? ((LocalVariableInjectionPoint)injectionPoint).find(this.info, slice, nodes, target.getTarget())
+                : injectionPoint.find(target.getDesc(), slice, nodes);
+        
+        if (slice instanceof InsnListEx) {
+            slice.undecorate(ModifyVariableInjector.KEY_TARGET);
+            slice.undecorate(ModifyVariableInjector.KEY_INFO);
         }
-        return injectionPoint.find(into.desc, injectorTarget.getSlice(injectionPoint), nodes);
+        
+        return found;
     }
     
     /**
@@ -79,7 +91,7 @@ public class ModifyVariableInjector extends Injector {
     protected String getTargetNodeKey(Target target, InjectionNode node) {
         return String.format("localcontext(%s,%s,#%s)", this.returnType, this.discriminator.isArgsOnly() ? "argsOnly" : "fullFrame", node.getId());
     }
-
+    
     /**
      * True to consider only method args
      */
@@ -131,14 +143,14 @@ public class ModifyVariableInjector extends Injector {
         if (node.isReplaced()) {
             throw new InvalidInjectionException(this.info, "Variable modifier target for " + this + " was removed by another injector");
         }
-
+        
         Context context = node.<Context>getDecoration(this.getTargetNodeKey(target, node));
         if (context == null) {
             throw new InjectionError(String.format(
                     "%s injector target is missing CONTEXT decoration for %s. PreInjection failure or illegal internal state change",
                     this.annotationType, this.info));
         }
-
+        
         // If the context is being reused (because two identical injectors are targetting this node)
         // then the insns SHOULD have been drained by the previous insertBefore. If the list hasn't
         // been cleared for some reason then something probably went wrong during the previous inject
@@ -147,13 +159,13 @@ public class ModifyVariableInjector extends Injector {
                     "%s injector target has contaminated CONTEXT decoration for %s. Check for previous errors.",
                     this.annotationType, this.info));
         }
-
+        
         if (this.discriminator.printLVT()) {
             this.printLocals(target, context);
         }
-
+        
         this.checkTargetForNode(target, node, RestrictTargetLevel.ALLOW_ALL);
-
+        
         InjectorData handler = new InjectorData(target, "handler", false);
 
         if (this.returnType == Type.VOID_TYPE) {
@@ -163,9 +175,9 @@ public class ModifyVariableInjector extends Injector {
         }
 
         this.validateParams(handler, this.returnType, this.returnType);
-
+        
         Extension extraStack = target.extendStack();
-
+        
         try {
             int local = this.discriminator.findLocal(context);
             if (local > -1) {
@@ -178,7 +190,7 @@ public class ModifyVariableInjector extends Injector {
             }
             throw new InvalidInjectionException(this.info, "Implicit variable modifier injection failed in " + this, ex);
         }
-
+        
         extraStack.apply();
         target.insns.insertBefore(context.node, context.insns);
     }
@@ -187,7 +199,7 @@ public class ModifyVariableInjector extends Injector {
      * Target context information
      */
     static class Context extends LocalVariableDiscriminator.Context {
-
+        
         /**
          * Instructions to inject
          */
@@ -196,16 +208,16 @@ public class ModifyVariableInjector extends Injector {
         public Context(InjectionInfo info, Type returnType, boolean argsOnly, Target target, AbstractInsnNode node) {
             super(info, returnType, argsOnly, target, node);
         }
-
+        
     }
     
     /**
      * Specialised injection point which uses a target-aware search pattern
      */
     abstract static class LocalVariableInjectionPoint extends InjectionPoint {
-
+        
         protected final IMixinContext mixin;
-
+        
         LocalVariableInjectionPoint(InjectionPointData data) {
             super(data);
             this.mixin = data.getMixin();
@@ -213,9 +225,18 @@ public class ModifyVariableInjector extends Injector {
 
         @Override
         public boolean find(String desc, InsnList insns, Collection<AbstractInsnNode> nodes) {
+            if (insns instanceof IInsnListEx) {
+                IInsnListEx xinsns = (IInsnListEx)insns;
+                Target target = xinsns.<Target>getDecoration(ModifyVariableInjector.KEY_TARGET);
+                if (target != null) {
+                    // Info is not actually used internally so we don't especially care if it's null
+                    return this.find(xinsns.<InjectionInfo>getDecoration(ModifyVariableInjector.KEY_INFO), insns, nodes, target);
+                }
+            }
+            
             throw new InvalidInjectionException(this.mixin, this.getAtCode() + " injection point must be used in conjunction with @ModifyVariable");
         }
-
+        
         abstract boolean find(InjectionInfo info, InsnList insns, Collection<AbstractInsnNode> nodes, Target target);
 
     }

@@ -24,15 +24,22 @@
  */
 package org.spongepowered.asm.mixin.injection.struct;
 
-import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
-import org.objectweb.asm.tree.*;
+import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.InsnList;
+import org.objectweb.asm.tree.LabelNode;
+import org.objectweb.asm.tree.LocalVariableNode;
+import org.objectweb.asm.tree.MethodInsnNode;
+import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.TypeInsnNode;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.points.BeforeNew;
 import org.spongepowered.asm.mixin.injection.struct.InjectionNodes.InjectionNode;
 import org.spongepowered.asm.mixin.transformer.ClassInfo;
 import org.spongepowered.asm.util.Bytecode;
-import org.spongepowered.asm.util.Bytecode.DelegateInitialiser;
 import org.spongepowered.asm.util.Constants;
+import org.spongepowered.asm.util.Counter;
 import org.spongepowered.asm.util.Locals.SyntheticLocalVariableNode;
 
 import java.util.ArrayList;
@@ -40,8 +47,9 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * Information about the current injection target, mainly just convenience
- * rather than passing a bunch of values around.
+ * Information about the current injection target (method) which bundles common
+ * injection context with the target method in order to allow injectors to
+ * interoperate.
  */
 public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
     
@@ -149,6 +157,11 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
         }
         
     }
+    
+    /**
+     * Target class info
+     */
+    public final ClassInfo classInfo;
 
     /**
      * Target class node
@@ -169,11 +182,6 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
      * True if the method is static 
      */
     public final boolean isStatic;
-    
-    /**
-     * True if the method is a constructor 
-     */
-    public final boolean isCtor;
     
     /**
      * Method arguments
@@ -224,23 +232,18 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
      * Labels for LVT ranges, generated as needed 
      */
     private LabelNode start, end;
-    
-    /**
-     * Cached delegate initialiser call
-     */
-    private DelegateInitialiser delegateInitialiser;
 
     /**
      * Make a new Target for the supplied method
      * 
      * @param method target method
      */
-    public Target(ClassNode classNode, MethodNode method) {
+    Target(ClassInfo classInfo, ClassNode classNode, MethodNode method) {
+        this.classInfo = classInfo;
         this.classNode = classNode;
         this.method = method;
         this.insns = method.instructions;
         this.isStatic = Bytecode.isStatic(method);
-        this.isCtor = method.name.equals(Constants.CTOR);
         this.arguments = Type.getArgumentTypes(method.desc);
 
         this.returnType = Type.getReturnType(method.desc);
@@ -268,6 +271,27 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
      */
     public InjectionNode getInjectionNode(AbstractInsnNode node) {
         return this.injectionNodes.get(node);
+    }
+    
+    public static Target of(ClassInfo classInfo, ClassNode classNode, MethodNode method) {
+        if (method.name.equals(Constants.CTOR)) {
+            return new Constructor(classInfo, classNode, method);
+        }
+        return new Target(classInfo, classNode, method);
+    }
+    
+    /**
+     * Get the target method name
+     */
+    public String getName() {
+        return this.method.name;
+    }
+    
+    /**
+     * Get the target method descriptor
+     */
+    public String getDesc() {
+        return this.method.desc;
     }
     
     /**
@@ -407,69 +431,55 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
     }
 
     /**
+     * Get the target method signature
+     */
+    public String getSignature() {
+        return this.method.signature;
+    }
+    
+    /**
      * Generate an array containing local indexes for the specified args,
      * returns an array of identical size to the supplied array with an
      * allocated local index in each corresponding position
-     * 
+     *
      * @param args Argument types
      * @param start starting index
      * @return array containing a corresponding local arg index for each member
      *      of the supplied args array
      */
     public int[] generateArgMap(Type[] args, int start) {
-        if (this.argMapVars == null) {
-            this.argMapVars = new ArrayList<Integer>();
-        }
-        
-        int[] argMap = new int[args.length];
-        for (int arg = start, index = 0; arg < args.length; arg++) {
-            int size = args[arg].getSize();
-            argMap[arg] = this.allocateArgMapLocal(index, size);
-            index += size;
-        }
-        return argMap;
+        return this.generateArgMap(args, start, false);
     }
 
     /**
-     * Allocates a local variable to be used for argmap. Since argmaps do not
-     * overlap we can safely reuse local variables allocated for this purpose.
-     * We do however need to deal with expanding the argmap allocation when
-     * necessary, which is complicated slightly by the fact that some variables
-     * occupy more than one local slot.
-     * 
-     * @param index Argmap index
-     * @param size Size of variable
-     * @return local offset to use
+     * Generate an array containing local indexes for the specified args,
+     * returns an array of identical size to the supplied array with an
+     * allocated local index in each corresponding position
+     *
+     * @param args Argument types
+     * @param start starting index
+     * @param fresh allocate fresh locals only, do not reuse existing argmap
+     *      slots
+     * @return array containing a corresponding local arg index for each member
+     *      of the supplied args array
      */
-    private int allocateArgMapLocal(int index, int size) {
-        // Allocate extra space if we've reached the end
-        if (index >= this.argMapVars.size()) {
-            int base = this.allocateLocals(size);
-            for (int offset = 0; offset < size; offset++) {
-                this.argMapVars.add(Integer.valueOf(base + offset));
-            }
-            return base;
+    public int[] generateArgMap(Type[] args, int start, boolean fresh) {
+        if (this.argMapVars == null) {
+            this.argMapVars = new ArrayList<Integer>();
         }
 
-        int local = this.argMapVars.get(index);
-        
-        // Allocate extra space if the variable is oversize
-        if (size > 1 && index + size > this.argMapVars.size()) {
-            int nextLocal = this.allocateLocals(1);
-            if (nextLocal == local + 1) {
-                // Next allocated was contiguous, so we can continue
-                this.argMapVars.add(Integer.valueOf(nextLocal));
-                return local;
+        int[] argMap = new int[args.length];
+        Counter index = new Counter();
+        for (int arg = start; arg < args.length; arg++) {
+            int size = args[arg].getSize();
+            if (fresh) {
+                argMap[arg] = this.allocateLocals(size);
+                index.value += size;
+            } else {
+                argMap[arg] = this.allocateArgMapLocal(index, size);
             }
-            
-            // Next allocated was not contiguous, allocate a new local slot so
-            // that indexes are contiguous
-            this.argMapVars.set(index, Integer.valueOf(nextLocal));
-            this.argMapVars.add(Integer.valueOf(this.allocateLocals(1)));
-            return nextLocal;
         }
-
-        return local;
+        return argMap;
     }
     
     /**
@@ -527,18 +537,65 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
     }
 
     /**
+     * Allocates a local variable to be used for argmap. Since argmaps do not
+     * overlap we can safely reuse local variables allocated for this purpose.
+     * We do however need to deal with expanding the argmap allocation when
+     * necessary, which is complicated slightly by the fact that some variables
+     * occupy more than one local slot.
+     *
+     * @param index Argmap index
+     * @param size Size of variable
+     * @return local offset to use
+     */
+    private int allocateArgMapLocal(Counter index, int size) {
+        boolean isLastSlotFree = index.value < this.argMapVars.size();
+        while (index.value < this.argMapVars.size()) {
+            int local = this.argMapVars.get(index.value);
+            if (size == 1) {
+                index.value++;
+                return local;
+            }
+            int nextIndex = index.value + 1;
+            if (nextIndex < this.argMapVars.size() && local + 1 == this.argMapVars.get(nextIndex)) {
+                // We own the next slot so this is a safe place to store a double-width type.
+                // We've consumed the next slot so increment the next available index.
+                index.value += 2;
+                return local;
+            }
+            index.value++;
+        }
+        // We don't have anywhere to store the arg.
+        int newLocal = this.allocateLocal();
+        this.argMapVars.add(newLocal);
+        index.value++;
+        if (size == 1) {
+            return newLocal;
+        }
+        if (isLastSlotFree && newLocal == this.argMapVars.get(this.argMapVars.size() - 2) + 1) {
+            // We own the preceding local as well, and it is not yet used by this argMap, so we can store our
+            // double-width type there.
+            return newLocal - 1;
+        }
+        // Allocate 1 more local so we can fit the double-width type. We know it will follow directly from the
+        // previous one.
+        this.argMapVars.add(this.allocateLocal());
+        index.value++;
+        return newLocal;
+    }
+    
+    /**
      * Get the callback descriptor
-     * 
+     *
      * @param captureLocals True if the callback is capturing locals
      * @param locals Local variable types
      * @param argumentTypes Argument types
-     * @param startIndex local index to start at
+     * @param startIndex local index to initial at
      * @param extra extra locals to include
      * @return generated descriptor
      */
     public String getCallbackDescriptor(final boolean captureLocals, final Type[] locals, Type[] argumentTypes, int startIndex, int extra) {
         if (this.callbackDescriptor == null) {
-            this.callbackDescriptor = String.format("(%sL%s;)V", this.method.desc.substring(1, this.method.desc.indexOf(')')),
+            this.callbackDescriptor = String.format("(%sL%s;)V", this.getDesc().substring(1, this.getDesc().indexOf(')')),
                     this.getCallbackInfoClass());
         }
         
@@ -555,11 +612,6 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
         }
 
         return descriptor.append(")V").toString();
-    }
-    
-    @Override
-    public String toString() {
-        return String.format("%s::%s%s", this.classNode.name, this.method.name, this.method.desc);
     }
 
     @Override
@@ -608,49 +660,67 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
         return this.insns.iterator();
     }
 
+    @Override
+    public String toString() {
+        return String.format("%s::%s%s", this.classNode.name, this.getName(), this.getDesc());
+    }
+
     /**
      * Find the first <tt>&lt;init&gt;</tt> invocation after the specified
-     * <tt>NEW</tt> insn 
-     * 
+     * <tt>NEW</tt> insn
+     *
      * @param newNode NEW insn
      * @return INVOKESPECIAL opcode of ctor, or null if not found
      */
     public MethodInsnNode findInitNodeFor(TypeInsnNode newNode) {
-        int start = this.indexOf(newNode);
-        for (Iterator<AbstractInsnNode> iter = this.insns.iterator(start); iter.hasNext();) {
-            AbstractInsnNode insn = iter.next();
-            if (insn instanceof MethodInsnNode && insn.getOpcode() == Opcodes.INVOKESPECIAL) {
-                MethodInsnNode methodNode = (MethodInsnNode)insn;
-                if (Constants.CTOR.equals(methodNode.name) && methodNode.owner.equals(newNode.desc)) {
-                    return methodNode;
-                }
-            }
-        }
-        return null;
+        return this.findInitNodeFor(newNode, null);
     }
     
     /**
-     * Find the call to <tt>super()</tt> or <tt>this()</tt> in a constructor.
-     * This attempts to locate the first call to <tt>&lt;init&gt;</tt> which
-     * isn't an inline call to another object ctor being passed into the super
-     * invocation.
-     * 
-     * @return Call to <tt>super()</tt>, <tt>this()</tt> or
-     *      <tt>DelegateInitialiser.NONE</tt> if not found
+     * Find the matching <tt>&lt;init&gt;</tt> invocation after the specified
+     * <tt>NEW</tt> insn, ensuring that the supplied descriptor matches. If the
+     * supplied descriptor is <tt>null</tt> then any invocation matches. If
+     * additional <tt>NEW</tt> insns are encountered then corresponding
+     * <tt>&lt;init&gt;</tt> calls are skipped.
+     *
+     * @param newNode NEW insn
+     * @param desc Descriptor to match
+     * @return INVOKESPECIAL opcode of ctor, or null if not found
      */
-    public DelegateInitialiser findDelegateInitNode() {
-        if (!this.isCtor) {
-            return null;
-        }
-        
-        if (this.delegateInitialiser == null) {
-            String superName = ClassInfo.forName(this.classNode.name).getSuperName();
-            this.delegateInitialiser = Bytecode.findDelegateInit(this.method, superName, this.classNode.name);
-        }
-        
-        return this.delegateInitialiser;
+    public MethodInsnNode findInitNodeFor(TypeInsnNode newNode, String desc) {
+        return BeforeNew.findInitNodeFor(this.insns, newNode, desc);
     }
     
+    /**
+     * Insert the supplied instructions after the specified instruction
+     *
+     * @param location Instruction to insert before
+     * @param insns Instructions to insert
+     */
+    public void insert(InjectionNode location, final InsnList insns) {
+        this.insns.insert(location.getCurrentTarget(), insns);
+    }
+    
+    /**
+     * Insert the supplied instruction after the specified instruction
+     *
+     * @param location Instruction to insert before
+     * @param insn Instruction to insert
+     */
+    public void insert(InjectionNode location, final AbstractInsnNode insn) {
+        this.insns.insert(location.getCurrentTarget(), insn);
+    }
+
+    /**
+     * Insert the supplied instructions after the specified instruction
+     *
+     * @param location Instruction to insert before
+     * @param insns Instructions to insert
+     */
+    public void insert(AbstractInsnNode location, final InsnList insns) {
+        this.insns.insert(location, insns);
+    }
+
     /**
      * Insert the supplied instructions before the specified instruction 
      * 
@@ -659,6 +729,16 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
      */
     public void insertBefore(InjectionNode location, final InsnList insns) {
         this.insns.insertBefore(location.getCurrentTarget(), insns);
+    }
+
+    /**
+     * Insert the supplied instruction after the specified instruction
+     *
+     * @param location Instruction to insert before
+     * @param insn Instruction to insert
+     */
+    public void insert(AbstractInsnNode location, final AbstractInsnNode insn) {
+        this.insns.insert(location, insn);
     }
     
     /**
@@ -669,6 +749,16 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
      */
     public void insertBefore(AbstractInsnNode location, final InsnList insns) {
         this.insns.insertBefore(location, insns);
+    }
+    
+    /**
+     * Insert the supplied instruction before the specified instruction
+     *
+     * @param location Instruction to insert before
+     * @param insn Instruction to insert
+     */
+    public void insertBefore(InjectionNode location, final AbstractInsnNode insn) {
+        this.insns.insertBefore(location.getCurrentTarget(), insn);
     }
     
     /**
@@ -748,12 +838,22 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
     }
 
     /**
-     * Add an entry to the target LVT between the specified start and end labels
-     * 
+     * Insert the supplied instruction before the specified instruction
+     *
+     * @param location Instruction to insert before
+     * @param insn Instruction to insert
+     */
+    public void insertBefore(AbstractInsnNode location, final AbstractInsnNode insn) {
+        this.insns.insertBefore(location, insn);
+    }
+
+    /**
+     * Add an entry to the target LVT between the specified initial and end labels
+     *
      * @param index local variable index
      * @param name local variable name
      * @param desc local variable type
-     * @param from start of range
+     * @param from initial of range
      * @param to end of range
      */
     public void addLocalVariable(int index, String name, String desc, LabelNode from, LabelNode to) {
@@ -780,16 +880,6 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
     }
 
     /**
-     * Get a label which marks the very start of the method
-     */
-    private LabelNode getStartLabel() {
-        if (this.start == null) {
-            this.insns.insert(this.start = new LabelNode());
-        }
-        return this.start;
-    }
-
-    /**
      * Get a label which marks the very end of the method
      */
     private LabelNode getEndLabel() {
@@ -797,6 +887,16 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
             this.insns.add(this.end = new LabelNode());
         }
         return this.end;
+    }
+
+    /**
+     * Get a label which marks the very initial of the method
+     */
+    private LabelNode getStartLabel() {
+        if (this.start == null) {
+            this.insns.insert(this.start = new LabelNode());
+        }
+        return this.start;
     }
 
 }

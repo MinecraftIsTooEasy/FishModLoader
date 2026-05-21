@@ -31,7 +31,7 @@ public abstract class FixTNT extends Entity {
             )
     )
     private void injectCancelExplosionCopy(CallbackInfoReturnable<Boolean> callback) {
-        if (Configs.Fix.TNTFix.get() && this.isExploded) {
+        if (Configs.Fix.TNT_FIX.get() && this.isExploded) {
             this.setDead();
             this.tryRemoveFromWorldUniques();
             callback.setReturnValue(true);

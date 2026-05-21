@@ -65,7 +65,7 @@ public abstract class MixinBootstrap {
     /**
      * Subsystem version
      */
-    public static final String VERSION = "0.8.5";
+    public static final String VERSION = "0.8.7";
     
     /**
      * Transformer factory 
@@ -183,7 +183,7 @@ public abstract class MixinBootstrap {
                 return;
             }
             
-            throw new IllegalStateException("MixinBootstrap.doInit() called before MixinBootstrap.start()");
+            throw new IllegalStateException("MixinBootstrap.doInit() called before MixinBootstrap.initial()");
         }
 
         MixinBootstrap.getPlatform().getPhaseProviderClasses();

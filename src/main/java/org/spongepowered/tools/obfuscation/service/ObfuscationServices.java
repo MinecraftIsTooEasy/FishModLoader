@@ -31,8 +31,16 @@ import org.spongepowered.tools.obfuscation.interfaces.IMessagerEx.MessageType;
 import org.spongepowered.tools.obfuscation.interfaces.IMixinAnnotationProcessor;
 
 import javax.tools.Diagnostic.Kind;
-import java.util.*;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.ServiceConfigurationError;
+import java.util.ServiceLoader;
+import java.util.Set;
 
 /**
  * Obfuscation service manager
@@ -58,7 +66,7 @@ public final class ObfuscationServices {
      * True if provider init was already completed
      */
     private boolean providerInitDone = false;
-    
+
     /**
      * Singleton pattern
      */
@@ -86,11 +94,11 @@ public final class ObfuscationServices {
             return;
         }
         this.providerInitDone = true;
-        
+
         boolean defaultIsPresent = false;
         
         Map<String, Set<String>> supportedTypes = new LinkedHashMap<String, Set<String>>();
-        
+
         try {
             for (IObfuscationService service : this.serviceLoader) {
                 if (!this.services.contains(service)) {
@@ -128,7 +136,7 @@ public final class ObfuscationServices {
             }
             ap.printMessage(MessageType.INFO, sb.toString());
         }
-        
+
         if (!defaultIsPresent) {
             String defaultEnv = ap.getOption(SupportedOptions.DEFAULT_OBFUSCATION_ENV);
             if (defaultEnv == null) {

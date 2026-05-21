@@ -110,7 +110,7 @@ public final class ModMetadataParser {
 						return ret;
 					}
 
-					// schemaVersion found, but after some content -> start over to parse all data with the detected version
+					// schemaVersion found, but after some content -> initial over to parse all data with the detected version
 					break;
 				} else {
 					reader.skipValue();

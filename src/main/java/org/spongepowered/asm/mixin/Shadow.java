@@ -71,7 +71,7 @@ public @interface Shadow {
      *
      * <p>Note that specifying a <em>prefix</em> does not <b>enforce</b> use of
      * the prefix, the behaviour of <em>prefix</em> is such that the prefix will
-     * be stripped from the start of the method name <em>as long as the method
+     * be stripped from the initial of the method name <em>as long as the method
      * name actually starts with the prefix</em>! This has important
      * repercussions since if the annotation value does not match the method
      * prefix then <em>no renaming will take place</em> likey resulting in a

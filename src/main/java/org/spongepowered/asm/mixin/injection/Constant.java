@@ -164,11 +164,6 @@ public @interface Constant {
     public Condition[] expandZeroConditions() default {};
 
     /**
-     * @return true to enable verbose debug logging for this injection point
-     */
-    public boolean log() default false;
-    
-    /**
      * Available options for the {@link Constant#expandZeroConditions} setting.
      * Each option matches the inverse instructions as well because in the
      * compiled code it is not unusual for <tt>if (x &gt; 0)</tt> to be compiled
@@ -179,21 +174,21 @@ public @interface Constant {
      * zero is on the <b>right-hand side</b> you should choose the inverse.</p>
      */
     public enum Condition {
-
+        
         /**
          * Match &lt; operators and &gt;= instructions:
          *
          * <code>x &lt; 0</code>
          */
         LESS_THAN_ZERO(Opcodes.IFLT, Opcodes.IFGE),
-
+        
         /**
          * Match &lt;= operators and &gt; instructions
          *
          * <code>x &lt;= 0</code>
          */
         LESS_THAN_OR_EQUAL_TO_ZERO(Opcodes.IFLE, Opcodes.IFGT),
-
+        
         /**
          * Match &gt;= operators and &lt; instructions, equivalent to
          * {@link #LESS_THAN_ZERO}
@@ -201,7 +196,7 @@ public @interface Constant {
          * <code>x &gt;= 0</code>
          */
         GREATER_THAN_OR_EQUAL_TO_ZERO(Condition.LESS_THAN_ZERO),
-
+        
         /**
          * Match &gt; operators and &lt;= instructions, equivalent to
          * {@link #LESS_THAN_OR_EQUAL_TO_ZERO}
@@ -209,38 +204,43 @@ public @interface Constant {
          * <code>x &gt; 0</code>
          */
         GREATER_THAN_ZERO(Condition.LESS_THAN_OR_EQUAL_TO_ZERO);
-
+        
         private final int[] opcodes;
-
+        
         private final Condition equivalence;
-
+        
         private Condition(int... opcodes) {
             this(null, opcodes);
         }
-
+        
         private Condition(Condition equivalence) {
             this(equivalence, equivalence.opcodes);
         }
-
+        
         private Condition(Condition equivalence, int... opcodes) {
             this.equivalence = equivalence != null ? equivalence : this;
             this.opcodes = opcodes;
         }
-
+        
         /**
          * Get the condition which is equivalent to this condition
          */
         public Condition getEquivalentCondition() {
             return this.equivalence;
         }
-
+        
         /**
          * Get the opcodes for this condition
          */
         public int[] getOpcodes() {
             return this.opcodes;
         }
-
+        
     }
+    
+    /**
+     * @return true to enable verbose debug logging for this injection point
+     */
+    public boolean log() default false;
 
 }

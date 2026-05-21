@@ -32,6 +32,7 @@ import org.spongepowered.asm.logging.ILogger;
 import org.spongepowered.asm.mixin.Debug;
 import org.spongepowered.asm.mixin.MixinEnvironment;
 import org.spongepowered.asm.mixin.MixinEnvironment.Option;
+import org.spongepowered.asm.mixin.injection.struct.Constructor;
 import org.spongepowered.asm.mixin.injection.struct.Target;
 import org.spongepowered.asm.mixin.struct.SourceMap;
 import org.spongepowered.asm.mixin.transformer.ext.Extensions;
@@ -42,10 +43,18 @@ import org.spongepowered.asm.service.MixinService;
 import org.spongepowered.asm.util.Annotations;
 import org.spongepowered.asm.util.Bytecode;
 import org.spongepowered.asm.util.ClassSignature;
+import org.spongepowered.asm.util.Constants;
 import org.spongepowered.asm.util.perf.Profiler;
 import org.spongepowered.asm.util.perf.Profiler.Section;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedSet;
 
 /**
  * Struct for containing target class information during mixin application
@@ -120,6 +129,13 @@ final class TargetClassContext extends ClassContext implements ITargetClassConte
      */
     private final Set<MethodNode> mixinMethods = new HashSet<MethodNode>();
     
+    /**
+     * Information about fields which have been discovered by mixin
+     * preprocessors in this pass but which have not yet been merged into the
+     * target class. 
+     */
+    private final Set<FieldNode> mixinFields = new HashSet<FieldNode>();
+
     /**
      * Exceptions which were suppressed during mixin application because they
      * were raised by an optional mixin 
@@ -217,7 +233,20 @@ final class TargetClassContext extends ClassContext implements ITargetClassConte
     List<MethodNode> getMethods() {
         return this.classNode.methods;
     }
-    
+
+    /**
+     * Get the class constructors
+     */
+    List<Constructor> getConstructors() {
+        List<Constructor> ctors = new ArrayList<Constructor>();
+        for (MethodNode method : this.classNode.methods) {
+            if (Constants.CTOR.equals(method.name)) {
+                ctors.add((Constructor)this.getTargetMethod(method));
+            }
+        }
+        return ctors;
+    }
+
     /**
      * Get the class fields (from the tree)
      */
@@ -271,6 +300,21 @@ final class TargetClassContext extends ClassContext implements ITargetClassConte
         }
     }
     
+    /**
+     * Add the specified field to the pending mixin fields set
+     * 
+     * @param field field to add
+     */
+    void addMixinField(FieldNode field) {
+        this.mixinFields.add(field);
+    }
+
+    void fieldMerged(FieldNode field) {
+        if (!this.mixinFields.remove(field)) {
+            TargetClassContext.logger.debug("Unexpected: Merged unregistered field {} {} in {}", field.desc, field.name, this);
+        }
+    }
+
     MethodNode findMethod(Deque<String> aliases, String desc) {
         return this.findAliasedMethod(aliases, desc, true);
     }
@@ -302,6 +346,10 @@ final class TargetClassContext extends ClassContext implements ITargetClassConte
         return this.findAliasedMethod(aliases, desc);
     }
     
+    FieldNode findField(Deque<String> aliases, String desc) {
+        return this.findAliasedField(aliases, desc, true);
+    }
+
     /**
      * Finds a field in the target class
      * 
@@ -310,6 +358,10 @@ final class TargetClassContext extends ClassContext implements ITargetClassConte
      * @return Target field  or null if not found
      */
     FieldNode findAliasedField(Deque<String> aliases, String desc) {
+        return this.findAliasedField(aliases, desc, false);
+    }
+
+    private FieldNode findAliasedField(Deque<String> aliases, String desc, boolean includeMixinFields) {
         String alias = aliases.poll();
         if (alias == null) {
             return null;
@@ -321,7 +373,15 @@ final class TargetClassContext extends ClassContext implements ITargetClassConte
             }
         }
 
-        return this.findAliasedField(aliases, desc);
+        if (includeMixinFields) {
+            for (FieldNode target : this.mixinFields) {
+                if (target.name.equals(alias) && target.desc.equals(desc)) {
+                    return target;
+                }
+            } 
+        }
+
+        return this.findAliasedField(aliases, desc, includeMixinFields);
     }
 
     /**
@@ -338,7 +398,7 @@ final class TargetClassContext extends ClassContext implements ITargetClassConte
         String targetName = method.name + method.desc;
         Target target = this.targetMethods.get(targetName);
         if (target == null) {
-            target = new Target(this.classNode, method);
+            target = Target.of(this.classInfo, this.classNode, method);
             this.targetMethods.put(targetName, target);
         }
         return target;
@@ -362,9 +422,10 @@ final class TargetClassContext extends ClassContext implements ITargetClassConte
     }
     
     /**
-     * Run extensions before apply
+     * Run extensions before apply and clean up any global state in case this is a hotswap
      */
     private void preApply() {
+        this.getClassInfo().getMethodMapper().reset();
         this.extensions.preApply(this);
     }
 
@@ -409,6 +470,10 @@ final class TargetClassContext extends ClassContext implements ITargetClassConte
             if (!method.name.startsWith("<")) {
                 TargetClassContext.logger.debug("Unexpected: Registered method {}{} in {} was not merged", method.name, method.desc, this);
             }
+        }
+
+        for (FieldNode field : this.mixinFields) {
+            TargetClassContext.logger.debug("Unexpected: Registered field {} {} in {} was not merged", field.desc, field.name, this);
         }
     }
 

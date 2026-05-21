@@ -26,7 +26,11 @@ package org.spongepowered.asm.mixin.transformer;
 
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
-import org.objectweb.asm.tree.*;
+import org.objectweb.asm.tree.AnnotationNode;
+import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.InsnNode;
+import org.objectweb.asm.tree.MethodInsnNode;
+import org.objectweb.asm.tree.MethodNode;
 import org.spongepowered.asm.mixin.MixinEnvironment;
 import org.spongepowered.asm.mixin.gen.Accessor;
 import org.spongepowered.asm.mixin.gen.Invoker;
@@ -65,18 +69,6 @@ class MixinCoprocessorAccessor extends MixinCoprocessor {
         this.sessionId = sessionId;
     }
     
-    private static void createProxy(MethodNode methodNode, ClassInfo targetClass, Method method) {
-        methodNode.access |= Opcodes.ACC_SYNTHETIC;
-        methodNode.instructions.clear();
-        Type[] args = Type.getArgumentTypes(methodNode.desc);
-        Type returnType = Type.getReturnType(methodNode.desc);
-        Bytecode.loadArgs(args, methodNode.instructions, 0);
-        methodNode.instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, targetClass.getName(), method.getName(), methodNode.desc, false));
-        methodNode.instructions.add(new InsnNode(returnType.getOpcode(Opcodes.IRETURN)));
-        methodNode.maxStack = Bytecode.getFirstNonArgLocalIndex(args, false);
-        methodNode.maxLocals = 0;
-    }
-
     @Override
     String getName() {
         return "accessor";
@@ -93,28 +85,41 @@ class MixinCoprocessorAccessor extends MixinCoprocessor {
         this.accessorMixins.put(mixin.getClassName(), mixin);
     }
 
+    private static void createProxy(MethodNode methodNode, ClassInfo targetClass, Method method) {
+        methodNode.access |= Opcodes.ACC_SYNTHETIC;
+        methodNode.instructions.clear();
+        Type[] args = Type.getArgumentTypes(methodNode.desc);
+        Type returnType = Type.getReturnType(methodNode.desc);
+        Bytecode.loadArgs(args, methodNode.instructions, 0);
+        methodNode.instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, targetClass.getName(), method.getName(), methodNode.desc,
+                targetClass.isInterface()));
+        methodNode.instructions.add(new InsnNode(returnType.getOpcode(Opcodes.IRETURN)));
+        methodNode.maxStack = Bytecode.getFirstNonArgLocalIndex(args, false);
+        methodNode.maxLocals = 0;
+    }
+
     @Override
     ProcessResult process(String className, ClassNode classNode) {
         if (!MixinEnvironment.getCompatibilityLevel().supports(LanguageFeatures.METHODS_IN_INTERFACES)
                     || !this.accessorMixins.containsKey(className)) {
             return ProcessResult.NONE;
         }
-
+        
         MixinInfo mixin = this.accessorMixins.get(className);
         boolean transformed = false;
         MixinClassNode mixinClassNode = mixin.getClassNode(0);
         ClassInfo targetClass = mixin.getTargets().get(0);
-
+        
         if (!Bytecode.hasFlag(mixinClassNode, Opcodes.ACC_PUBLIC)) {
             Bytecode.setVisibility(mixinClassNode, Visibility.PUBLIC);
             transformed = true;
         }
-
+        
         for (MixinMethodNode methodNode : mixinClassNode.mixinMethods) {
             if (!Bytecode.hasFlag(methodNode, Opcodes.ACC_STATIC)) {
                 continue;
             }
-
+            
             AnnotationNode accessor = methodNode.getVisibleAnnotation(Accessor.class);
             AnnotationNode invoker = methodNode.getVisibleAnnotation(Invoker.class);
             if (accessor != null || invoker != null) {
@@ -125,25 +130,30 @@ class MixinCoprocessorAccessor extends MixinCoprocessor {
                 transformed = true;
             }
         }
-
+        
         if (!transformed) {
             return ProcessResult.NONE;
         }
-
+        
         Bytecode.replace(mixinClassNode, classNode);
         return ProcessResult.PASSTHROUGH_TRANSFORMED;
     }
 
+    @Override
+    public boolean couldTransform(String className) {
+        return MixinEnvironment.getCompatibilityLevel().supports(LanguageFeatures.METHODS_IN_INTERFACES) && this.accessorMixins.containsKey(className);
+    }
+
     private Method getAccessorMethod(MixinInfo mixin, MethodNode methodNode, ClassInfo targetClass) throws MixinTransformerError {
         Method method = mixin.getClassInfo().findMethod(methodNode, ClassInfo.INCLUDE_ALL);
-
+        
         // Normally the target will be renamed when the mixin is conformed to the target, if we get here
         // without this happening then we will end up invoking an undecorated method, which is bad!
         if (!method.isConformed()) {
-            String uniqueName = targetClass.getMethodMapper().getUniqueName(methodNode, this.sessionId, true);
+            String uniqueName = targetClass.getMethodMapper().getUniqueName(mixin, methodNode, this.sessionId, true);
             method.conform(uniqueName);
         }
-
+        
         return method;
     }
 

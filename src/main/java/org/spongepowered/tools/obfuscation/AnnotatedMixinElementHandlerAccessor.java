@@ -37,9 +37,11 @@ import org.spongepowered.asm.util.Constants;
 import org.spongepowered.tools.obfuscation.ReferenceManager.ReferenceConflictException;
 import org.spongepowered.tools.obfuscation.interfaces.IMessagerEx.MessageType;
 import org.spongepowered.tools.obfuscation.interfaces.IMixinAnnotationProcessor;
-import org.spongepowered.tools.obfuscation.mirror.*;
-import org.spongepowered.tools.obfuscation.mirror.TypeUtils.Equivalency;
-import org.spongepowered.tools.obfuscation.mirror.TypeUtils.EquivalencyResult;
+import org.spongepowered.tools.obfuscation.mirror.AnnotationHandle;
+import org.spongepowered.tools.obfuscation.mirror.FieldHandle;
+import org.spongepowered.tools.obfuscation.mirror.MethodHandle;
+import org.spongepowered.tools.obfuscation.mirror.TypeHandle;
+import org.spongepowered.tools.obfuscation.mirror.TypeUtils;
 
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
@@ -51,6 +53,74 @@ import javax.lang.model.type.TypeMirror;
  */
 class AnnotatedMixinElementHandlerAccessor extends AnnotatedMixinElementHandler {
 
+    private void registerAccessorForTarget(AnnotatedElementAccessor elem, TypeHandle target) {
+        FieldHandle targetField = target.findField(elem.getTargetName(), elem.getTargetTypeName(), false);
+        if (targetField == null) {
+            if (!target.isImaginary()) {
+                elem.printMessage(this.ap, MessageType.ACCESSOR_TARGET_NOT_FOUND,
+                        "Could not locate @Accessor target " + elem + " in target " + target);
+                return;
+            }
+            
+            targetField = new FieldHandle(target.getName(), elem.getTargetName(), elem.getTargetDesc());
+        }
+
+        if (!elem.shouldRemap()) {
+            return;
+        }
+
+        ObfuscationData<MappingField> obfData = this.obf.getDataProvider().getObfField(targetField.asMapping(false).move(target.getName()));
+        if (obfData.isEmpty()) {
+            String info = this.mixin.isMultiTarget() ? " in target " + target : "";
+            elem.printMessage(this.ap, MessageType.NO_OBFDATA_FOR_ACCESSOR,
+                    "Unable to locate obfuscation mapping" + info + " for @Accessor target " + elem);
+            return;
+        }
+
+        obfData = AnnotatedMixinElementHandler.<MappingField>stripOwnerData(obfData);
+
+        try {
+            this.obf.getReferenceManager().addFieldMapping(this.mixin.getClassRef(), elem.getTargetName(), elem.getContext(), obfData);
+        } catch (ReferenceConflictException ex) {
+            elem.printMessage(this.ap, MessageType.ACCESSOR_MAPPING_CONFLICT, "Mapping conflict for @Accessor target " + elem + ": "
+                    + ex.getNew() + " for target " + target + " conflicts with existing mapping " + ex.getOld());
+        }
+    }
+
+    private void registerInvokerForTarget(AnnotatedElementInvoker elem, TypeHandle target) {
+        MethodHandle targetMethod = target.findMethod(elem.getTargetName(), elem.getTargetTypeName(), false);
+        if (targetMethod == null) {
+            if (!target.isImaginary()) {
+                elem.printMessage(this.ap, MessageType.ACCESSOR_TARGET_NOT_FOUND,
+                        "Could not locate @Invoker target " + elem + " in target " + target);
+                return;
+            }
+            
+            targetMethod = new MethodHandle(target, elem.getTargetName(), elem.getTargetDesc());
+        }
+
+        if (!elem.shouldRemap()) {
+            return;
+        }
+
+        ObfuscationData<MappingMethod> obfData = this.obf.getDataProvider().getObfMethod(targetMethod.asMapping(false).move(target.getName()));
+        if (obfData.isEmpty()) {
+            String info = this.mixin.isMultiTarget() ? " in target " + target : "";
+            elem.printMessage(this.ap, MessageType.NO_OBFDATA_FOR_ACCESSOR,
+                    "Unable to locate obfuscation mapping" + info + " for @Accessor target " + elem);
+            return;
+        }
+
+        obfData = AnnotatedMixinElementHandler.<MappingMethod>stripOwnerData(obfData);
+
+        try {
+            this.obf.getReferenceManager().addMethodMapping(this.mixin.getClassRef(), elem.getTargetName(), elem.getContext(), obfData);
+        } catch (ReferenceConflictException ex) {
+            elem.printMessage(this.ap, MessageType.ACCESSOR_MAPPING_CONFLICT, "Mapping conflict for @Invoker target " + elem + ": "
+                    + ex.getNew() + " for target " + target + " conflicts with existing mapping " + ex.getOld());
+        }
+    }
+    
     public AnnotatedMixinElementHandlerAccessor(IMixinAnnotationProcessor ap, AnnotatedMixin mixin) {
         super(ap, mixin);
     }
@@ -89,89 +159,13 @@ class AnnotatedMixinElementHandlerAccessor extends AnnotatedMixinElementHandler 
             }
         }
     }
-    
-    private void registerAccessorForTarget(AnnotatedElementAccessor elem, TypeHandle target) {
-        FieldHandle targetField = target.findField(elem.getTargetName(), elem.getTargetTypeName(), false);
-        if (targetField == null) {
-            if (!target.isImaginary()) {
-                elem.printMessage(this.ap, MessageType.ACCESSOR_TARGET_NOT_FOUND,
-                        "Could not locate @Accessor target " + elem + " in target " + target);
-                return;
-            }
-
-            targetField = new FieldHandle(target.getName(), elem.getTargetName(), elem.getTargetDesc());
-        }
-
-        if (!elem.shouldRemap()) {
-            return;
-        }
-
-        ObfuscationData<MappingField> obfData = this.obf.getDataProvider().getObfField(targetField.asMapping(false).move(target.getName()));
-        if (obfData.isEmpty()) {
-            String info = this.mixin.isMultiTarget() ? " in target " + target : "";
-            elem.printMessage(this.ap, MessageType.NO_OBFDATA_FOR_ACCESSOR,
-                    "Unable to locate obfuscation mapping" + info + " for @Accessor target " + elem);
-            return;
-        }
-
-        obfData = AnnotatedMixinElementHandler.<MappingField>stripOwnerData(obfData);
-
-        try {
-            this.obf.getReferenceManager().addFieldMapping(this.mixin.getClassRef(), elem.getTargetName(), elem.getContext(), obfData);
-        } catch (ReferenceConflictException ex) {
-            elem.printMessage(this.ap, MessageType.ACCESSOR_MAPPING_CONFLICT, "Mapping conflict for @Accessor target " + elem + ": "
-                    + ex.getNew() + " for target " + target + " conflicts with existing mapping " + ex.getOld());
-        }
-    }
-
-    private void registerInvokerForTarget(AnnotatedElementInvoker elem, TypeHandle target) {
-        MethodHandle targetMethod = target.findMethod(elem.getTargetName(), elem.getTargetTypeName(), false);
-        if (targetMethod == null) {
-            if (!target.isImaginary()) {
-                elem.printMessage(this.ap, MessageType.ACCESSOR_TARGET_NOT_FOUND,
-                        "Could not locate @Invoker target " + elem + " in target " + target);
-                return;
-            }
-
-            targetMethod = new MethodHandle(target, elem.getTargetName(), elem.getTargetDesc());
-        }
-
-        if (!elem.shouldRemap()) {
-            return;
-        }
-
-        ObfuscationData<MappingMethod> obfData = this.obf.getDataProvider().getObfMethod(targetMethod.asMapping(false).move(target.getName()));
-        if (obfData.isEmpty()) {
-            String info = this.mixin.isMultiTarget() ? " in target " + target : "";
-            elem.printMessage(this.ap, MessageType.NO_OBFDATA_FOR_ACCESSOR,
-                    "Unable to locate obfuscation mapping" + info + " for @Accessor target " + elem);
-            return;
-        }
-
-        obfData = AnnotatedMixinElementHandler.<MappingMethod>stripOwnerData(obfData);
-
-        try {
-            this.obf.getReferenceManager().addMethodMapping(this.mixin.getClassRef(), elem.getTargetName(), elem.getContext(), obfData);
-        } catch (ReferenceConflictException ex) {
-            elem.printMessage(this.ap, MessageType.ACCESSOR_MAPPING_CONFLICT, "Mapping conflict for @Invoker target " + elem + ": "
-                    + ex.getNew() + " for target " + target + " conflicts with existing mapping " + ex.getOld());
-        }
-    }
 
     private void registerFactoryForTarget(AnnotatedElementInvoker elem, TypeHandle target) {
-        EquivalencyResult equivalency = TypeUtils.isEquivalentType(this.ap.getProcessingEnvironment(), elem.getReturnType(), target.getTypeMirror());
-        if (equivalency.type != Equivalency.EQUIVALENT) {
-            if (equivalency.type == Equivalency.EQUIVALENT_BUT_RAW && equivalency.rawType == 1) {
-                elem.printMessage(this.ap, MessageType.INVOKER_RAW_RETURN_TYPE, "Raw return type for Factory @Invoker", SuppressedBy.RAW_TYPES);
-            } else if (equivalency.type == Equivalency.BOUNDS_MISMATCH) {
-                elem.printMessage(this.ap, MessageType.FACTORY_INVOKER_GENERIC_ARGS, "Invalid Factory @Invoker return type, generic type args of "
-                        + target.getTypeMirror() + " are incompatible with " + elem.getReturnType() + ". " + equivalency);
-                return;
-            } else {
-                elem.printMessage(this.ap, MessageType.FACTORY_INVOKER_RETURN_TYPE, "Invalid Factory @Invoker return type, expected "
-                        + target.getTypeMirror() + " but found " + elem.getReturnType());
-                return;
-            }
+        String returnType = TypeUtils.getTypeName(elem.getReturnType());
+        if (!returnType.equals(target.toString())) {
+            elem.printMessage(this.ap, MessageType.FACTORY_INVOKER_RETURN_TYPE, "Invalid Factory @Invoker return type, expected "
+                    + target + " but found " + returnType);
+            return;
         }
         if (!elem.isStatic()) {
             elem.printMessage(this.ap, MessageType.FACTORY_INVOKER_NONSTATIC, "Factory @Invoker must be static");
@@ -196,7 +190,7 @@ class AnnotatedMixinElementHandlerAccessor extends AnnotatedMixinElementHandler 
     static class AnnotatedElementAccessor extends AnnotatedElementExecutable {
 
         protected final boolean shouldRemap;
-
+        
         protected final TypeMirror returnType;
 
         protected String targetName;
@@ -252,11 +246,11 @@ class AnnotatedMixinElementHandlerAccessor extends AnnotatedMixinElementHandler 
         public void setTargetName(String targetName) {
             this.targetName = targetName;
         }
-
+        
         public TypeMirror getReturnType() {
             return this.returnType;
         }
-
+        
         public boolean isStatic() {
             return this.element.getModifiers().contains(Modifier.STATIC);
         }
@@ -265,7 +259,7 @@ class AnnotatedMixinElementHandlerAccessor extends AnnotatedMixinElementHandler 
         public String toString() {
             return this.targetName != null ? this.targetName : "<invalid>";
         }
-
+    
     }
 
     private String getAccessorTargetName(AnnotatedElementAccessor elem) {
@@ -280,20 +274,20 @@ class AnnotatedMixinElementHandlerAccessor extends AnnotatedMixinElementHandler 
      * Invoker element
      */
     static class AnnotatedElementInvoker extends AnnotatedElementAccessor {
-
+        
         private AccessorType type = AccessorType.METHOD_PROXY;
-
+        
         public AnnotatedElementInvoker(ExecutableElement element, AnnotationHandle annotation, IMixinContext context, boolean shouldRemap) {
             super(element, annotation, context, shouldRemap);
         }
-
+        
         @Override
         public void attach(TypeHandle target) {
             this.type = AccessorType.METHOD_PROXY;
             if (this.returnType.getKind() != TypeKind.DECLARED) {
                 return;
             }
-
+            
             String specifiedName = this.getAnnotationValue();
             if (specifiedName != null) {
                 if (Constants.CTOR.equals(specifiedName) || target.getName().equals(specifiedName.replace('.',  '/'))) {
@@ -306,19 +300,27 @@ class AnnotatedMixinElementHandlerAccessor extends AnnotatedMixinElementHandler 
             if (accessorName == null) {
                 return;
             }
-
+            
             for (String prefix : AccessorType.OBJECT_FACTORY.getExpectedPrefixes()) {
                 if (prefix.equals(accessorName.prefix)
-                        && (Constants.CTOR.equals(accessorName.name) || target.getSimpleName().equals(accessorName.name))) {
+                        && (Constants.CTOR.equals(accessorName.name) || target.getSimpleName().equalsIgnoreCase(accessorName.name))) {
                     this.type = AccessorType.OBJECT_FACTORY;
                     return;
                 }
             }
         }
-
+        
+        @Override
+        public String getAnnotationValue() {
+            String value = super.getAnnotationValue();
+            return (this.type == AccessorType.OBJECT_FACTORY && value == null) ? this.returnType.toString() : value;
+        }
+        
         @Override
         public boolean shouldRemap() {
-            return (this.type == AccessorType.METHOD_PROXY || this.getAnnotationValue() != null) && super.shouldRemap();
+            return (this.type == AccessorType.OBJECT_FACTORY
+                    || this.type == AccessorType.METHOD_PROXY
+                    || this.getAnnotationValue() != null) && super.shouldRemap();
         }
 
         @Override

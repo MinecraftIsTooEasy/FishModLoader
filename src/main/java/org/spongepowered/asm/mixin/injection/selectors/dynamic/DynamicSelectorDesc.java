@@ -30,9 +30,15 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Desc;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Slice;
-import org.spongepowered.asm.mixin.injection.selectors.*;
+import org.spongepowered.asm.mixin.injection.selectors.ElementNode;
+import org.spongepowered.asm.mixin.injection.selectors.ISelectorContext;
+import org.spongepowered.asm.mixin.injection.selectors.ITargetSelector;
+import org.spongepowered.asm.mixin.injection.selectors.ITargetSelectorByName;
+import org.spongepowered.asm.mixin.injection.selectors.ITargetSelectorDynamic;
 import org.spongepowered.asm.mixin.injection.selectors.ITargetSelectorDynamic.SelectorAnnotation;
 import org.spongepowered.asm.mixin.injection.selectors.ITargetSelectorDynamic.SelectorId;
+import org.spongepowered.asm.mixin.injection.selectors.InvalidSelectorException;
+import org.spongepowered.asm.mixin.injection.selectors.MatchResult;
 import org.spongepowered.asm.util.Bytecode;
 import org.spongepowered.asm.util.Quantifier;
 import org.spongepowered.asm.util.SignaturePrinter;
@@ -107,7 +113,7 @@ import java.util.List;
  * &nbsp; &nbsp; }
  * </code></blockquote>
  * 
- * <p>As the resolver widens its search it adds new components to the start of
+ * <p>As the resolver widens its search it adds new components to the initial of
  * the implicit coordinate which match the element, separated by dots. For
  * example {@link At &#064;At} annotations inside a {@link Slice &#064;Slice}
  * will first resolve as (local coordinate) <tt>from</tt>, followed by
@@ -163,43 +169,54 @@ import java.util.List;
 public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelectorByName {
     
     /**
+     * Resolved id
+     */
+    private final String id;
+
+    /**
      * Parser/resolver error mesage, only stored if the descriptor is invalid so
      * we can emit it when {@link #validate} is called
      */
     private final InvalidSelectorException parseException;
     /**
-     * Resolved id
+     * Method descriptor, used for matching against methods. Computed from
+     * argument types and return type
      */
-    private final String id;
+    private final String methodDesc;
+    
     /**
      * The owner specified in the resolved {@link Desc} annotation, or null if
      * resolution failed
      */
     private final Type owner;
+    
     /**
      * The name specified in the resolved {@link Desc} annotation, or null if
      * resolution failed
      */
     private final String name;
+    
     /**
      * The arguments specified in the resolved {@link Desc} annotation, or null
      * if resolution failed
      */
     private final Type[] args;
+    
     /**
      * The return type specified in the resolved {@link Desc} annotation, or
      * null if resolution failed
      */
     private final Type returnType;
     /**
-     * Method descriptor, used for matching against methods. Computed from
-     * argument types and return type
+     * True if matching is disabled for this selector
      */
-    private final String methodDesc;
+    private final boolean disabled;
+    
     /**
      * Required matches
      */
     private final Quantifier matches;
+    
     /**
      * Annotation for next, parsed on demand
      */
@@ -207,25 +224,25 @@ public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelec
     
     private DynamicSelectorDesc(IResolvedDescriptor desc) {
         this(null, desc.getId(), desc.getOwner(), desc.getName(), desc.getArgs(), desc.getReturnType(), desc.getMatches(),
-                desc.getNext());
+                desc.getNext(), desc.isDebug());
     }
     
     private DynamicSelectorDesc(DynamicSelectorDesc desc, Quantifier quantifier) {
-        this(desc.parseException, desc.id, desc.owner, desc.name, desc.args, desc.returnType, quantifier, desc.next);
+        this(desc.parseException, desc.id, desc.owner, desc.name, desc.args, desc.returnType, quantifier, desc.next, desc.disabled);
     }
     
     private DynamicSelectorDesc(DynamicSelectorDesc desc, Type owner) {
-        this(desc.parseException, desc.id, owner, desc.name, desc.args, desc.returnType, desc.matches, desc.next);
+        this(desc.parseException, desc.id, owner, desc.name, desc.args, desc.returnType, desc.matches, desc.next, desc.disabled);
     }
     
     private DynamicSelectorDesc(InvalidSelectorException ex) {
-        this(ex, null, null, null, null, null, Quantifier.NONE, null);
+        this(ex, null, null, null, null, null, Quantifier.NONE, null, true);
     }
     
     protected DynamicSelectorDesc(InvalidSelectorException ex, String id, Type owner, String name, Type[] args, Type returnType, Quantifier matches,
-            List<IAnnotationHandle> then) {
+            List<IAnnotationHandle> next,  boolean disabled) {
         this.parseException = ex;
-
+        
         this.id = id;
         this.owner = owner;
         this.name = Strings.emptyToNull(name);
@@ -233,7 +250,8 @@ public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelec
         this.returnType = returnType;
         this.methodDesc = returnType != null ? Bytecode.getDescriptor(returnType, args) : null;
         this.matches = matches;
-        this.next = then;
+        this.next = next;
+        this.disabled = disabled;
     }
     
     /**
@@ -247,7 +265,7 @@ public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelec
      */
     public static DynamicSelectorDesc parse(String input, ISelectorContext context) {
         IResolvedDescriptor descriptor = DescriptorResolver.resolve(input, context);
-        if (!descriptor.isResolved()) {
+        if (!descriptor.isResolved() && !descriptor.isDebug()) {
             String extra = input.length() == 0 ? ". " + descriptor.getResolutionInfo() : "";
             return new DynamicSelectorDesc(new InvalidSelectorException("Could not resolve @Desc(" + input + ") for " + context + extra));
         }
@@ -263,7 +281,7 @@ public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelec
      */
     public static DynamicSelectorDesc parse(IAnnotationHandle desc, ISelectorContext context) {
         IResolvedDescriptor descriptor = DescriptorResolver.resolve(desc, context);
-        if (!descriptor.isResolved()) {
+        if (!descriptor.isResolved() && !descriptor.isDebug()) {
             return new DynamicSelectorDesc(new InvalidSelectorException("Invalid descriptor"));
         }
         return DynamicSelectorDesc.of(descriptor);
@@ -317,7 +335,7 @@ public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelec
             sb.append("id = \"").append(this.id).append("\"");
             started = true;
         }
-
+        
         if (this.owner != Type.VOID_TYPE) {
             if (started) {
                 sb.append(", ");
@@ -325,14 +343,14 @@ public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelec
             sb.append("owner = ").append(SignaturePrinter.getTypeName(this.owner, false, false)).append(".class");
             started = true;
         }
-
+        
         if (started) {
             sb.append(", ");
         }
         if (this.name != null) {
             sb.append("value = \"").append(this.name).append("\"");
         }
-
+        
         if (this.args.length > 0) {
             sb.append(", args = { ");
             for (int i = 0; i < this.args.length; i++) {
@@ -343,13 +361,23 @@ public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelec
             }
             sb.append(" }");
         }
-
+        
         if (this.returnType != Type.VOID_TYPE) {
             sb.append(", ret = ").append(SignaturePrinter.getTypeName(this.returnType, false, false)).append(".class");
         }
-
+        
         sb.append(")");
         return sb.toString();
+    }
+    
+    protected ITargetSelector next(int index) {
+        if (index >= 0 && index < this.next.size()) {
+            IAnnotationHandle nextAnnotation = this.next.get(index);
+            IResolvedDescriptor descriptor = DescriptorResolver.resolve(nextAnnotation, null);
+            return new Next(index, descriptor);
+        }
+        
+        return null;
     }
     
     public String getId() {
@@ -369,11 +397,11 @@ public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelec
     public Type[] getArgs() {
         return this.args;
     }
-    
+
     public Type getReturnType() {
         return this.returnType;
     }
-
+    
     @Override
     public String getDesc() {
         return this.methodDesc;
@@ -391,22 +419,27 @@ public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelec
         }
         return this;
     }
-    
+
     @Override
     public ITargetSelector next() {
         return this.next(0);
     }
-
-    protected ITargetSelector next(int index) {
-        if (index >= 0 && index < this.next.size()) {
-            IAnnotationHandle nextAnnotation = this.next.get(index);
-            IResolvedDescriptor descriptor = DescriptorResolver.resolve(nextAnnotation, null);
-            return new Next(index, descriptor);
-        }
-
-        return null;
-    }
     
+    /* (non-Javadoc)
+     * @see org.spongepowered.asm.mixin.injection.selectors.ITargetSelector
+     *      #match(org.spongepowered.asm.util.asm.ElementNode)
+     */
+    @Override
+    public <TNode> MatchResult match(ElementNode<TNode> node) {
+        if (node == null || this.disabled) {
+            return MatchResult.NONE;
+        } else if (node.isField()) {
+            return this.matches(node.getOwner(), node.getName(), node.getDesc(), this.returnType.getDescriptor());
+        } else {
+            return this.matches(node.getOwner(), node.getName(), node.getDesc(), this.methodDesc);
+        }
+    }
+
     @Override
     public ITargetSelector configure(Configure request, String... args) {
         request.checkArgs(args);
@@ -433,7 +466,7 @@ public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelec
         }
         return this;
     }
-
+    
     @Override
     public ITargetSelector attach(ISelectorContext context) throws InvalidSelectorException {
         return this;
@@ -454,19 +487,23 @@ public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelec
         return this.matches(owner, name, desc, this.methodDesc);
     }
     
-    /* (non-Javadoc)
-     * @see org.spongepowered.asm.mixin.injection.selectors.ITargetSelector
-     *      #match(org.spongepowered.asm.util.asm.ElementNode)
+    /**
+     * Next selector
      */
-    @Override
-    public <TNode> MatchResult match(ElementNode<TNode> node) {
-        if (node == null) {
-            return MatchResult.NONE;
-        } else if (node.isField()) {
-            return this.matches(node.getOwner(), node.getName(), node.getDesc(), this.returnType.getInternalName());
-        } else {
-            return this.matches(node.getOwner(), node.getName(), node.getDesc(), this.methodDesc);
+    final class Next extends DynamicSelectorDesc {
+        
+        private final int index;
+        
+        Next(int index, IResolvedDescriptor next) {
+            super(null, null, next.getOwner(), next.getName(), next.getArgs(), next.getReturnType(), next.getMatches(), null, next.isDebug());
+            this.index = index;
         }
+        
+        @Override
+        public ITargetSelector next() {
+            return DynamicSelectorDesc.this.next(this.index + 1);
+        }
+        
     }
     
     private MatchResult matches(String owner, String name, String desc, String compareWithDesc) {
@@ -482,25 +519,6 @@ public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelec
             return MatchResult.EXACT_MATCH;
         }
         return MatchResult.NONE;
-    }
-    
-    /**
-     * Next selector
-     */
-    final class Next extends DynamicSelectorDesc {
-
-        private final int index;
-
-        Next(int index, IResolvedDescriptor next) {
-            super(null, null, next.getOwner(), next.getName(), next.getArgs(), next.getReturnType(), next.getMatches(), null);
-            this.index = index;
-        }
-
-        @Override
-        public ITargetSelector next() {
-            return DynamicSelectorDesc.this.next(this.index + 1);
-        }
-
     }
 
 }

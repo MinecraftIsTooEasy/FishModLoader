@@ -37,7 +37,11 @@ import org.spongepowered.asm.util.Constants;
 import org.spongepowered.asm.util.IConsumer;
 import org.spongepowered.asm.util.ReEntranceLock;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Mixin Service base class
@@ -48,21 +52,18 @@ public abstract class MixinServiceAbstract implements IMixinService {
     protected static final String LAUNCH_PACKAGE = "org.spongepowered.asm.launch.";
     protected static final String MIXIN_PACKAGE = "org.spongepowered.asm.mixin.";
     protected static final String SERVICE_PACKAGE = "org.spongepowered.asm.service.";
+
     /**
-     * Cached logger adapters
+     * Cached logger adapters 
      */
     private static final Map<String, ILogger> loggers = new HashMap<String, ILogger>();
-    /**
-     * Logger adapter, replacement for log4j2 logger as services should use
-     * their own loggers now in order to avoid contamination
-     */
-    protected static ILogger logger;
 
     /**
      * Transformer re-entrance lock, shared between the mixin transformer and
      * the metadata service
      */
     protected final ReEntranceLock lock = new ReEntranceLock(1);
+    
     /**
      * All internals offered to this service
      */
@@ -78,12 +79,6 @@ public abstract class MixinServiceAbstract implements IMixinService {
      */
     private String sideName;
     
-    protected MixinServiceAbstract() {
-        if (MixinServiceAbstract.logger == null) {
-            MixinServiceAbstract.logger = this.getLogger("mixin");
-        }
-    }
-
     /* (non-Javadoc)
      * @see org.spongepowered.asm.service.IMixinService#prepare()
      */
@@ -218,7 +213,7 @@ public abstract class MixinServiceAbstract implements IMixinService {
                     return this.sideName = side;
                 }
             } catch (Exception ex) {
-                MixinServiceAbstract.logger.catching(ex);
+                this.getLogger("mixin").catching(ex);
             }
         }
         

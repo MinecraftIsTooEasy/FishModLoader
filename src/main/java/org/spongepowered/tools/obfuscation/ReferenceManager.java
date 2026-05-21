@@ -33,11 +33,13 @@ import org.spongepowered.tools.obfuscation.interfaces.IMessagerEx.MessageType;
 import org.spongepowered.tools.obfuscation.interfaces.IMixinAnnotationProcessor;
 import org.spongepowered.tools.obfuscation.interfaces.IReferenceManager;
 
+import javax.annotation.processing.Filer;
 import javax.tools.FileObject;
 import javax.tools.StandardLocation;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.net.URI;
 import java.util.List;
 
 /**
@@ -128,7 +130,9 @@ public class ReferenceManager implements IReferenceManager {
         
         try {
             writer = this.newWriter(this.outRefMapFileName, "refmap");
-            this.refMapper.write(writer);
+            if (writer != null) {
+                this.refMapper.write(writer);
+            }
         } catch (IOException ex) {
             ex.printStackTrace();
         } finally {
@@ -153,9 +157,26 @@ public class ReferenceManager implements IReferenceManager {
             return new PrintWriter(outFile);
         }
         
-        FileObject outResource = this.ap.getProcessingEnvironment().getFiler().createResource(StandardLocation.CLASS_OUTPUT, "", fileName);
-        this.ap.printMessage(MessageType.INFO, "Writing " + description + " to " + new File(outResource.toUri()).getAbsolutePath());
-        return new PrintWriter(outResource.openWriter());
+        try {
+            Filer filer = this.ap.getProcessingEnvironment().getFiler();
+            FileObject outResource = null;
+            try {
+                outResource = filer.createResource(StandardLocation.CLASS_OUTPUT, "", fileName);
+            } catch (Exception ex) {
+                // fileName is not a valid relative path?
+                outResource = filer.createResource(StandardLocation.CLASS_OUTPUT, "", new File(fileName).getName());
+            }
+            
+            URI resourceUri = outResource.toUri();
+            String absolutePath = "file".equals(resourceUri.getScheme()) ? new File(resourceUri).getAbsolutePath() : resourceUri.toString();
+            PrintWriter writer = new PrintWriter(outResource.openWriter());
+            this.ap.printMessage(MessageType.INFO, "Writing " + description + " to (" + resourceUri.getScheme() + ") " + absolutePath);
+            return writer;
+        } catch (Exception ex) {
+            this.ap.printMessage(MessageType.ERROR, "Cannot write " + description + " to (" + fileName + "): " + ex.getClass().getName()
+                    + ": " + ex.getMessage());
+            return null;
+        }
     }
 
     /* (non-Javadoc)

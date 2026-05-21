@@ -33,16 +33,16 @@ import java.util.jar.Attributes;
 
 /**
  * Utility methods for determining ASM version and other version-specific
- * shenanigans
+ * shenanigansw
  */
 public final class ASM {
     
-    private static int majorVersion = 5;
-    private static int minorVersion = 0;
+    private static int majorVersion = Opcodes.ASM9;
+    private static int minorVersion = 8;
     
     // Implementation versions, only available from ASM
-    private static int implMinorVersion = 0;
-    private static int patchVersion = 0;
+    private static int implMinorVersion = 9;
+    private static int patchVersion = 1;
     
     private static String maxVersion = "FALLBACK";
     

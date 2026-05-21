@@ -24,8 +24,15 @@
  */
 package org.spongepowered.tools.obfuscation;
 
+import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Coerce;
-import org.spongepowered.asm.mixin.injection.selectors.*;
+import org.spongepowered.asm.mixin.injection.selectors.ISelectorContext;
+import org.spongepowered.asm.mixin.injection.selectors.ITargetSelector;
+import org.spongepowered.asm.mixin.injection.selectors.ITargetSelectorByName;
+import org.spongepowered.asm.mixin.injection.selectors.ITargetSelectorConstructor;
+import org.spongepowered.asm.mixin.injection.selectors.ITargetSelectorRemappable;
+import org.spongepowered.asm.mixin.injection.selectors.InvalidSelectorException;
+import org.spongepowered.asm.mixin.injection.selectors.TargetSelector;
 import org.spongepowered.asm.mixin.injection.struct.InjectionPointData;
 import org.spongepowered.asm.mixin.refmap.IMixinContext;
 import org.spongepowered.asm.obfuscation.mapping.common.MappingField;
@@ -53,19 +60,17 @@ import java.util.Map;
  */
 class AnnotatedMixinElementHandlerInjector extends AnnotatedMixinElementHandler {
 
-    AnnotatedMixinElementHandlerInjector(IMixinAnnotationProcessor ap, AnnotatedMixin mixin) {
+
+    
+ classtedMixinElementHandlerInjector(IMixinAnnotationProcessor ap, AnnotatedMixin mixin) {
         super(ap, mixin);
     }
-    
-    public void registerInjector(AnnotatedElementInjector elem) {
-        if (this.mixin.isInterface()) {
-            this.ap.printMessage(MessageType.INJECTOR_IN_INTERFACE, "Injector in interface is unsupported", elem.getElement());
-        }
 
+    public void registerInjector(AnnotatedElementInjector elem) {
         for (String reference : elem.getAnnotation().<String>getList("method")) {
             this.registerInjectorTarget(elem, reference, TargetSelector.parse(reference, elem), elem + ".method=\"" + reference + "\"");
         }
-
+        
         for (IAnnotationHandle desc : elem.getAnnotation().getAnnotationList("target")) {
             String subject = String.format("%s.target=@Desc(id = \"%s\")", elem, desc.<String>getValue("id", ""));
             this.registerInjectorTarget(elem, null, TargetSelector.parse(desc, elem), subject);
@@ -82,16 +87,16 @@ class AnnotatedMixinElementHandlerInjector extends AnnotatedMixinElementHandler 
         if (!(targetSelector instanceof ITargetSelectorByName)) {
             return;
         }
-
+        
         ITargetSelectorByName targetMember = (ITargetSelectorByName)targetSelector;
         if (targetMember.getName() == null) {
             return;
         }
-
+        
         if (targetMember.getDesc() != null) {
             this.validateReferencedTarget(elem, reference, targetMember, subject);
         }
-
+        
         if (targetSelector instanceof ITargetSelectorRemappable && elem.shouldRemap()) {
             for (TypeHandle target : this.mixin.getTargets()) {
                 if (!this.registerInjector(elem, reference, (ITargetSelectorRemappable)targetMember, target)) {
@@ -100,7 +105,7 @@ class AnnotatedMixinElementHandlerInjector extends AnnotatedMixinElementHandler 
             }
         }
     }
-    
+
     private boolean registerInjector(AnnotatedElementInjector elem, String reference, ITargetSelectorRemappable targetMember, TypeHandle target) {
         String desc = target.findDescriptor(targetMember);
         if (desc == null) {
@@ -117,7 +122,7 @@ class AnnotatedMixinElementHandlerInjector extends AnnotatedMixinElementHandler 
             }
             return true;
         }
-
+        
         String targetName = elem + " target " + targetMember.getName();
         MappingMethod targetMethod = target.getMappingMethod(targetMember.getName(), desc);
         ObfuscationData<MappingMethod> obfData = this.obf.getDataProvider().getObfMethod(targetMethod);
@@ -132,17 +137,17 @@ class AnnotatedMixinElementHandlerInjector extends AnnotatedMixinElementHandler 
                 return false;
             }
         }
-
-        IReferenceManager refMap = this.obf.getReferenceManager();
+        
+        IReferenceManager refMaps = this.obf.getReferenceManager();
         try {
             // If the original owner is unspecified, and the mixin is multi-target, we strip the owner from the obf mappings
             if ((targetMember.getOwner() == null && this.mixin.isMultiTarget()) || target.isSimulated()) {
                 obfData = AnnotatedMixinElementHandler.<MappingMethod>stripOwnerData(obfData);
             }
-            refMap.addMethodMapping(this.classRef, reference, obfData);
+            refMaps.addMethodMapping(this.classRef, reference, obfData);
         } catch (ReferenceConflictException ex) {
             String conflictType = this.mixin.isMultiTarget() ? "Multi-target" : "Target";
-
+            
             if (elem.hasCoerceArgument() && targetMember.getOwner() == null && targetMember.getDesc() == null) {
                 ITargetSelector oldMember = TargetSelector.parse(ex.getOld(), elem);
                 ITargetSelector newMember = TargetSelector.parse(ex.getNew(), elem);
@@ -150,9 +155,9 @@ class AnnotatedMixinElementHandlerInjector extends AnnotatedMixinElementHandler 
                 String newName = newMember instanceof ITargetSelectorByName ? ((ITargetSelectorByName)newMember).getName() : newMember.toString();
                 if (oldName != null && oldName.equals(newName)) {
                     obfData = AnnotatedMixinElementHandler.<MappingMethod>stripDescriptors(obfData);
-                    refMap.setAllowConflicts(true);
-                    refMap.addMethodMapping(this.classRef, reference, obfData);
-                    refMap.setAllowConflicts(false);
+                    refMaps.setAllowConflicts(true);
+                    refMaps.addMethodMapping(this.classRef, reference, obfData);
+                    refMaps.setAllowConflicts(false);
 
                     // This is bad because in notch mappings, using the bare target name might cause everything to explode
                     elem.printMessage(this.ap, MessageType.BARE_REFERENCE, "Coerced " + conflictType + " reference has conflicting descriptors for "
@@ -160,23 +165,57 @@ class AnnotatedMixinElementHandlerInjector extends AnnotatedMixinElementHandler 
                     return true;
                 }
             }
-
+            
             elem.printMessage(this.ap, MessageType.INJECTOR_MAPPING_CONFLICT, conflictType + " reference conflict for " + targetName + ": "
                     + reference + " -> " + ex.getNew() + " previously defined as " + ex.getOld());
         }
-
+        
         return true;
     }
 
     /**
-     * Register a {@link org.spongepowered.asm.mixin.injection.At} annotation
+     * R
+    /**
+     * Injector element
+     */
+    static class AnnotatedElementInjector extends AnnotatedElementExecutable {
+        
+        private final InjectorRemap state;
+
+        public AnnotatedElementInjector(ExecutableElement element, AnnotationHandle annotation, IMixinContext context, InjectorRemap shouldRemap) {
+            super(element, annotation, context, "method");
+            this.state = shouldRemap;
+        }
+        
+        public boolean shouldRemap() {
+            return this.state.shouldRemap();
+        }
+        
+        public boolean hasCoerceArgument() {
+            if (!this.annotation.toString().equals("@Inject")) {
+                return false;
+            }
+            
+            for (VariableElement param : this.element.getParameters()) {
+                return AnnotationHandle.of(param, Coerce.class).exists();
+            }
+            
+            return false;
+        }
+        
+        public void addMessage(MessageType type, CharSequence msg, Element element, AnnotationHandle annotation) {
+            this.state.addMessage(type, msg, element, annotation);
+        }
+        
+        @Override
+        public String toString() {
+            return this.getAnnotation().toString();
+        }
+        
+    }egister a {@link At} annotation
      * and process the references
      */
     public void registerInjectionPoint(AnnotatedElementInjectionPoint elem, String format) {
-        if (this.mixin.isInterface()) {
-            this.ap.printMessage(MessageType.INJECTOR_IN_INTERFACE, "Injector in interface is unsupported", elem.getElement());
-        }
-
         ITargetSelector targetSelector = null;
         String targetReference = elem.getAt().<String>getValue("target");
         if (targetReference != null) {
@@ -188,9 +227,9 @@ class AnnotatedMixinElementHandlerInjector extends AnnotatedMixinElementHandler 
                         elem.getAtErrorElement(this.ap.getCompilerEnvironment()));
             }
         }
-
+        
         String type = InjectionPointData.parseType(elem.getAt().<String>getValue("value", ""));
-
+        
         ITargetSelector classSelector = null;
         String classReference = elem.getAtArg("class");
         if ("NEW".equals(type) && classReference != null) {
@@ -202,7 +241,7 @@ class AnnotatedMixinElementHandlerInjector extends AnnotatedMixinElementHandler 
                         elem.getAtErrorElement(this.ap.getCompilerEnvironment()));
             }
         }
-
+        
         if (elem.shouldRemap()) {
             if ("NEW".equals(type)) {
                 this.remapNewTarget(String.format(format, type + ".<target>"), targetReference, targetSelector, elem);
@@ -213,14 +252,74 @@ class AnnotatedMixinElementHandlerInjector extends AnnotatedMixinElementHandler 
         }
     }
     
-    protected final void remapNewTarget(String subject, String reference, ITargetSelector selector, AnnotatedElementInjectionPoint elem) {
+    protected fi
+    /**
+     * Injection point element
+     */
+    static class AnnotatedElementInjectionPoint extends AnnotatedElementExecutable {
+        
+        private final AnnotationHandle at;
+        private final InjectorRemap state;
+        private Map<String, String> args;
+
+        public AnnotatedElementInjectionPoint(ExecutableElement element, AnnotationHandle inject, IMixinContext context, String selectorCoordinate,
+                AnnotationHandle at, InjectorRemap state) {
+            super(element, inject, context, selectorCoordinate);
+            this.at = at;
+            this.state = state;
+        }
+        
+        public boolean shouldRemap() {
+            return this.at.getBoolean("remap", this.state.shouldRemap());
+        }
+        
+        public AnnotationHandle getAt() {
+            return this.at;
+        }
+
+        public AnnotationMirror getAtErrorElement(CompilerEnvironment compilerEnvironment) {
+            // JDT and IDEA support hanging the error on the @At annotation directly, doing this in javac doesn't work
+            return (compilerEnvironment.isDevelopmentEnvironment() ? this.getAt() : this.getAnnotation()).asMirror();
+        }
+        
+        @Override
+        public IAnnotationHandle getSelectorAnnotation() {
+            return this.getAt();
+        }
+        
+        public String getAtArg(String key) {
+            if (this.args == null) {
+                this.args = new HashMap<String, String>();
+                for (String arg : this.at.<String>getList("args")) {
+                    if (arg == null) {
+                        continue;
+                    }
+                    int eqPos = arg.indexOf('=');
+                    if (eqPos > -1) {
+                        this.args.put(arg.substring(0, eqPos), arg.substring(eqPos + 1));
+                    } else {
+                        this.args.put(arg, "");
+                    }
+                }
+            }
+            
+            return this.args.get(key);
+        }
+        
+        public void notifyRemapped() {
+            this.state.notifyRemapped();
+        }
+    
+    }
+    
+    staticnal void remapNewTarget(String subject, String reference, ITargetSelector selector, AnnotatedElementInjectionPoint elem) {
         if (!(selector instanceof ITargetSelectorConstructor)) {
             return;
         }
-
+        
         ITargetSelectorConstructor member = (ITargetSelectorConstructor)selector;
         String target = member.toCtorType();
-
+        
         if (target != null) {
             String desc = member.toCtorDesc();
             MappingMethod m = new MappingMethod(target, ".", desc != null ? desc : "()V");
@@ -240,28 +339,46 @@ class AnnotatedMixinElementHandlerInjector extends AnnotatedMixinElementHandler 
                     mappings.put(type, mapping.getDesc().replace(")V", ")L" + mapping.getOwner() + ";"));
                 }
             }
-
+            
             this.obf.getReferenceManager().addClassMapping(this.classRef, reference, mappings);
         }
-
+        
         elem.notifyRemapped();
     }
+    
+    protected fi
+ AnnotatedElementSliceInjectionPoint extends AnnotatedElementInjectionPoint {
+        
+        private final ISelectorContext parentContext;
 
-    protected final void remapReference(String subject, String reference, ITargetSelector selector, AnnotatedElementInjectionPoint elem) {
+        public AnnotatedElementSliceInjectionPoint(ExecutableElement element, AnnotationHandle inject, IMixinContext context,
+                String selectorCoordinate, AnnotationHandle at, InjectorRemap state, ISelectorContext parentContext) {
+            super(element, inject, context, selectorCoordinate, at, state);
+            this.parentContext = parentContext;
+        }
+
+        @Override
+        public ISelectorContext getParent() {
+            return this.parentContext;
+        }
+
+    }
+    
+    Annotanal void remapReference(String subject, String reference, ITargetSelector selector, AnnotatedElementInjectionPoint elem) {
         if (!(selector instanceof ITargetSelectorRemappable)) {
             return;
         }
-
+        
         ITargetSelectorRemappable targetMember = (ITargetSelectorRemappable)selector;
         AnnotationMirror errorElement = elem.getAtErrorElement(this.ap.getCompilerEnvironment());
-
+        
         if (!targetMember.isFullyQualified()) {
             String missing = targetMember.getOwner() == null ? (targetMember.getDesc() == null ? "owner and descriptor" : "owner") : "descriptor";
             this.ap.printMessage(MessageType.INJECTOR_TARGET_NOT_FULLY_QUALIFIED, subject + " is not fully qualified, missing " + missing,
                     elem.getElement(), errorElement);
             return;
         }
-
+        
         try {
             if (targetMember.isField()) {
                 ObfuscationData<MappingField> obfFieldData = this.obf.getDataProvider().getObfFieldRecursive(targetMember);
@@ -291,123 +408,8 @@ class AnnotatedMixinElementHandlerInjector extends AnnotatedMixinElementHandler 
                     + ex.getNew() + " previously defined as " + ex.getOld(), elem.getElement(), errorElement);
             return;
         }
-
+        
         elem.notifyRemapped();
-    }
-
-    /**
-     * Injector element
-     */
-    static class AnnotatedElementInjector extends AnnotatedElementExecutable {
-
-        private final InjectorRemap state;
-
-        public AnnotatedElementInjector(ExecutableElement element, AnnotationHandle annotation, IMixinContext context, InjectorRemap shouldRemap) {
-            super(element, annotation, context, "method");
-            this.state = shouldRemap;
-        }
-
-        public boolean shouldRemap() {
-            return this.state.shouldRemap();
-        }
-
-        public boolean hasCoerceArgument() {
-            if (!this.annotation.toString().equals("@Inject")) {
-                return false;
-            }
-
-            for (VariableElement param : this.element.getParameters()) {
-                return AnnotationHandle.of(param, Coerce.class).exists();
-            }
-
-            return false;
-        }
-
-        public void addMessage(MessageType type, CharSequence msg, Element element, AnnotationHandle annotation) {
-            this.state.addMessage(type, msg, element, annotation);
-        }
-
-        @Override
-        public String toString() {
-            return this.getAnnotation().toString();
-        }
-
-    }
-    
-    /**
-     * Injection point element
-     */
-    static class AnnotatedElementInjectionPoint extends AnnotatedElementExecutable {
-
-        private final AnnotationHandle at;
-        private final InjectorRemap state;
-        private Map<String, String> args;
-
-        public AnnotatedElementInjectionPoint(ExecutableElement element, AnnotationHandle inject, IMixinContext context, String selectorCoordinate,
-                AnnotationHandle at, InjectorRemap state) {
-            super(element, inject, context, selectorCoordinate);
-            this.at = at;
-            this.state = state;
-        }
-
-        public boolean shouldRemap() {
-            return this.at.getBoolean("remap", this.state.shouldRemap());
-        }
-
-        public AnnotationHandle getAt() {
-            return this.at;
-        }
-
-        public AnnotationMirror getAtErrorElement(CompilerEnvironment compilerEnvironment) {
-            // JDT and IDEA support hanging the error on the @At annotation directly, doing this in javac doesn't work
-            return (compilerEnvironment.isDevelopmentEnvironment() ? this.getAt() : this.getAnnotation()).asMirror();
-        }
-
-        @Override
-        public IAnnotationHandle getSelectorAnnotation() {
-            return this.getAt();
-        }
-
-        public String getAtArg(String key) {
-            if (this.args == null) {
-                this.args = new HashMap<String, String>();
-                for (String arg : this.at.<String>getList("args")) {
-                    if (arg == null) {
-                        continue;
-                    }
-                    int eqPos = arg.indexOf('=');
-                    if (eqPos > -1) {
-                        this.args.put(arg.substring(0, eqPos), arg.substring(eqPos + 1));
-                    } else {
-                        this.args.put(arg, "");
-                    }
-                }
-            }
-
-            return this.args.get(key);
-        }
-
-        public void notifyRemapped() {
-            this.state.notifyRemapped();
-        }
-
-    }
-    
-    static class AnnotatedElementSliceInjectionPoint extends AnnotatedElementInjectionPoint {
-
-        private final ISelectorContext parentContext;
-
-        public AnnotatedElementSliceInjectionPoint(ExecutableElement element, AnnotationHandle inject, IMixinContext context,
-                String selectorCoordinate, AnnotationHandle at, InjectorRemap state, ISelectorContext parentContext) {
-            super(element, inject, context, selectorCoordinate, at, state);
-            this.parentContext = parentContext;
-        }
-
-        @Override
-        public ISelectorContext getParent() {
-            return this.parentContext;
-        }
-
     }
 
 }

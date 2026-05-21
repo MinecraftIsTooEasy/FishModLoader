@@ -28,14 +28,25 @@ import com.google.common.collect.ObjectArrays;
 import com.google.common.primitives.Ints;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
-import org.objectweb.asm.tree.*;
+import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.InsnList;
+import org.objectweb.asm.tree.InsnNode;
+import org.objectweb.asm.tree.JumpInsnNode;
+import org.objectweb.asm.tree.LabelNode;
+import org.objectweb.asm.tree.LdcInsnNode;
+import org.objectweb.asm.tree.MethodInsnNode;
+import org.objectweb.asm.tree.TypeInsnNode;
+import org.objectweb.asm.tree.VarInsnNode;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.injection.InjectionPoint;
 import org.spongepowered.asm.mixin.injection.InjectionPoint.RestrictTargetLevel;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.code.Injector;
+import org.spongepowered.asm.mixin.injection.code.InjectorTarget;
 import org.spongepowered.asm.mixin.injection.points.BeforeFieldAccess;
 import org.spongepowered.asm.mixin.injection.points.BeforeNew;
+import org.spongepowered.asm.mixin.injection.struct.ArgOffsets;
 import org.spongepowered.asm.mixin.injection.struct.InjectionInfo;
 import org.spongepowered.asm.mixin.injection.struct.InjectionNodes.InjectionNode;
 import org.spongepowered.asm.mixin.injection.struct.Target;
@@ -127,48 +138,66 @@ public class RedirectInjector extends InvokeInjector {
         
     }
     
-    /**
-     * Meta decoration for wildcard ctor redirects
-     */
-    static class ConstructorRedirectData {
+    @Override
+    protected void addTargetNode(InjectorTarget injectorTarget, List<InjectionNode> myNodes, AbstractInsnNode insn, Set<InjectionPoint> nominators) {
+        InjectionNode node = injectorTarget.getInjectionNode(insn);
+        ConstructorRedirectData ctorData = null;
+        int fuzz = BeforeFieldAccess.ARRAY_SEARCH_FUZZ_DEFAULT;
+        int opcode = 0;
         
-        public static final String KEY = "ctor";
-        
-        boolean wildcard = false;
-        
-        int injected = 0;
-        
-        InvalidInjectionException lastException;
-
-        public void throwOrCollect(InvalidInjectionException ex) {
-            if (!this.wildcard) {
-                throw ex;
-            }
-            this.lastException = ex;
+        if (insn instanceof MethodInsnNode && Constants.CTOR.equals(((MethodInsnNode)insn).name)) {
+            throw new InvalidInjectionException(this.info, String.format("Illegal %s of constructor specified on %s",
+                    this.annotationType, this));
         }
         
+        if (node != null ) {
+            Meta other = node.<Meta>getDecoration(Meta.KEY);
+            
+            if (other != null && other.getOwner() != this) {
+                if (other.priority >= this.meta.priority) {
+                    Injector.logger.warn("{} conflict. Skipping {} with priority {}, already redirected by {} with priority {}",
+                            this.annotationType, this.info, this.meta.priority, other.name, other.priority);
+                    return;
+                } else if (other.isFinal) {
+                    throw new InvalidInjectionException(this.info, String.format("%s conflict: %s failed because target was already remapped by %s",
+                            this.annotationType, this, other.name));
+                }
+            }
+        }
+        
+        for (InjectionPoint ip : nominators) {
+            if (ip instanceof BeforeNew) {
+                BeforeNew beforeNew = (BeforeNew)ip;
+                ctorData = this.getCtorRedirect(beforeNew);
+                ctorData.wildcard = !beforeNew.hasDescriptor();
+                ctorData.desc = beforeNew.getDescriptor();
+            } else if (ip instanceof BeforeFieldAccess) {
+                BeforeFieldAccess bfa = (BeforeFieldAccess)ip;
+                fuzz = bfa.getFuzzFactor();
+                opcode = bfa.getArrayOpcode();
+            }
+        }
+        
+        InjectionNode targetNode = injectorTarget.addInjectionNode(insn);
+        targetNode.decorate(Meta.KEY, this.meta);
+        targetNode.decorate(RedirectInjector.KEY_NOMINATORS, nominators);
+        if (insn instanceof TypeInsnNode && insn.getOpcode() == Opcodes.NEW) {
+            targetNode.decorate(ConstructorRedirectData.KEY, ctorData);
+        } else {
+            targetNode.decorate(RedirectInjector.KEY_FUZZ, Integer.valueOf(fuzz));
+            targetNode.decorate(RedirectInjector.KEY_OPCODE, Integer.valueOf(opcode));
+        }
+        myNodes.add(targetNode);
     }
     
-    /**
-     * Data bundle for invoke redirectors
-     */
-    static class RedirectedInvokeData extends InjectorData {
-        
-        final MethodInsnNode node;
-        final Type returnType;
-        final Type[] targetArgs;
-        final Type[] handlerArgs;
-        
-        RedirectedInvokeData(Target target, MethodInsnNode node) {
-            super(target);
-            this.node = node;
-            this.returnType = Type.getReturnType(node.desc);
-            this.targetArgs = Type.getArgumentTypes(node.desc);
-            this.handlerArgs = node.getOpcode() == Opcodes.INVOKESTATIC
-                    ? this.targetArgs
-                    : ObjectArrays.concat(Type.getObjectType(node.owner), this.targetArgs);
+    protected boolean preInject(InjectionNode node) {
+        Meta other = node.<Meta>getDecoration(Meta.KEY);
+        if (other.getOwner() != this) {
+            Injector.logger.warn("{} conflict. Skipping {} with priority {}, already redirected by {} with priority {}",
+                    this.annotationType, this.info, this.meta.priority, other.name, other.priority);
+            return false;
         }
-        
+        return true;
     }
     
     /**
@@ -250,54 +279,35 @@ public class RedirectInjector extends InvokeInjector {
         // Overridden so we can do this check later in a location-aware manner
     }
 
+    /**
+     * Redirect a method invocation
+     */
     @Override
-    protected void addTargetNode(Target target, List<InjectionNode> myNodes, AbstractInsnNode insn, Set<InjectionPoint> nominators) {
-        InjectionNode node = target.getInjectionNode(insn);
-        ConstructorRedirectData ctorData = null;
-        int fuzz = BeforeFieldAccess.ARRAY_SEARCH_FUZZ_DEFAULT;
-        int opcode = 0;
+    protected void injectAtInvoke(Target target, InjectionNode node) {
+        RedirectedInvokeData invoke = new RedirectedInvokeData(target, (MethodInsnNode)node.getCurrentTarget());
         
-        if (insn instanceof MethodInsnNode && Constants.CTOR.equals(((MethodInsnNode)insn).name)) {
-            throw new InvalidInjectionException(this.info, String.format("Illegal %s of constructor specified on %s",
-                    this.annotationType, this));
-        }
+        this.validateParams(invoke, invoke.returnType, invoke.handlerArgs);
         
-        if (node != null ) {
-            Meta other = node.getDecoration(Meta.KEY);
-            
-            if (other != null && other.getOwner() != this) {
-                if (other.priority >= this.meta.priority) {
-                    Injector.logger.warn("{} conflict. Skipping {} with priority {}, already redirected by {} with priority {}",
-                            this.annotationType, this.info, this.meta.priority, other.name, other.priority);
-                    return;
-                } else if (other.isFinal) {
-                    throw new InvalidInjectionException(this.info, String.format("%s conflict: %s failed because target was already remapped by %s",
-                            this.annotationType, this, other.name));
-                }
-            }
+        InsnList insns = new InsnList();
+        Extension extraLocals = target.extendLocals().add(invoke.handlerArgs).add(1);
+        Extension extraStack = target.extendStack().add(1); // Normally only need 1 extra stack pos to store target ref
+        int[] argMap = this.storeArgs(target, invoke.handlerArgs, insns, 0);
+        ArgOffsets offsets = new ArgOffsets(invoke.isStatic ? 0 : 1, invoke.targetArgs.length);
+        if (invoke.captureTargetArgs > 0) {
+            int argSize = Bytecode.getArgsSize(target.arguments, 0, invoke.captureTargetArgs);
+            extraLocals.add(argSize);
+            extraStack.add(argSize);
+            // No need to truncate target arg indices, pushArgs ignores args which don't exist
+            argMap = Ints.concat(argMap, target.getArgIndices());
         }
-        
-        for (InjectionPoint ip : nominators) {
-            if (ip instanceof BeforeNew) {
-                ctorData = this.getCtorRedirect((BeforeNew)ip);
-                ctorData.wildcard = !((BeforeNew)ip).hasDescriptor();
-            } else if (ip instanceof BeforeFieldAccess) {
-                BeforeFieldAccess bfa = (BeforeFieldAccess)ip;
-                fuzz = bfa.getFuzzFactor();
-                opcode = bfa.getArrayOpcode();
-            }
+        AbstractInsnNode champion = this.invokeHandlerWithArgs(this.methodArgs, insns, argMap);
+        if (invoke.coerceReturnType && invoke.returnType.getSort() >= Type.ARRAY) {
+            insns.add(new TypeInsnNode(Opcodes.CHECKCAST, invoke.returnType.getInternalName()));
         }
-        
-        InjectionNode targetNode = target.addInjectionNode(insn);
-        targetNode.decorate(Meta.KEY, this.meta);
-        targetNode.decorate(RedirectInjector.KEY_NOMINATORS, nominators);
-        if (insn instanceof TypeInsnNode && insn.getOpcode() == Opcodes.NEW) {
-            targetNode.decorate(ConstructorRedirectData.KEY, ctorData);
-        } else {
-            targetNode.decorate(RedirectInjector.KEY_FUZZ, Integer.valueOf(fuzz));
-            targetNode.decorate(RedirectInjector.KEY_OPCODE, Integer.valueOf(opcode));
-        }
-        myNodes.add(targetNode);
+        target.replaceNode(invoke.node, champion, insns);
+        node.decorate(ArgOffsets.KEY, offsets);
+        extraLocals.apply();
+        extraStack.apply();
     }
 
     private ConstructorRedirectData getCtorRedirect(BeforeNew ip) {
@@ -351,14 +361,71 @@ public class RedirectInjector extends InvokeInjector {
                 this.annotationType, target, this));
     }
 
-    protected boolean preInject(InjectionNode node) {
-        Meta other = node.getDecoration(Meta.KEY);
-        if (other.getOwner() != this) {
-            Injector.logger.warn("{} conflict. Skipping {} with priority {}, already redirected by {} with priority {}",
-                    this.annotationType, this.info, this.meta.priority, other.name, other.priority);
-            return false;
+    protected void injectAtConstructor(Target target, InjectionNode node) {
+        ConstructorRedirectData meta = node.<ConstructorRedirectData>getDecoration(ConstructorRedirectData.KEY);
+        
+        if (meta == null) {
+            // This should never happen, but let's display a less obscure error if it does
+            throw new InvalidInjectionException(this.info, String.format(
+                    "%s ctor redirector has no metadata, the injector failed a preprocessing phase", this.annotationType));
         }
-        return true;
+        
+        final TypeInsnNode newNode = (TypeInsnNode)node.getCurrentTarget();
+        final AbstractInsnNode dupNode = target.get(target.indexOf(newNode) + 1);
+        final MethodInsnNode initNode = target.findInitNodeFor(newNode, meta.desc);
+        
+        if (initNode == null) {
+            meta.throwOrCollect(new InvalidInjectionException(this.info, String.format("%s ctor invocation was not found in %s",
+                    this.annotationType, target)));
+            return;
+        }
+        
+        // True if the result of the object construction is being assigned
+        boolean isAssigned = dupNode.getOpcode() == Opcodes.DUP;
+        RedirectedInvokeData ctor = new RedirectedInvokeData(target, initNode);
+        ctor.description = "factory";
+        try {
+            this.validateParams(ctor, Type.getObjectType(newNode.desc), ctor.targetArgs);
+        } catch (InvalidInjectionException ex) {
+            meta.throwOrCollect(ex);
+            return;
+        }
+        
+        if (isAssigned) {
+            target.removeNode(dupNode);
+        }
+        
+        if (this.isStatic) {
+            target.removeNode(newNode);
+        } else {
+            target.replaceNode(newNode, new VarInsnNode(Opcodes.ALOAD, 0));
+        }
+        
+        Extension extraStack = target.extendStack();
+        InsnList insns = new InsnList();
+        if (ctor.captureTargetArgs > 0) {
+            this.pushArgs(target.arguments, insns, target.getArgIndices(), 0, ctor.captureTargetArgs, extraStack);
+        }
+        
+        this.invokeHandler(insns);
+        if (ctor.coerceReturnType) {
+            insns.add(new TypeInsnNode(Opcodes.CHECKCAST, newNode.desc));
+        }
+        extraStack.apply();
+        
+        if (isAssigned) {
+            // Do a null-check following the redirect to ensure that the handler
+            // didn't return null. Since NEW cannot return null, this would break
+            // the contract of the target method!
+            this.doNullCheck(insns, extraStack, "constructor handler", newNode.desc.replace('/', '.'));
+        } else {
+            // Result is not assigned, so just pop it from the operand stack
+            insns.add(new InsnNode(Opcodes.POP));
+        }
+        
+        extraStack.apply();
+        target.replaceNode(initNode, insns);
+        meta.injected++;
     }
     
     @Override
@@ -374,32 +441,27 @@ public class RedirectInjector extends InvokeInjector {
     }
     
     /**
-     * Redirect a method invocation
+     * Meta decoration for wildcard ctor redirects
      */
-    @Override
-    protected void injectAtInvoke(Target target, InjectionNode node) {
-        RedirectedInvokeData invoke = new RedirectedInvokeData(target, (MethodInsnNode)node.getCurrentTarget());
+    static class ConstructorRedirectData {
         
-        this.validateParams(invoke, invoke.returnType, invoke.handlerArgs);
+        public static final String KEY = "ctor";
         
-        InsnList insns = new InsnList();
-        Extension extraLocals = target.extendLocals().add(invoke.handlerArgs).add(1);
-        Extension extraStack = target.extendStack().add(1); // Normally only need 1 extra stack pos to store target ref 
-        int[] argMap = this.storeArgs(target, invoke.handlerArgs, insns, 0);
-        if (invoke.captureTargetArgs > 0) {
-            int argSize = Bytecode.getArgsSize(target.arguments, 0, invoke.captureTargetArgs);
-            extraLocals.add(argSize);
-            extraStack.add(argSize);
-            // No need to truncate target arg indices, pushArgs ignores args which don't exist
-            argMap = Ints.concat(argMap, target.getArgIndices());
+        String desc = null;
+        
+        boolean wildcard = false;
+        
+        int injected = 0;
+        
+        InvalidInjectionException lastException;
+
+        public void throwOrCollect(InvalidInjectionException ex) {
+            if (!this.wildcard) {
+                throw ex;
+            }
+            this.lastException = ex;
         }
-        AbstractInsnNode champion = this.invokeHandlerWithArgs(this.methodArgs, insns, argMap);
-        if (invoke.coerceReturnType && invoke.returnType.getSort() >= Type.ARRAY) {
-            insns.add(new TypeInsnNode(Opcodes.CHECKCAST, invoke.returnType.getInternalName()));
-        }
-        target.replaceNode(invoke.node, champion, insns);
-        extraLocals.apply();
-        extraStack.apply();
+        
     }
 
     /**
@@ -601,71 +663,28 @@ public class RedirectInjector extends InvokeInjector {
         return this.invokeHandler(insns);
     }
 
-    protected void injectAtConstructor(Target target, InjectionNode node) {
-        ConstructorRedirectData meta = node.<ConstructorRedirectData>getDecoration(ConstructorRedirectData.KEY);
+    /**
+     * Data bundle for invoke redirectors
+     */
+    static class RedirectedInvokeData extends InjectorData {
         
-        if (meta == null) {
-            // This should never happen, but let's display a less obscure error if it does
-            throw new InvalidInjectionException(this.info, String.format(
-                    "%s ctor redirector has no metadata, the injector failed a preprocessing phase", this.annotationType));
+        final MethodInsnNode node;
+        final boolean isStatic;
+        final Type returnType;
+        final Type[] targetArgs;
+        final Type[] handlerArgs;
+        
+        RedirectedInvokeData(Target target, MethodInsnNode node) {
+            super(target);
+            this.node = node;
+            this.isStatic = node.getOpcode() == Opcodes.INVOKESTATIC;
+            this.returnType = Type.getReturnType(node.desc);
+            this.targetArgs = Type.getArgumentTypes(node.desc);
+            this.handlerArgs = this.isStatic
+                    ? this.targetArgs
+                    : ObjectArrays.concat(Type.getObjectType(node.owner), this.targetArgs);
         }
         
-        final TypeInsnNode newNode = (TypeInsnNode)node.getCurrentTarget();
-        final AbstractInsnNode dupNode = target.get(target.indexOf(newNode) + 1);
-        final MethodInsnNode initNode = target.findInitNodeFor(newNode);
-        
-        if (initNode == null) {
-            meta.throwOrCollect(new InvalidInjectionException(this.info, String.format("%s ctor invocation was not found in %s",
-                    this.annotationType, target)));
-            return;
-        }
-        
-        // True if the result of the object construction is being assigned
-        boolean isAssigned = dupNode.getOpcode() == Opcodes.DUP;
-        RedirectedInvokeData ctor = new RedirectedInvokeData(target, initNode);
-        ctor.description = "factory";
-        try {
-            this.validateParams(ctor, Type.getObjectType(newNode.desc), ctor.targetArgs);
-        } catch (InvalidInjectionException ex) {
-            meta.throwOrCollect(ex);
-            return;
-        }
-        
-        if (isAssigned) {
-            target.removeNode(dupNode);
-        }
-        
-        if (this.isStatic) {
-            target.removeNode(newNode);
-        } else {
-            target.replaceNode(newNode, new VarInsnNode(Opcodes.ALOAD, 0));
-        }
-        
-        Extension extraStack = target.extendStack();
-        InsnList insns = new InsnList();
-        if (ctor.captureTargetArgs > 0) {
-            this.pushArgs(target.arguments, insns, target.getArgIndices(), 0, ctor.captureTargetArgs, extraStack);
-        }
-        
-        this.invokeHandler(insns);
-        if (ctor.coerceReturnType) {
-            insns.add(new TypeInsnNode(Opcodes.CHECKCAST, newNode.desc));
-        }
-        extraStack.apply();
-        
-        if (isAssigned) {
-            // Do a null-check following the redirect to ensure that the handler
-            // didn't return null. Since NEW cannot return null, this would break
-            // the contract of the target method!
-            this.doNullCheck(insns, extraStack, "constructor handler", newNode.desc.replace('/', '.'));
-        } else {
-            // Result is not assigned, so just pop it from the operand stack
-            insns.add(new InsnNode(Opcodes.POP));
-        }
-        
-        extraStack.apply();
-        target.replaceNode(initNode, insns);
-        meta.injected++;
     }
 
     protected void injectAtInstanceOf(Target target, InjectionNode node) {

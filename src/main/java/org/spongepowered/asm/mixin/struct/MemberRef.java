@@ -27,6 +27,7 @@ package org.spongepowered.asm.mixin.struct;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
+import org.spongepowered.asm.mixin.transformer.ClassInfo;
 import org.spongepowered.asm.mixin.transformer.throwables.MixinTransformerError;
 import org.spongepowered.asm.util.Bytecode;
 import org.spongepowered.asm.util.Handles;
@@ -181,12 +182,6 @@ public abstract class MemberRef {
         }
     }
 
-    @Override
-    public String toString() {
-        return String.format("%s for %s.%s%s%s", Bytecode.getOpcodeName(this.getOpcode()), this.getOwner(), this.getName(), this.isField() ? ":" : "",
-                this.getDesc());
-    }
-
     /**
      * Whether this member is a field.
      *
@@ -203,7 +198,7 @@ public abstract class MemberRef {
 
     /**
      * Set the opcode of the invocation.
-     * 
+     *
      * @param opcode new opcode
      */
     public abstract void setOpcode(int opcode);
@@ -228,14 +223,14 @@ public abstract class MemberRef {
      * @return Name of this member.
      */
     public abstract String getName();
-    
+
     /**
      * Rename this member.
      *
      * @param name New name for this member.
      */
     public abstract void setName(String name);
-
+    
     /**
      * Descriptor of this member.
      *
@@ -249,6 +244,21 @@ public abstract class MemberRef {
      * @param desc New descriptor of this member
      */
     public abstract void setDesc(String desc);
+
+    /**
+     * Whether the owner of this member is a mixin.
+     * @return Whether the owner of this member is a mixin.
+     */
+    public boolean ownerIsMixin() {
+        String owner = getOwner();
+        return !owner.startsWith("[") && ClassInfo.isMixin(owner);
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%s for %s.%s%s%s", Bytecode.getOpcodeName(this.getOpcode()), this.getOwner(), this.getName(), this.isField() ? ":" : "",
+                this.getDesc());
+    }
 
     /**
      * A reference to a field or method backed by a method handle
@@ -290,7 +300,7 @@ public abstract class MemberRef {
             }
             return opcode;
         }
-
+        
         @Override
         public void setOpcode(int opcode) {
             int tag = Handles.tagFromOpcode(opcode);

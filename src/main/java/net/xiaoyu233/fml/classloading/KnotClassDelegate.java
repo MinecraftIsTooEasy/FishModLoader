@@ -18,9 +18,15 @@ package net.xiaoyu233.fml.classloading;
 
 import com.chocohead.mm.AsmTransformer;
 import com.google.common.collect.Sets;
+import net.fabricmc.loader.impl.util.SystemProperties;
 import net.xiaoyu233.fml.classloading.dump.DumpClassExtension;
 import net.xiaoyu233.fml.mixin.service.MixinService;
-import net.xiaoyu233.fml.util.*;
+import net.xiaoyu233.fml.util.FileSystemUtil;
+import net.xiaoyu233.fml.util.LoaderUtil;
+import net.xiaoyu233.fml.util.Log;
+import net.xiaoyu233.fml.util.ManifestUtil;
+import net.xiaoyu233.fml.util.UrlConversionException;
+import net.xiaoyu233.fml.util.UrlUtil;
 import org.spongepowered.asm.mixin.transformer.IMixinTransformer;
 import org.spongepowered.asm.mixin.transformer.ext.Extensions;
 
@@ -37,7 +43,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.CodeSource;
 import java.security.cert.Certificate;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.Manifest;
 

@@ -100,7 +100,7 @@ public abstract class DefaultResourcePackMixin {
 
     @Inject(method = "<clinit>", at = @At("RETURN"))
     private static void addDefaultResourceDomain(CallbackInfo ci) {
-        ModResourceManager.resourceDomains.add("minecraft");
+        ModResourceManager.getNamespaces().add("minecraft");
     }
 
     @Overwrite
@@ -110,6 +110,6 @@ public abstract class DefaultResourcePackMixin {
 
     @Overwrite
     public Set<?> getResourceDomains() {
-        return ModResourceManager.resourceDomains;
+        return ModResourceManager.getNamespaces();
     }
 }

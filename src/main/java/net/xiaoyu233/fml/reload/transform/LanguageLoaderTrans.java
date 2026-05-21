@@ -1,8 +1,17 @@
 package net.xiaoyu233.fml.reload.transform;
 
-import com.google.gson.*;
-import net.minecraft.*;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonIOException;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonSyntaxException;
+import net.minecraft.Locale;
+import net.minecraft.Resource;
+import net.minecraft.ResourceLocation;
+import net.minecraft.ResourceManager;
+import net.minecraft.StatCollector;
 import net.xiaoyu233.fml.FishModLoader;
+import net.xiaoyu233.fml.ModResourceManager;
 import net.xiaoyu233.fml.Translations;
 import net.xiaoyu233.fml.reload.event.LanguageResourceReloadEvent;
 import net.xiaoyu233.fml.reload.event.MITEEvents;
@@ -61,9 +70,9 @@ public class LanguageLoaderTrans {
 
     @Unique
     private void loadJsonFile(ResourceManager resourceManager, String fileName) {
-        for (Object resourceDomain : resourceManager.getResourceDomains()) {
+        for (String namespace : ModResourceManager.getJsonNamespaces()) {
             try {
-                this.loadJsonData(resourceManager.getAllResources(new ResourceLocation((String) resourceDomain, fileName)), fileName);
+                this.loadJsonData(resourceManager.getAllResources(new ResourceLocation(namespace, fileName)), fileName);
             } catch (Exception exception) {
                 FishModLoader.LOGGER.warn(exception.getMessage());
                 exception.printStackTrace();

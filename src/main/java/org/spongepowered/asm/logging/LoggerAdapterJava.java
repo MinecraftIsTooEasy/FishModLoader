@@ -49,15 +49,6 @@ public class LoggerAdapterJava extends LoggerAdapterAbstract {
         this.logger = LoggerAdapterJava.getLogger(name);
     }
     
-    private static Logger getLogger(String name) {
-        LogManager logManager = LogManager.getLogManager();
-        Logger logger = logManager.getLogger(name);
-        if (logger != null) {
-            return logger;
-        }
-        return LogManager.getLogManager().getLogger(Logger.GLOBAL_LOGGER_NAME);
-    }
-
     @Override
     public String getType() {
         return "java.util.logging Log Adapter";
@@ -179,6 +170,15 @@ public class LoggerAdapterJava extends LoggerAdapterAbstract {
     public void warn(String message, Throwable t) {
         this.logger.warning(message);
         this.logger.warning(t.toString());
+    }
+
+    private static Logger getLogger(String name) {
+        LogManager logManager = LogManager.getLogManager();
+        Logger logger = logManager.getLogger(name);
+        if (logger != null) {
+            return logger;
+        }
+        return LogManager.getLogManager().getLogger(Logger.GLOBAL_LOGGER_NAME);
     }
 
 }

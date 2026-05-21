@@ -29,6 +29,7 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.InsnNode;
+import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.IInjectionPointContext;
 import org.spongepowered.asm.mixin.injection.InjectionPoint;
 import org.spongepowered.asm.mixin.injection.InjectionPoint.AtCode;
@@ -44,7 +45,7 @@ import java.util.ListIterator;
  * from the method except for exception throws will be implicitly specified. To
  * specify a particular RETURN use the <em>ordinal</em> parameter. The injection
  * point accepts the following parameters from
- * {@link org.spongepowered.asm.mixin.injection.At At}:</p>
+ * {@link At At}:</p>
  * 
  * <dl>
  *   <dt>ordinal</dt>

@@ -38,9 +38,11 @@ public final class ClassNodeAdapter {
     private static final String NEST_HOST_FIELD = "nestHostClass";
     private static final String NEST_MEMBERS_FIELD = "nestMembers";
     private static final String EXPERIMENTAL_SUFFIX = "Experimental";
-    private static boolean notSupported = false;
+    
     private static final Field fdNestHost = ClassNodeAdapter.getField(ClassNodeAdapter.NEST_HOST_FIELD);
     private static final Field fdNestMembers = ClassNodeAdapter.getField(ClassNodeAdapter.NEST_MEMBERS_FIELD);
+    
+    private static boolean notSupported = false;
     
     private ClassNodeAdapter() {
     }

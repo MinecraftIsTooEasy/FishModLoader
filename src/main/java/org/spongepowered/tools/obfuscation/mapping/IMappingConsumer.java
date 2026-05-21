@@ -83,7 +83,7 @@ public interface IMappingConsumer {
      * @param <TMapping> type of mappings in the set
      */
     public class MappingSet<TMapping extends IMapping<TMapping>> extends LinkedHashSet<MappingSet.Pair<TMapping>> {
-
+        
         /**
          * A pair of mappings
          *
@@ -95,7 +95,7 @@ public interface IMappingConsumer {
              * Source mapping
              */
             public final TMapping from;
-
+            
             /**
              * Destination mapping
              */
@@ -105,32 +105,32 @@ public interface IMappingConsumer {
                 this.from = from;
                 this.to = to;
             }
-
+            
             @Override
             public boolean equals(Object obj) {
                 if (!(obj instanceof Pair)) {
                     return false;
                 }
-
+                
                 @SuppressWarnings("unchecked")
                 Pair<TMapping> other = (Pair<TMapping>) obj;
                 return Objects.equal(this.from, other.from) && Objects.equal(this.to, other.to);
             }
-
+            
             @Override
             public int hashCode() {
                 return Objects.hashCode(this.from, this.to);
             }
-
+            
             @Override
             public String toString() {
                 return String.format("%s -> %s", this.from, this.to);
             }
-
+            
         }
 
         private static final long serialVersionUID = 1L;
-
+        
     }
 
 }

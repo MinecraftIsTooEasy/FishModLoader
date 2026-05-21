@@ -24,6 +24,8 @@
  */
 package org.spongepowered.asm.mixin;
 
+import org.spongepowered.asm.mixin.injection.Inject;
+
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -98,7 +100,7 @@ public @interface Mixin {
     /**
      * By default, the annotation processor will attempt to locate an
      * obfuscation mapping for all {@link Overwrite}, {@link Shadow} and
-     * {@link org.spongepowered.asm.mixin.injection.Inject} annotated members
+     * {@link Inject} annotated members
      * since it is anticipated that in general the target of a {@link Mixin}
      * will be an obfuscated class and all annotated members will need to be
      * added to the obfuscation table. However since it is possible to also

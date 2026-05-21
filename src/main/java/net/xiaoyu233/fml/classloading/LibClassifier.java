@@ -30,11 +30,20 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipError;
+import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 
 public final class LibClassifier<L extends Enum<L> & LibClassifier.LibraryType> {
@@ -202,7 +211,7 @@ public final class LibClassifier<L extends Enum<L> & LibClassifier.LibraryType> 
 						}
 					}
 				}
-			} catch (ZipError | IOException e) {
+			} catch (ZipException e) {
 				throw new IOException("error reading "+path, e);
 			}
 		}

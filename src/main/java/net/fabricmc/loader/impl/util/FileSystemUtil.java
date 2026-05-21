@@ -19,10 +19,14 @@ package net.fabricmc.loader.impl.util;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.file.*;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystemAlreadyExistsException;
+import java.nio.file.FileSystemNotFoundException;
+import java.nio.file.FileSystems;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Map;
-import java.util.zip.ZipError;
+import java.util.zip.ZipException;
 
 public final class FileSystemUtil {
 	private static final Map<String, String> jfsArgsCreate = Collections.singletonMap("create", "true");
@@ -54,7 +58,7 @@ public final class FileSystemUtil {
 				opened = true;
 			} catch (FileSystemAlreadyExistsException ignore2) {
 				ret = FileSystems.getFileSystem(jarUri);
-			} catch (IOException | ZipError e) {
+			} catch (ZipException e) {
 				throw new IOException("Error accessing "+uri+": "+e, e);
 			}
 		}
