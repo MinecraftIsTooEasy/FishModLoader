@@ -104,10 +104,71 @@ import org.spongepowered.asm.mixin.injection.struct.MemberInfo;
 public interface ITargetSelector {
     
     /**
+     * Available selector reconfigurations
+     */
+    public enum Configure {
+        
+        /**
+         * Configure this selector for matching members in a class. Usually used
+         * to set defaults for match limits based on role. 
+         */
+        SELECT_MEMBER(0),
+        
+        /**
+         * Configure this selector for matching field and method instructions in
+         * a method body. Usually used to set defaults for match limits. 
+         */
+        SELECT_INSTRUCTION(0),
+        
+        /**
+         * Where supported, changes the owner selection to the specified value.
+         */
+        MOVE(1),
+        
+        /**
+         * Where supported, changes the owner selection to match all owners,
+         * retaining other properties.
+         */
+        ORPHAN(0),
+        
+        /**
+         * Where supported, changes the descriptor to the specified value.
+         */
+        TRANSFORM(1),
+        
+        /**
+         * Where supported, changes the descriptor to match all target
+         * descriptors, retaining other properties
+         */
+        PERMISSIVE(0),
+        
+        /**
+         * Where supported, removes the min and max limits for the selector,
+         * allowing it to return as many or as few matches as required.
+         */
+        CLEAR_LIMITS(0);
+        
+        private int requiredArgs;
+
+        private Configure(int requiredArgs) {
+            this.requiredArgs = requiredArgs;
+        }
+        
+        public void checkArgs(String... args) throws IllegalArgumentException {
+            int argc = args == null ? 0 : args.length;
+            if (argc < this.requiredArgs) {
+                throw new IllegalArgumentException("Insufficient arguments for " + this.name() + " mutation. Required " + this.requiredArgs
+                        + " but received " + argc);
+            }
+        }
+        
+    }
+    
+    /**
      * Get the next target selector in this path (or <tt>null</tt> if this
      * selector is the last selector in the chain. Called at recurse points in
      * the subject in order to match against the child subject.
-     *
+     * 
      * <p>Can return null</p>
      */
     public abstract ITargetSelector next();
@@ -119,14 +180,14 @@ public interface ITargetSelector {
      * necessarily return the same object if the callee already matches the
      * supplied configuration, or if the requested mutation is not supported by
      * the selector, though this is generally the case.
-     *
+     * 
      * <p>In other words, calling <tt>configure(Configure.ORPHAN)</tt> when this
      * object is <i>already</i> an orphan or does not support orphaning, may
      * simply return this object, or might return an identically-configured
      * copy.</p>
-     *
+     * 
      * <p>Must not return null, defaults to returning unmodified selector.</p>
-     *
+     * 
      * @param request Requested operation
      * @param args Configuration arguments
      * @return Configured selector, may return this selector if the specified
@@ -137,26 +198,26 @@ public interface ITargetSelector {
     /**
      * Perform basic sanity-check validation of the selector, checks that the
      * parsed out parameters are basically sane
-     *
+     * 
      * @return fluent (this selector)
-     *
+     * 
      * @throws InvalidSelectorException if any sanity check fails
      */
     public abstract ITargetSelector validate() throws InvalidSelectorException;
-    
+
     /**
      * Attach this selector to the specified context. Should return this
      * selector unmodified if all is well, or a new selector to be used for
      * further processing of the supplied context. If the supplied context is
      * invalid, an {@link InvalidSelectorException} is thrown.
-     *
+     * 
      * @param context Context to attach to
      * @return Attached selector
      */
     public abstract ITargetSelector attach(ISelectorContext context) throws InvalidSelectorException;
-
+    
     /**
-     * Minimum number of candidates this selector must match
+     * Minimum number of candidates this selector must match 
      */
     public abstract int getMinMatchCount();
     
@@ -167,72 +228,11 @@ public interface ITargetSelector {
     
     /**
      * Test whether this selector matches the supplied element node
-     *
+     * 
      * @param node node node to test
      * @param <TNode> node type
      * @return true if this selector can match the supplied field
      */
     public abstract <TNode> MatchResult match(ElementNode<TNode> node);
-    
-    /**
-     * Available selector reconfigurations
-     */
-    public enum Configure {
-
-        /**
-         * Configure this selector for matching members in a class. Usually used
-         * to set defaults for match limits based on role.
-         */
-        SELECT_MEMBER(0),
-
-        /**
-         * Configure this selector for matching field and method instructions in
-         * a method body. Usually used to set defaults for match limits.
-         */
-        SELECT_INSTRUCTION(0),
-
-        /**
-         * Where supported, changes the owner selection to the specified value.
-         */
-        MOVE(1),
-
-        /**
-         * Where supported, changes the owner selection to match all owners,
-         * retaining other properties.
-         */
-        ORPHAN(0),
-
-        /**
-         * Where supported, changes the descriptor to the specified value.
-         */
-        TRANSFORM(1),
-
-        /**
-         * Where supported, changes the descriptor to match all target
-         * descriptors, retaining other properties
-         */
-        PERMISSIVE(0),
-
-        /**
-         * Where supported, removes the min and max limits for the selector,
-         * allowing it to return as many or as few matches as required.
-         */
-        CLEAR_LIMITS(0);
-
-        private int requiredArgs;
-
-        private Configure(int requiredArgs) {
-            this.requiredArgs = requiredArgs;
-        }
-
-        public void checkArgs(String... args) throws IllegalArgumentException {
-            int argc = args == null ? 0 : args.length;
-            if (argc < this.requiredArgs) {
-                throw new IllegalArgumentException("Insufficient arguments for " + this.name() + " mutation. Required " + this.requiredArgs
-                        + " but received " + argc);
-            }
-        }
-
-    }
 
 }

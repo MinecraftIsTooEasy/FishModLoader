@@ -288,11 +288,11 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
         return this.method.desc;
     }
     
-    public static Target of(ClassInfo classInfo, ClassNode classNode, MethodNode method) {
-        if (method.name.equals(Constants.CTOR)) {
-            return new Constructor(classInfo, classNode, method);
-        }
-        return new Target(classInfo, classNode, method);
+    /**
+     * Get the target method signature
+     */
+    public String getSignature() {
+        return this.method.signature;
     }
     
     /**
@@ -432,17 +432,10 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
     }
 
     /**
-     * Get the target method signature
-     */
-    public String getSignature() {
-        return this.method.signature;
-    }
-    
-    /**
      * Generate an array containing local indexes for the specified args,
      * returns an array of identical size to the supplied array with an
      * allocated local index in each corresponding position
-     *
+     * 
      * @param args Argument types
      * @param start starting index
      * @return array containing a corresponding local arg index for each member
@@ -451,12 +444,12 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
     public int[] generateArgMap(Type[] args, int start) {
         return this.generateArgMap(args, start, false);
     }
-
+    
     /**
      * Generate an array containing local indexes for the specified args,
      * returns an array of identical size to the supplied array with an
      * allocated local index in each corresponding position
-     *
+     * 
      * @param args Argument types
      * @param start starting index
      * @param fresh allocate fresh locals only, do not reuse existing argmap
@@ -482,14 +475,14 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
         }
         return argMap;
     }
-    
+
     /**
      * Allocates a local variable to be used for argmap. Since argmaps do not
      * overlap we can safely reuse local variables allocated for this purpose.
      * We do however need to deal with expanding the argmap allocation when
      * necessary, which is complicated slightly by the fact that some variables
      * occupy more than one local slot.
-     *
+     * 
      * @param index Argmap index
      * @param size Size of variable
      * @return local offset to use
@@ -529,10 +522,10 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
         index.value++;
         return newLocal;
     }
-
+    
     /**
      * Get the argument indices for this target, calculated on first use
-     *
+     * 
      * @return argument indices for this target
      */
     public int[] getArgIndices() {
@@ -541,7 +534,7 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
         }
         return this.argIndices;
     }
-    
+
     private int[] calcArgIndices(int local) {
         int[] argIndices = new int[this.arguments.length];
         for (int arg = 0; arg < this.arguments.length; arg++) {
@@ -554,7 +547,7 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
     /**
      * Get the CallbackInfo class used for this target, based on the target
      * return type
-     *
+     * 
      * @return CallbackInfo class name
      */
     public String getCallbackInfoClass() {
@@ -566,16 +559,16 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
     
     /**
      * Get "simple" callback descriptor (descriptor with only CallbackInfo)
-     *
+     * 
      * @return generated descriptor
      */
     public String getSimpleCallbackDescriptor() {
         return String.format("(L%s;)V", this.getCallbackInfoClass());
     }
-
+    
     /**
      * Get the callback descriptor
-     *
+     * 
      * @param locals Local variable types
      * @param argumentTypes Argument types
      * @return generated descriptor
@@ -583,10 +576,10 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
     public String getCallbackDescriptor(final Type[] locals, Type[] argumentTypes) {
         return this.getCallbackDescriptor(false, locals, argumentTypes, 0, Short.MAX_VALUE);
     }
-    
+
     /**
      * Get the callback descriptor
-     *
+     * 
      * @param captureLocals True if the callback is capturing locals
      * @param locals Local variable types
      * @param argumentTypes Argument types
@@ -599,7 +592,7 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
             this.callbackDescriptor = String.format("(%sL%s;)V", this.getDesc().substring(1, this.getDesc().indexOf(')')),
                     this.getCallbackInfoClass());
         }
-
+        
         if (!captureLocals || locals == null) {
             return this.callbackDescriptor;
         }
@@ -613,6 +606,11 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
         }
 
         return descriptor.append(")V").toString();
+    }
+    
+    @Override
+    public String toString() {
+        return String.format("%s::%s%s", this.classNode.name, this.getName(), this.getDesc());
     }
 
     @Override
@@ -661,29 +659,24 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
         return this.insns.iterator();
     }
 
-    @Override
-    public String toString() {
-        return String.format("%s::%s%s", this.classNode.name, this.getName(), this.getDesc());
-    }
-
     /**
      * Find the first <tt>&lt;init&gt;</tt> invocation after the specified
      * <tt>NEW</tt> insn
-     *
+     * 
      * @param newNode NEW insn
      * @return INVOKESPECIAL opcode of ctor, or null if not found
      */
     public MethodInsnNode findInitNodeFor(TypeInsnNode newNode) {
         return this.findInitNodeFor(newNode, null);
     }
-    
+
     /**
      * Find the matching <tt>&lt;init&gt;</tt> invocation after the specified
      * <tt>NEW</tt> insn, ensuring that the supplied descriptor matches. If the
      * supplied descriptor is <tt>null</tt> then any invocation matches. If
      * additional <tt>NEW</tt> insns are encountered then corresponding
      * <tt>&lt;init&gt;</tt> calls are skipped.
-     *
+     * 
      * @param newNode NEW insn
      * @param desc Descriptor to match
      * @return INVOKESPECIAL opcode of ctor, or null if not found
@@ -693,8 +686,8 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
     }
     
     /**
-     * Insert the supplied instructions after the specified instruction
-     *
+     * Insert the supplied instructions after the specified instruction 
+     * 
      * @param location Instruction to insert before
      * @param insns Instructions to insert
      */
@@ -703,23 +696,33 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
     }
     
     /**
-     * Insert the supplied instruction after the specified instruction
-     *
+     * Insert the supplied instruction after the specified instruction 
+     * 
      * @param location Instruction to insert before
      * @param insn Instruction to insert
      */
     public void insert(InjectionNode location, final AbstractInsnNode insn) {
         this.insns.insert(location.getCurrentTarget(), insn);
     }
-
+    
     /**
-     * Insert the supplied instructions after the specified instruction
-     *
+     * Insert the supplied instructions after the specified instruction 
+     * 
      * @param location Instruction to insert before
      * @param insns Instructions to insert
      */
     public void insert(AbstractInsnNode location, final InsnList insns) {
         this.insns.insert(location, insns);
+    }
+
+    /**
+     * Insert the supplied instruction after the specified instruction 
+     * 
+     * @param location Instruction to insert before
+     * @param insn Instruction to insert
+     */
+    public void insert(AbstractInsnNode location, final AbstractInsnNode insn) {
+        this.insns.insert(location, insn);
     }
 
     /**
@@ -733,13 +736,13 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
     }
 
     /**
-     * Insert the supplied instruction after the specified instruction
-     *
+     * Insert the supplied instruction before the specified instruction 
+     * 
      * @param location Instruction to insert before
      * @param insn Instruction to insert
      */
-    public void insert(AbstractInsnNode location, final AbstractInsnNode insn) {
-        this.insns.insert(location, insn);
+    public void insertBefore(InjectionNode location, final AbstractInsnNode insn) {
+        this.insns.insertBefore(location.getCurrentTarget(), insn);
     }
     
     /**
@@ -753,13 +756,13 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
     }
     
     /**
-     * Insert the supplied instruction before the specified instruction
-     *
+     * Insert the supplied instruction before the specified instruction 
+     * 
      * @param location Instruction to insert before
      * @param insn Instruction to insert
      */
-    public void insertBefore(InjectionNode location, final AbstractInsnNode insn) {
-        this.insns.insertBefore(location.getCurrentTarget(), insn);
+    public void insertBefore(AbstractInsnNode location, final AbstractInsnNode insn) {
+        this.insns.insertBefore(location, insn);
     }
     
     /**
@@ -839,18 +842,8 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
     }
 
     /**
-     * Insert the supplied instruction before the specified instruction
-     *
-     * @param location Instruction to insert before
-     * @param insn Instruction to insert
-     */
-    public void insertBefore(AbstractInsnNode location, final AbstractInsnNode insn) {
-        this.insns.insertBefore(location, insn);
-    }
-
-    /**
      * Add an entry to the target LVT between the specified start and end labels
-     *
+     * 
      * @param index local variable index
      * @param name local variable name
      * @param desc local variable type
@@ -861,23 +854,33 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
         if (from == null) {
             from = this.getStartLabel();
         }
-
+        
         if (to == null) {
             to = this.getEndLabel();
         }
-
+        
         if (this.method.localVariables == null) {
             this.method.localVariables = new ArrayList<LocalVariableNode>();
         }
-
+        
         for (Iterator<LocalVariableNode> iter = this.method.localVariables.iterator(); iter.hasNext();) {
             LocalVariableNode local = iter.next();
             if (local != null && local.index == index && from == local.start && to == local.end) {
                 iter.remove();
             }
         }
-
+        
         this.method.localVariables.add(new SyntheticLocalVariableNode(name, desc, null, from, to, index));
+    }
+
+    /**
+     * Get a label which marks the very start of the method
+     */
+    private LabelNode getStartLabel() {
+        if (this.start == null) {
+            this.insns.insert(this.start = new LabelNode());
+        }
+        return this.start;
     }
 
     /**
@@ -890,14 +893,11 @@ public class Target implements Comparable<Target>, Iterable<AbstractInsnNode> {
         return this.end;
     }
 
-    /**
-     * Get a label which marks the very start of the method
-     */
-    private LabelNode getStartLabel() {
-        if (this.start == null) {
-            this.insns.insert(this.start = new LabelNode());
+    public static Target of(ClassInfo classInfo, ClassNode classNode, MethodNode method) {
+        if (method.name.equals(Constants.CTOR)) {
+            return new Constructor(classInfo, classNode, method);
         }
-        return this.start;
+        return new Target(classInfo, classNode, method);
     }
 
 }

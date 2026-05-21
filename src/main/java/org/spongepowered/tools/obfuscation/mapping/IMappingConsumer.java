@@ -40,54 +40,15 @@ import com.google.common.base.Objects;
 public interface IMappingConsumer {
     
     /**
-     * Clear all collections in the consumer
-     */
-    public abstract void clear();
-
-    /**
-     * Add a field mapping to this consumer.
-     *
-     * @param type obfuscation type for this entry
-     * @param from source mapping
-     * @param to destination mapping
-     */
-    public abstract void addFieldMapping(ObfuscationType type, MappingField from, MappingField to);
-
-    /**
-     * Add a method mapping to this consumer.
-     *
-     * @param type obfuscation type for this entry
-     * @param from source mapping
-     * @param to destination mapping
-     */
-    public abstract void addMethodMapping(ObfuscationType type, MappingMethod from, MappingMethod to);
-
-    /**
-     * Get the stored field mappings for the specified obfuscation type
-     *
-     * @param type obfuscation type
-     * @return stored field mappings
-     */
-    public abstract MappingSet<MappingField> getFieldMappings(ObfuscationType type);
-
-    /**
-     * Get the stored method mappings for the specified obfuscation type
-     *
-     * @param type obfuscation type
-     * @return stored method mappings
-     */
-    public abstract MappingSet<MappingMethod> getMethodMappings(ObfuscationType type);
-
-    /**
      * A set of mapping pairs
-     *
+     * 
      * @param <TMapping> type of mappings in the set
      */
     public class MappingSet<TMapping extends IMapping<TMapping>> extends LinkedHashSet<MappingSet.Pair<TMapping>> {
-
+        
         /**
          * A pair of mappings
-         *
+         * 
          * @param <TMapping> The type of mappings being mapped
          */
         public static class Pair<TMapping extends IMapping<TMapping>> {
@@ -96,7 +57,7 @@ public interface IMappingConsumer {
              * Source mapping
              */
             public final TMapping from;
-
+            
             /**
              * Destination mapping
              */
@@ -106,32 +67,71 @@ public interface IMappingConsumer {
                 this.from = from;
                 this.to = to;
             }
-
+            
             @Override
             public boolean equals(Object obj) {
                 if (!(obj instanceof Pair)) {
                     return false;
                 }
-
+                
                 @SuppressWarnings("unchecked")
                 Pair<TMapping> other = (Pair<TMapping>) obj;
                 return Objects.equal(this.from, other.from) && Objects.equal(this.to, other.to);
             }
-
+            
             @Override
             public int hashCode() {
                 return Objects.hashCode(this.from, this.to);
             }
-
+            
             @Override
             public String toString() {
                 return String.format("%s -> %s", this.from, this.to);
             }
-
+            
         }
 
         private static final long serialVersionUID = 1L;
-
+        
     }
+
+    /**
+     * Clear all collections in the consumer
+     */
+    public abstract void clear();
+
+    /**
+     * Add a field mapping to this consumer.
+     * 
+     * @param type obfuscation type for this entry
+     * @param from source mapping
+     * @param to destination mapping
+     */
+    public abstract void addFieldMapping(ObfuscationType type, MappingField from, MappingField to);
+
+    /**
+     * Add a method mapping to this consumer.
+     * 
+     * @param type obfuscation type for this entry
+     * @param from source mapping
+     * @param to destination mapping
+     */
+    public abstract void addMethodMapping(ObfuscationType type, MappingMethod from, MappingMethod to);
+
+    /**
+     * Get the stored field mappings for the specified obfuscation type
+     * 
+     * @param type obfuscation type
+     * @return stored field mappings
+     */
+    public abstract MappingSet<MappingField> getFieldMappings(ObfuscationType type);
+
+    /**
+     * Get the stored method mappings for the specified obfuscation type
+     * 
+     * @param type obfuscation type
+     * @return stored method mappings
+     */
+    public abstract MappingSet<MappingMethod> getMethodMappings(ObfuscationType type);
 
 }

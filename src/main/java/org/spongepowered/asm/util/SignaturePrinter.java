@@ -142,14 +142,22 @@ public class SignaturePrinter {
     }
 
     /**
-     * Get the source code name for the specified type
-     *
-     * @param type Type to generate a friendly name for
-     * @return String representation of the specified type, eg "int" for an
-     *         integer primitive or "String" for java.lang.String
+     * Set modifiers on this signature using the supplied method node
+     * 
+     * @param method method node to read modifiers from
      */
-    public static String getTypeName(Type type) {
-        return SignaturePrinter.getTypeName(type, false, true);
+    public void setModifiers(MethodNode method) {
+        String returnType = SignaturePrinter.getTypeName(Type.getReturnType(method.desc), false, this.fullyQualified);
+        String staticType = (method.access & Opcodes.ACC_STATIC) != 0 ? "static " : "";
+        if ((method.access & Opcodes.ACC_PUBLIC) != 0) {
+            this.setModifiers("public " + staticType + returnType);
+        } else if ((method.access & Opcodes.ACC_PROTECTED) != 0) {
+            this.setModifiers("protected " + staticType + returnType);
+        } else if ((method.access & Opcodes.ACC_PRIVATE) != 0) {
+            this.setModifiers("private " + staticType + returnType);
+        } else {
+            this.setModifiers(staticType + returnType);
+        }
     }
     
     /**
@@ -256,9 +264,20 @@ public class SignaturePrinter {
 
     /**
      * Get the source code name for the specified type
-     *
+     * 
      * @param type Type to generate a friendly name for
-     * @param box True to return the equivalent boxing type for primitives
+     * @return String representation of the specified type, eg "int" for an
+     *         integer primitive or "String" for java.lang.String
+     */
+    public static String getTypeName(Type type) {
+        return SignaturePrinter.getTypeName(type, false, true);
+    }
+
+    /**
+     * Get the source code name for the specified type
+     * 
+     * @param type Type to generate a friendly name for
+     * @param box True to return the equivalent boxing type for primitives 
      * @return String representation of the specified type, eg "int" for an
      *         integer primitive or "String" for java.lang.String
      */
@@ -268,10 +287,10 @@ public class SignaturePrinter {
 
     /**
      * Get the source code name for the specified type
-     *
+     * 
      * @param type Type to generate a friendly name for
      * @param box True to return the equivalent boxing type for primitives
-     * @param fullyQualified fully-qualify class names
+     * @param fullyQualified fully-qualify class names 
      * @return String representation of the specified type, eg "int" for an
      *         integer primitive or "String" for java.lang.String
      */
@@ -289,7 +308,7 @@ public class SignaturePrinter {
             case Type.FLOAT:   return box ? "Float"     : "float";
             case Type.LONG:    return box ? "Long"      : "long";
             case Type.DOUBLE:  return box ? "Double"    : "double";
-            case Type.ARRAY:
+            case Type.ARRAY:  
                 return SignaturePrinter.getTypeName(SignaturePrinter.getElementType(type), box, fullyQualified) + SignaturePrinter.arraySuffix(type);
             case Type.OBJECT:
                 String typeName = SignaturePrinter.getClassName(type);
@@ -299,25 +318,6 @@ public class SignaturePrinter {
                 return typeName;
             default:
                 return "Object";
-        }
-    }
-
-    /**
-     * Set modifiers on this signature using the supplied method node
-     *
-     * @param method method node to read modifiers from
-     */
-    public void setModifiers(MethodNode method) {
-        String returnType = SignaturePrinter.getTypeName(Type.getReturnType(method.desc), false, this.fullyQualified);
-        String staticType = (method.access & Opcodes.ACC_STATIC) != 0 ? "static " : "";
-        if ((method.access & Opcodes.ACC_PUBLIC) != 0) {
-            this.setModifiers("public " + staticType + returnType);
-        } else if ((method.access & Opcodes.ACC_PROTECTED) != 0) {
-            this.setModifiers("protected " + staticType + returnType);
-        } else if ((method.access & Opcodes.ACC_PRIVATE) != 0) {
-            this.setModifiers("private " + staticType + returnType);
-        } else {
-            this.setModifiers(staticType + returnType);
         }
     }
     

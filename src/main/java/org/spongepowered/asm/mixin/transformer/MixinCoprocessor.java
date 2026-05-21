@@ -46,7 +46,78 @@ import org.spongepowered.asm.service.MixinService;
  */
 abstract class MixinCoprocessor implements IListener {
     
-    private static final ILogger logger = MixinService.getService().getLogger("mixin");
+    /**
+     * The result of a specific coprocessor's action on a supplied class,
+     * effectively a tuple of <tt>transformed</tt> and <tt>passthrough</tt>
+     * which combines the normal <tt>transformed</tt> flag (which is returned to
+     * the service so it knows whether the supplied class was altered or not)
+     * and a second flag which indicates whether the class is eligible for
+     * processing by the mixin pipeline: Results with <tt>passthrough</tt> set
+     * will <b>not</b> be processed further by the mixin processor.   
+     */
+    enum ProcessResult {
+        
+        /**
+         * This coprocessor does not take any action for the specified class 
+         */
+        NONE(false, false),
+        
+        /**
+         * This coprocessor acted on the supplied bytecode, but does not change
+         * the flow of the main mixin processor pipeline
+         */
+        TRANSFORMED(false, true),
+        
+        /**
+         * This coprocessor did not transform the supplied bytecode, and mixins
+         * should not be applied to this class
+         */
+        PASSTHROUGH_NONE(true, false),
+        
+        /**
+         * This coprocessor acted on the supplied bytecode, and mixins should
+         * not be applied to this class
+         */
+        PASSTHROUGH_TRANSFORMED(true, true);
+        
+        private boolean passthrough;
+        
+        private boolean transformed;
+
+        private ProcessResult(boolean passthrough, boolean transformed) {
+            this.passthrough = passthrough;
+            this.transformed = transformed;
+        }
+        
+        boolean isPassthrough() {
+            return this.passthrough;
+        }
+
+        boolean isTransformed() {
+            return this.transformed;
+        }
+        
+        /**
+         * Combine this result with the supplied result
+         */
+        ProcessResult with(ProcessResult other) {
+            if (other == this) {
+                return this;
+            }
+            return ProcessResult.of(this.passthrough || other.passthrough, this.transformed || other.transformed);
+        }
+        
+        /**
+         * Return a result which represents the supplied tuple of attributes
+         */
+        static ProcessResult of(boolean passthrough, boolean transformed) {
+            if (passthrough) {
+                return transformed ? ProcessResult.PASSTHROUGH_TRANSFORMED : ProcessResult.PASSTHROUGH_NONE;
+            }
+            return transformed ? ProcessResult.TRANSFORMED : ProcessResult.NONE;
+        }
+        
+    }
     
     /**
      * Coprocessor name, for debugging only
@@ -68,13 +139,12 @@ abstract class MixinCoprocessor implements IListener {
     @Override
     public void onInit(MixinInfo mixin) {
     }
-    private boolean willLogUnimplementedCouldTransform = true;
-
+    
     /**
      * Process the supplied class. If the class is transformed, or should be
      * passed through (rather than treated as a mixin target) then this is
      * indicated by the return value
-     *
+     * 
      * @param className Name of the target class
      * @param classNode Classnode of the target class
      * @return result indicating whether the class was transformed, and whether
@@ -84,11 +154,14 @@ abstract class MixinCoprocessor implements IListener {
         return ProcessResult.NONE;
     }
 
+    private static final ILogger logger = MixinService.getService().getLogger("mixin");
+    private boolean willLogUnimplementedCouldTransform = true;
+    
     /**
      * Determine ahead-of-time whether a given class could be transformed ({@link ProcessResult#TRANSFORMED},
      * {@link ProcessResult#PASSTHROUGH_TRANSFORMED}, or modification in
      * {@link MixinCoprocessor#postProcess(String, ClassNode)}) by processing by this coprocessor.
-     *
+     * 
      * @param className Name of the target class
      * @return true if the coprocessor might transform the class when processed
      */
@@ -98,94 +171,21 @@ abstract class MixinCoprocessor implements IListener {
             logger.error("MixinCoprocessor {} ({}) does not implement couldTransform, which may lead to unnecessary transformation", getName(), getClass().getName());
         }
         return true;
-    }
-    
+    } 
+
     /**
      * Perform postprocessing actions on the supplied class. This is called for
-     * all classes. For passthrough classes and classes which are not mixin
+     * all classes. For passthrough classes and classes which are not mixin 
      * targets this is called immediately after {@link #process} is completed
      * for all coprocessors. For mixin targets this is called after mixins are
      * applied.
-     *
+     * 
      * @param className Name of the target class
      * @param classNode Classnode of the target class
      * @return true if the coprocessor applied any transformations
      */
     boolean postProcess(String className, ClassNode classNode) {
         return false;
-    }
-
-    /**
-     * The result of a specific coprocessor's action on a supplied class,
-     * effectively a tuple of <tt>transformed</tt> and <tt>passthrough</tt>
-     * which combines the normal <tt>transformed</tt> flag (which is returned to
-     * the service so it knows whether the supplied class was altered or not)
-     * and a second flag which indicates whether the class is eligible for
-     * processing by the mixin pipeline: Results with <tt>passthrough</tt> set
-     * will <b>not</b> be processed further by the mixin processor.
-     */
-    enum ProcessResult {
-
-        /**
-         * This coprocessor does not take any action for the specified class
-         */
-        NONE(false, false),
-
-        /**
-         * This coprocessor acted on the supplied bytecode, but does not change
-         * the flow of the main mixin processor pipeline
-         */
-        TRANSFORMED(false, true),
-
-        /**
-         * This coprocessor did not transform the supplied bytecode, and mixins
-         * should not be applied to this class
-         */
-        PASSTHROUGH_NONE(true, false),
-
-        /**
-         * This coprocessor acted on the supplied bytecode, and mixins should
-         * not be applied to this class
-         */
-        PASSTHROUGH_TRANSFORMED(true, true);
-
-        private boolean passthrough;
-
-        private boolean transformed;
-
-        private ProcessResult(boolean passthrough, boolean transformed) {
-            this.passthrough = passthrough;
-            this.transformed = transformed;
-        }
-
-        /**
-         * Return a result which represents the supplied tuple of attributes
-         */
-        static ProcessResult of(boolean passthrough, boolean transformed) {
-            if (passthrough) {
-                return transformed ? ProcessResult.PASSTHROUGH_TRANSFORMED : ProcessResult.PASSTHROUGH_NONE;
-            }
-            return transformed ? ProcessResult.TRANSFORMED : ProcessResult.NONE;
-        }
-
-        boolean isPassthrough() {
-            return this.passthrough;
-        }
-
-        boolean isTransformed() {
-            return this.transformed;
-        }
-
-        /**
-         * Combine this result with the supplied result
-         */
-        ProcessResult with(ProcessResult other) {
-            if (other == this) {
-                return this;
-            }
-            return ProcessResult.of(this.passthrough || other.passthrough, this.transformed || other.transformed);
-        }
-
     }
     
 }

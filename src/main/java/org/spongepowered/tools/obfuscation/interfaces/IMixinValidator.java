@@ -38,18 +38,6 @@ import org.spongepowered.tools.obfuscation.mirror.TypeHandle;
 public interface IMixinValidator {
     
     /**
-     * Validate all the things, return false to halt processing of further
-     * validators. Raise compiler errors/warnings directly.
-     * @param pass current validation pass
-     * @param mixin Mixin being validated
-     * @param annotation Mixin annotation
-     * @param targets Mixin targets
-     *
-     * @return False to halt processing of further validators
-     */
-    public abstract boolean validate(ValidationPass pass, TypeElement mixin, IAnnotationHandle annotation, Collection<TypeHandle> targets);
-    
-    /**
      * Validation pass
      */
     public enum ValidationPass {
@@ -57,5 +45,17 @@ public interface IMixinValidator {
         LATE,
         FINAL
     }
+    
+    /**
+     * Validate all the things, return false to halt processing of further
+     * validators. Raise compiler errors/warnings directly.
+     * @param pass current validation pass
+     * @param mixin Mixin being validated
+     * @param annotation Mixin annotation
+     * @param targets Mixin targets
+     * 
+     * @return False to halt processing of further validators
+     */
+    public abstract boolean validate(ValidationPass pass, TypeElement mixin, IAnnotationHandle annotation, Collection<TypeHandle> targets);
 
 }

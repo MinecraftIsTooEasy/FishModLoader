@@ -55,14 +55,66 @@ import com.google.common.base.Strings;
 public abstract class ElementNode<TNode> {
     
     /**
-     * Create an ElementNode wrapper for the supplied method node
-     *
-     * @param owner class which owns the method or <tt>null</tt>
-     * @param method Method node to wrap
-     * @return ElementNode
+     * Element node type, returned by <tt>getType</tt> so consumers don't need
+     * to do instanceof checks, and allows switching on element type in a more
+     * expressive way
      */
-    public static ElementNode<MethodNode> of(ClassNode owner, MethodNode method) {
-        return new ElementNodeMethod(owner, method);
+    public static enum NodeType {
+        
+        /**
+         * None or unknown type 
+         */
+        UNDEFINED(false, false, false),
+        
+        /**
+         * A method node 
+         */
+        METHOD(true, false, false),
+        
+        /**
+         * A field node 
+         */
+        FIELD(false, true, false),
+        
+        /**
+         * An invoke instruction 
+         */
+        METHOD_INSN(false, false, true),
+        
+        /**
+         * A get or put field instruction 
+         */
+        FIELD_INSN(false, false, true),
+        
+        /**
+         * An INVOKEDYNAMIC instruction
+         */
+        INVOKEDYNAMIC_INSN(false, false, true);
+        
+        /**
+         * Whether this node holds a method, implies that calling <tt>getMethod
+         * </tt> will return a value
+         */
+        public final boolean hasMethod;
+        
+        /**
+         * Whether this node holds a field, implies that calling <tt>getField
+         * </tt> will return a value
+         */
+        public final boolean hasField;
+        
+        /**
+         * Whether this node holds an insn, implies that calling <tt>getInsn
+         * </tt> will return a value
+         */
+        public final boolean hasInsn;
+
+        private NodeType(boolean isMethod, boolean isField, boolean isInsn) {
+            this.hasMethod = isMethod;
+            this.hasField = isField;
+            this.hasInsn = isInsn;
+        }
+        
     }
     
     /**
@@ -457,8 +509,122 @@ public abstract class ElementNode<TNode> {
     }
     
     /**
+     * Get whether this element is a field type and the descriptor is a bare
+     * type descriptor without arguments. Otherwise assumes the descriptor is a
+     * method descriptor. 
+     */
+    public boolean isField() {
+        return false;
+    }
+    
+    /**
+     * Get the type of this ElementNode, the return value can be used to
+     * determine which accessor ({@link #getMethod}, {@link #getField}
+     */
+    public abstract NodeType getType();
+    
+    /**
+     * Get the {@link MethodNode} if this member is a method, otherwise returns
+     * <tt>null</tt>
+     */
+    public MethodNode getMethod() {
+        return null;
+    }
+
+    /**
+     * Get the {@link FieldNode} if this member is a field, otherwise returns
+     * <tt>null</tt>
+     */
+    public FieldNode getField() {
+        return null;
+    }
+    
+    /**
+     * Get the {@link AbstractInsnNode instruction} if this member is an insn,
+     * otherwise returns <tt>null</tt>
+     */
+    public AbstractInsnNode getInsn() {
+        return null;
+    }
+    
+    /**
+     * Get the element owner's name, if this element has an owner, otherwise
+     * returns <tt>null</tt>
+     */
+    public abstract String getOwner();
+    
+    /**
+     * Get the element name
+     */
+    public abstract String getName();
+    
+    /**
+     * Get the synthetic element name. For INVOKEDYNAMIC elements this is the
+     * real name of the lambda method implementing the delegate.
+     */
+    public String getSyntheticName() {
+        return this.getName();
+    }
+    
+    /**
+     * Get the element descriptor. For INVOKEDYNAMIC this is the full descriptor
+     * of the lambda (including prepended captures).
+     */
+    public abstract String getDesc();
+    
+    /**
+     * For INVOKEDYNAMIC elements, returns original descriptor of the delegate. 
+     */
+    public String getDelegateDesc() {
+        return this.getDesc();
+    }
+    
+    /**
+     * For INVOKEDYNAMIC elements, returns specialised descriptor of the
+     * delegate (lambda descriptor without prepended captures), can be the same
+     * as the delegate descriptor or more specialised. 
+     */
+    public String getImplDesc() {
+        return this.getDesc();
+    }
+    
+    /**
+     * Get the element signature, can be <tt>null</tt>
+     */
+    public abstract String getSignature();
+    
+    /**
+     * Returns the node with horrible duck typing
+     */
+    public abstract TNode get();
+    
+    @Override
+    public String toString() {
+        String desc = Strings.nullToEmpty(this.getDesc());
+        if (!desc.isEmpty() && this.isField()) {
+            desc = ":" + desc;
+        }
+        String owner = Strings.nullToEmpty(this.getOwner());
+        if (!owner.isEmpty()) {
+            owner = "L" + owner + ";";
+        }
+        return String.format("%s%s%s", owner, Strings.nullToEmpty(this.getName()), desc);
+    }
+
+    /**
+     * Create an ElementNode wrapper for the supplied method node
+     * 
+     * @param owner class which owns the method or <tt>null</tt>
+     * @param method Method node to wrap
+     * @return ElementNode
+     */
+    public static ElementNode<MethodNode> of(ClassNode owner, MethodNode method) {
+        return new ElementNodeMethod(owner, method);
+    }
+    
+    /**
      * Create an ElementNode wrapper for the supplied field node
-     *
+     * 
      * @param owner class which owns the field or <tt>null</tt>
      * @param field Field node to wrap
      * @return ElementNode
@@ -469,7 +635,7 @@ public abstract class ElementNode<TNode> {
     
     /**
      * Create an ElementNode wrapper for the supplied node object
-     *
+     * 
      * @param owner class which owns the node or <tt>null</tt>
      * @param node Node to wrap
      * @param <TNode> Node type
@@ -497,7 +663,7 @@ public abstract class ElementNode<TNode> {
     
     /**
      * Create an ElementNode wrapper for the supplied node object
-     *
+     * 
      * @param node Node to wrap
      * @param <TNode> Node type
      * @return ElementNode
@@ -518,7 +684,7 @@ public abstract class ElementNode<TNode> {
 
     /**
      * Convert the supplied list of nodes to a list of wrapped ElementNodes
-     *
+     * 
      * @param owner Owner of the supplied nodes, can be <tt>null</tt>
      * @param list List of nodes
      * @param <TNode> Node type
@@ -531,11 +697,11 @@ public abstract class ElementNode<TNode> {
         }
         return nodes;
     }
-    
+
     /**
      * Get a list of wrapped ElementNodes for the fields of the supplied owner
      * class
-     *
+     * 
      * @param owner Class to get fields, must not be <tt>null</tt>
      * @return List of wrapped nodes
      */
@@ -546,11 +712,11 @@ public abstract class ElementNode<TNode> {
         }
         return fields;
     }
-    
+
     /**
      * Get a list of wrapped ElementNodes for the methods of the supplied owner
      * class
-     *
+     * 
      * @param owner Class to get methods, must not be <tt>null</tt>
      * @return List of wrapped nodes
      */
@@ -565,8 +731,8 @@ public abstract class ElementNode<TNode> {
     /**
      * Get a wrapped version of the supplied insn list which returns element
      * nodes for each (supported) instruction (FieldInsnNode, MethodInsnNode and
-     * InvokeDynamicInsnNode).
-     *
+     * InvokeDynamicInsnNode). 
+     * 
      * @param insns Insn list to wrap
      * @return Wrapper for insn list
      */
@@ -577,178 +743,12 @@ public abstract class ElementNode<TNode> {
     /**
      * Get a wrapped version of the supplied insn list which returns element
      * nodes for every INVOKEDYNAMIC instruction only
-     *
+     * 
      * @param insns Insn list to wrap
      * @return Wrapper for insn list
      */
     public static Iterable<ElementNode<AbstractInsnNode>> dynamicInsnList(InsnList insns) {
         return new ElementNodeIterable(insns, true);
-    }
-    
-    /**
-     * Get whether this element is a field type and the descriptor is a bare
-     * type descriptor without arguments. Otherwise assumes the descriptor is a
-     * method descriptor.
-     */
-    public boolean isField() {
-        return false;
-    }
-    
-    /**
-     * Get the type of this ElementNode, the return value can be used to
-     * determine which accessor ({@link #getMethod}, {@link #getField}
-     */
-    public abstract NodeType getType();
-    
-    /**
-     * Get the {@link MethodNode} if this member is a method, otherwise returns
-     * <tt>null</tt>
-     */
-    public MethodNode getMethod() {
-        return null;
-    }
-    
-    /**
-     * Get the {@link FieldNode} if this member is a field, otherwise returns
-     * <tt>null</tt>
-     */
-    public FieldNode getField() {
-        return null;
-    }
-    
-    /**
-     * Get the {@link AbstractInsnNode instruction} if this member is an insn,
-     * otherwise returns <tt>null</tt>
-     */
-    public AbstractInsnNode getInsn() {
-        return null;
-    }
-    
-    /**
-     * Get the element owner's name, if this element has an owner, otherwise
-     * returns <tt>null</tt>
-     */
-    public abstract String getOwner();
-
-    /**
-     * Get the element name
-     */
-    public abstract String getName();
-    
-    /**
-     * Get the synthetic element name. For INVOKEDYNAMIC elements this is the
-     * real name of the lambda method implementing the delegate.
-     */
-    public String getSyntheticName() {
-        return this.getName();
-    }
-    
-    /**
-     * Get the element descriptor. For INVOKEDYNAMIC this is the full descriptor
-     * of the lambda (including prepended captures).
-     */
-    public abstract String getDesc();
-    
-    /**
-     * For INVOKEDYNAMIC elements, returns original descriptor of the delegate.
-     */
-    public String getDelegateDesc() {
-        return this.getDesc();
-    }
-
-    /**
-     * For INVOKEDYNAMIC elements, returns specialised descriptor of the
-     * delegate (lambda descriptor without prepended captures), can be the same
-     * as the delegate descriptor or more specialised.
-     */
-    public String getImplDesc() {
-        return this.getDesc();
-    }
-
-    /**
-     * Get the element signature, can be <tt>null</tt>
-     */
-    public abstract String getSignature();
-
-    /**
-     * Returns the node with horrible duck typing
-     */
-    public abstract TNode get();
-    
-    @Override
-    public String toString() {
-        String desc = Strings.nullToEmpty(this.getDesc());
-        if (!desc.isEmpty() && this.isField()) {
-            desc = ":" + desc;
-        }
-        String owner = Strings.nullToEmpty(this.getOwner());
-        if (!owner.isEmpty()) {
-            owner = "L" + owner + ";";
-        }
-        return String.format("%s%s%s", owner, Strings.nullToEmpty(this.getName()), desc);
-    }
-    
-    /**
-     * Element node type, returned by <tt>getType</tt> so consumers don't need
-     * to do instanceof checks, and allows switching on element type in a more
-     * expressive way
-     */
-    public static enum NodeType {
-
-        /**
-         * None or unknown type
-         */
-        UNDEFINED(false, false, false),
-
-        /**
-         * A method node
-         */
-        METHOD(true, false, false),
-
-        /**
-         * A field node
-         */
-        FIELD(false, true, false),
-
-        /**
-         * An invoke instruction
-         */
-        METHOD_INSN(false, false, true),
-
-        /**
-         * A get or put field instruction
-         */
-        FIELD_INSN(false, false, true),
-
-        /**
-         * An INVOKEDYNAMIC instruction
-         */
-        INVOKEDYNAMIC_INSN(false, false, true);
-
-        /**
-         * Whether this node holds a method, implies that calling <tt>getMethod
-         * </tt> will return a value
-         */
-        public final boolean hasMethod;
-
-        /**
-         * Whether this node holds a field, implies that calling <tt>getField
-         * </tt> will return a value
-         */
-        public final boolean hasField;
-
-        /**
-         * Whether this node holds an insn, implies that calling <tt>getInsn
-         * </tt> will return a value
-         */
-        public final boolean hasInsn;
-
-        private NodeType(boolean isMethod, boolean isField, boolean isInsn) {
-            this.hasMethod = isMethod;
-            this.hasField = isField;
-            this.hasInsn = isInsn;
-        }
-
     }
     
 }

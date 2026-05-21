@@ -413,88 +413,9 @@ public final class MemberInfo implements ITargetSelectorRemappable, ITargetSelec
         this.input = null;
     }
     
-    /**
-     * Parse a MemberInfo from a string
-     *
-     * @param input String to parse MemberInfo from
-     * @param context Selector context for this parse request
-     * @return parsed MemberInfo
-     */
-    public static MemberInfo parse(final String input, final ISelectorContext context) {
-        String desc = null;
-        String owner = null;
-        String name = Strings.nullToEmpty(input).replaceAll("\\s", "");
-        String tail = null;
-
-        int arrowPos = name.indexOf(MemberInfo.ARROW);
-        if (arrowPos > -1) {
-            tail = name.substring(arrowPos + 2);
-            name = name.substring(0, arrowPos);
-        }
-
-        if (context != null) {
-            name = context.remap(name);
-        }
-
-        int parenPos = name.indexOf('(');
-        int colonPos = name.indexOf(':');
-        if (parenPos > -1) {
-            desc = name.substring(parenPos);
-            name = name.substring(0, parenPos);
-        } else if (colonPos > -1) {
-            desc = name.substring(colonPos + 1);
-            name = name.substring(0, colonPos);
-        }
-
-        int lastDotPos = name.lastIndexOf('.');
-        int semiColonPos = name.indexOf(';');
-        if (lastDotPos > -1) {
-            owner = name.substring(0, lastDotPos).replace('.', '/');
-            name = name.substring(lastDotPos + 1);
-        } else if (semiColonPos > -1 && name.startsWith("L")) {
-            owner = name.substring(1, semiColonPos).replace('.', '/');
-            name = name.substring(semiColonPos + 1);
-        }
-
-        if ((name.indexOf('/') > -1 || name.indexOf('.') > -1) && owner == null) {
-            owner = name;
-            name = "";
-        }
-
-        // Use default quantifier with negative max value. Used to indicate that
-        // an explicit quantifier was not parsed from the selector string, this
-        // allows us to provide backward-compatible behaviour for injection
-        // points vs. selecting target members which have different default
-        // semantics when omitting the quantifier. This is handled by consumers
-        // calling configure() with SELECT_MEMBER or SELECT_INSTRUCTION to
-        // promote the default case to a concrete case.
-        Quantifier quantifier = Quantifier.DEFAULT;
-        if (name.endsWith("*")) {
-            quantifier = Quantifier.ANY;
-            name = name.substring(0, name.length() - 1);
-        } else if (name.endsWith("+")) {
-            quantifier = Quantifier.PLUS;
-            name = name.substring(0, name.length() - 1);
-        } else if (name.endsWith("}")) {
-            quantifier = Quantifier.NONE; // Assume invalid until quantifier is parsed
-            int bracePos = name.indexOf("{");
-            if (bracePos >= 0) {
-                try {
-                    quantifier = Quantifier.parse(name.substring(bracePos, name.length()));
-                    name = name.substring(0, bracePos);
-                } catch (Exception ex) {
-                    // Handled later in validate since matchCount will be 0
-                }
-            }
-        } else if (name.indexOf("{") >= 0) {
-            quantifier = Quantifier.NONE; // Probably incomplete quantifier
-        }
-
-        if (name.isEmpty()) {
-            name = null;
-        }
-
-        return new MemberInfo(name, owner, desc, quantifier, tail, input);
+    @Override
+    public ITargetSelector next() {
+        return Strings.isNullOrEmpty(this.tail) ? null : MemberInfo.parse(this.tail, null);
     }
     
     @Override
@@ -522,9 +443,18 @@ public final class MemberInfo implements ITargetSelectorRemappable, ITargetSelec
         return this.matches.getClampedMax();
     }
     
+    /* (non-Javadoc)
+     * @see java.lang.Object#toString()
+     */
     @Override
-    public ITargetSelector next() {
-        return Strings.isNullOrEmpty(this.tail) ? null : MemberInfo.parse(this.tail, null);
+    public String toString() {
+        String owner = this.owner != null ? "L" + this.owner + ";" : "";
+        String name = this.name != null ? this.name : "";
+        String quantifier = this.matches.toString();
+        String desc = this.desc != null ? this.desc : "";
+        String separator = desc.startsWith("(") ? "" : (this.desc != null ? ":" : "");
+        String tail = this.tail != null ? " " + MemberInfo.ARROW + " " + this.tail : ""; 
+        return owner + name + quantifier + separator + desc + tail;
     }
 
     /**
@@ -558,18 +488,29 @@ public final class MemberInfo implements ITargetSelectorRemappable, ITargetSelec
         return new SignaturePrinter(this).setFullyQualified(true).toDescriptor();
     }
     
-    /* (non-Javadoc)
-     * @see java.lang.Object#toString()
+    /**
+     * Returns the <em>constructor type</em> represented by this MemberInfo
      */
     @Override
-    public String toString() {
-        String owner = this.owner != null ? "L" + this.owner + ";" : "";
-        String name = this.name != null ? this.name : "";
-        String quantifier = this.matches.toString();
-        String desc = this.desc != null ? this.desc : "";
-        String separator = desc.startsWith("(") ? "" : (this.desc != null ? ":" : "");
-        String tail = this.tail != null ? " " + MemberInfo.ARROW + " " + this.tail : "";
-        return owner + name + quantifier + separator + desc + tail;
+    public String toCtorType() {
+        if (this.input == null) {
+            return null;
+        }
+        
+        String returnType = this.getReturnType();
+        if (returnType != null) {
+            return returnType;
+        }
+
+        if (this.owner != null) {
+            return this.owner;
+        }
+
+        if (this.name != null && this.desc == null) {
+            return this.name;
+        }
+
+        return this.desc != null ? this.desc : this.input;
     }
     
     /**
@@ -683,36 +624,11 @@ public final class MemberInfo implements ITargetSelectorRemappable, ITargetSelec
     }
     
     /**
-     * Returns the <em>constructor type</em> represented by this MemberInfo
-     */
-    @Override
-    public String toCtorType() {
-        if (this.input == null) {
-            return null;
-        }
-
-        String returnType = this.getReturnType();
-        if (returnType != null) {
-            return returnType;
-        }
-
-        if (this.owner != null) {
-            return this.owner;
-        }
-
-        if (this.name != null && this.desc == null) {
-            return this.name;
-        }
-
-        return this.desc != null ? this.desc : this.input;
-    }
-    
-    /**
      * Perform ultra-simple validation of the descriptor, checks that the parts
      * of the descriptor are basically sane.
-     *
+     * 
      * @return fluent
-     *
+     * 
      * @throws InvalidSelectorException if any validation check fails
      */
     @Override
@@ -721,7 +637,7 @@ public final class MemberInfo implements ITargetSelectorRemappable, ITargetSelec
         if (this.getMaxMatchCount() == 0) {
             throw new InvalidMemberDescriptorException(this.input, "Malformed quantifier in selector: " + this.input);
         }
-
+        
         // Extremely naive class name validation, just to spot really egregious errors
         if (this.owner != null) {
             if (!this.owner.matches("(?i)^[\\w\\p{Sc}/]+$")) {
@@ -736,12 +652,12 @@ public final class MemberInfo implements ITargetSelectorRemappable, ITargetSelec
                         + "; to suppress this error");
             }
         }
-
+        
         // Also naive validation, we're looking for stupid errors here
         if (this.name != null && !this.name.matches("(?i)^<?[\\w\\p{Sc}]+>?$")) {
             throw new InvalidMemberDescriptorException(this.input, "Invalid name: " + this.name);
         }
-
+        
         if (this.desc != null) {
             if (!this.desc.matches("^(\\([\\w\\p{Sc}\\[/;]*\\))?\\[*[\\w\\p{Sc}/;]+$")) {
                 throw new InvalidMemberDescriptorException(this.input, "Invalid descriptor: " + this.desc);
@@ -766,7 +682,7 @@ public final class MemberInfo implements ITargetSelectorRemappable, ITargetSelec
                 } catch (Exception ex) {
                     throw new InvalidMemberDescriptorException(this.input, "Invalid descriptor: " + this.desc);
                 }
-
+    
                 String retString = this.desc.substring(this.desc.indexOf(')') + 1);
                 try {
                     Type retType = Type.getType(retString);
@@ -784,8 +700,17 @@ public final class MemberInfo implements ITargetSelectorRemappable, ITargetSelec
                 }
             }
         }
-
+        
         return this;
+    }
+    
+    /* (non-Javadoc)
+     * @see org.spongepowered.asm.mixin.injection.selectors.ITargetSelector
+     *      #match(org.spongepowered.asm.util.asm.ElementNode)
+     */
+    @Override
+    public <TNode> MatchResult match(ElementNode<TNode> node) {
+        return node == null ? MatchResult.NONE : this.matches(node.getOwner(), node.getName(), node.getDesc());
     }
     
     /* (non-Javadoc)
@@ -813,12 +738,22 @@ public final class MemberInfo implements ITargetSelectorRemappable, ITargetSelec
     }
 
     /* (non-Javadoc)
-     * @see org.spongepowered.asm.mixin.injection.selectors.ITargetSelector
-     *      #match(org.spongepowered.asm.util.asm.ElementNode)
+     * @see java.lang.Object#equals(java.lang.Object)
      */
     @Override
-    public <TNode> MatchResult match(ElementNode<TNode> node) {
-        return node == null ? MatchResult.NONE : this.matches(node.getOwner(), node.getName(), node.getDesc());
+    public boolean equals(Object obj) {
+        if (obj == null || !(obj instanceof ITargetSelectorByName)) {
+            return false;
+        }
+        
+        ITargetSelectorByName other = (ITargetSelectorByName)obj;
+        boolean otherForceField = other instanceof MemberInfo ? ((MemberInfo)other).forceField
+                : other instanceof ITargetSelectorRemappable ? ((ITargetSelectorRemappable)other).isField() : false;
+        
+        return this.compareMatches(other) && this.forceField == otherForceField
+                && Objects.equal(this.owner, other.getOwner())
+                && Objects.equal(this.name, other.getName())
+                && Objects.equal(this.desc, other.getDesc());
     }
     
     /**
@@ -877,22 +812,15 @@ public final class MemberInfo implements ITargetSelectorRemappable, ITargetSelec
     }
     
     /* (non-Javadoc)
-     * @see java.lang.Object#equals(java.lang.Object)
+     * @see org.spongepowered.asm.mixin.injection.selectors.ITargetSelector
+     *      #attach(org.spongepowered.asm.mixin.refmap.IMixinContext)
      */
     @Override
-    public boolean equals(Object obj) {
-        if (obj == null || !(obj instanceof ITargetSelectorByName)) {
-            return false;
+    public ITargetSelector attach(ISelectorContext context) throws InvalidSelectorException {
+        if (this.owner != null && !this.owner.equals(context.getMixin().getTargetClassRef())) {
+            throw new TargetNotSupportedException(this.owner);
         }
-
-        ITargetSelectorByName other = (ITargetSelectorByName)obj;
-        boolean otherForceField = other instanceof MemberInfo ? ((MemberInfo)other).forceField
-                : other instanceof ITargetSelectorRemappable ? ((ITargetSelectorRemappable)other).isField() : false;
-
-        return this.compareMatches(other) && this.forceField == otherForceField
-                && Objects.equal(this.owner, other.getOwner())
-                && Objects.equal(this.name, other.getName())
-                && Objects.equal(this.desc, other.getDesc());
+        return this;
     }
     
     /**
@@ -908,16 +836,17 @@ public final class MemberInfo implements ITargetSelectorRemappable, ITargetSelec
         return new MemberInfo(this, newOwner); 
     }
     
-    /* (non-Javadoc)
-     * @see org.spongepowered.asm.mixin.injection.selectors.ITargetSelector
-     *      #attach(org.spongepowered.asm.mixin.refmap.IMixinContext)
+    /**
+     * Create a new version of this member with a different descriptor
+     * 
+     * @param newDesc New descriptor for this member
      */
     @Override
-    public ITargetSelector attach(ISelectorContext context) throws InvalidSelectorException {
-        if (this.owner != null && !this.owner.equals(context.getMixin().getTargetClassRef())) {
-            throw new TargetNotSupportedException(this.owner);
+    public ITargetSelectorRemappable transform(String newDesc) {
+        if ((newDesc == null && this.desc == null) || (newDesc != null && newDesc.equals(this.desc))) {
+            return this;
         }
-        return this;
+        return new MemberInfo(this.name, this.owner, newDesc, this.matches); 
     }
     
     /**
@@ -933,16 +862,87 @@ public final class MemberInfo implements ITargetSelectorRemappable, ITargetSelec
     }
     
     /**
-     * Create a new version of this member with a different descriptor
-     *
-     * @param newDesc New descriptor for this member
+     * Parse a MemberInfo from a string
+     * 
+     * @param input String to parse MemberInfo from
+     * @param context Selector context for this parse request
+     * @return parsed MemberInfo
      */
-    @Override
-    public ITargetSelectorRemappable transform(String newDesc) {
-        if ((newDesc == null && this.desc == null) || (newDesc != null && newDesc.equals(this.desc))) {
-            return this;
+    public static MemberInfo parse(final String input, final ISelectorContext context) {
+        String desc = null;
+        String owner = null;
+        String name = Strings.nullToEmpty(input).replaceAll("\\s", "");
+        String tail = null;
+        
+        int arrowPos = name.indexOf(MemberInfo.ARROW);
+        if (arrowPos > -1) {
+            tail = name.substring(arrowPos + 2);
+            name = name.substring(0, arrowPos);
         }
-        return new MemberInfo(this.name, this.owner, newDesc, this.matches);
+
+        if (context != null) {
+            name = context.remap(name);
+        }
+
+        int parenPos = name.indexOf('(');
+        int colonPos = name.indexOf(':');
+        if (parenPos > -1) {
+            desc = name.substring(parenPos);
+            name = name.substring(0, parenPos);
+        } else if (colonPos > -1) {
+            desc = name.substring(colonPos + 1);
+            name = name.substring(0, colonPos);
+        }
+        
+        int lastDotPos = name.lastIndexOf('.');
+        int semiColonPos = name.indexOf(';');
+        if (lastDotPos > -1) {
+            owner = name.substring(0, lastDotPos).replace('.', '/');
+            name = name.substring(lastDotPos + 1);
+        } else if (semiColonPos > -1 && name.startsWith("L")) {
+            owner = name.substring(1, semiColonPos).replace('.', '/');
+            name = name.substring(semiColonPos + 1);
+        }
+        
+        if ((name.indexOf('/') > -1 || name.indexOf('.') > -1) && owner == null) {
+            owner = name;
+            name = "";
+        }
+        
+        // Use default quantifier with negative max value. Used to indicate that
+        // an explicit quantifier was not parsed from the selector string, this
+        // allows us to provide backward-compatible behaviour for injection
+        // points vs. selecting target members which have different default
+        // semantics when omitting the quantifier. This is handled by consumers
+        // calling configure() with SELECT_MEMBER or SELECT_INSTRUCTION to
+        // promote the default case to a concrete case.
+        Quantifier quantifier = Quantifier.DEFAULT;
+        if (name.endsWith("*")) {
+            quantifier = Quantifier.ANY;
+            name = name.substring(0, name.length() - 1);
+        } else if (name.endsWith("+")) {
+            quantifier = Quantifier.PLUS;
+            name = name.substring(0, name.length() - 1);
+        } else if (name.endsWith("}")) {
+            quantifier = Quantifier.NONE; // Assume invalid until quantifier is parsed
+            int bracePos = name.indexOf("{");
+            if (bracePos >= 0) {
+                try {
+                    quantifier = Quantifier.parse(name.substring(bracePos, name.length()));
+                    name = name.substring(0, bracePos);
+                } catch (Exception ex) {
+                    // Handled later in validate since matchCount will be 0
+                }
+            }
+        } else if (name.indexOf("{") >= 0) {
+            quantifier = Quantifier.NONE; // Probably incomplete quantifier
+        }
+        
+        if (name.isEmpty()) {
+            name = null;
+        }
+        
+        return new MemberInfo(name, owner, desc, quantifier, tail, input);
     }
 
     /**

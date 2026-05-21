@@ -50,6 +50,33 @@ import org.spongepowered.asm.mixin.injection.points.*;
 public @interface At {
     
     /**
+     * <b>Shift</b> is used to shift resulting opcodes
+     */
+    public enum Shift {
+        
+        /**
+         * Do not shift the returned opcodes
+         */
+        NONE,
+        
+        /**
+         * Shift the returned opcodes back one instruction 
+         */
+        BEFORE,
+        
+        /**
+         * Shift the returned opcodes forward one instruction 
+         */
+        AFTER,
+        
+        /**
+         * Shift the returned opcodes by the amount specified in {@link At#by} 
+         */
+        BY
+        
+    }
+    
+    /**
      * The identifier for this injection point, can be retrieved via the
      * {@link CallbackInfo#getId} accessor. If specified, the ID is appended to
      * the value specified in the outer annotion. Eg. specifying "foo" for this
@@ -57,16 +84,16 @@ public @interface At {
      * will result in a combined id of <tt>"bar:foo"</tt>. Note that if no id
      * is specified for the outer injector, the name of the calling method is
      * used.
-     *
+     * 
      * @return the injection point id to use
      */
     public String id() default "";
-    
+
     /**
      * <p>Type of {@link InjectionPoint} to use. Can be a built-in class or the
      * fully-qualified name of a custom class which extends
      * {@link InjectionPoint}.</p>
-     *
+     * 
      * <p>Built-in types are
      * {@link MethodHead HEAD},
      * {@link BeforeReturn RETURN},
@@ -80,18 +107,18 @@ public @interface At {
      * {@link BeforeConstant CONSTANT}.
      * See the javadoc for each type for more details on the scheme used by each
      * injection point.</p>
-     *
+     * 
      * @return Injection point specifier or fully-qualified class name
      */
     public String value();
-
+    
     /**
      * For {@link Inject} queries, this specifies the ID of the slice to use for
      * this query. For other injector types it is ignored because only one slice
      * is supported.
-     *
+     * 
      * <p>For more details see the {@link Slice#id}</p>
-     *
+     * 
      * @return the slice identifier, or empty string to use the default slice
      */
     public String slice() default "";
@@ -101,8 +128,8 @@ public @interface At {
      * AFTER} with an INVOKE InjectionPoint to move the returned opcodes to
      * <i>after</i> the invoation. Use {@link At.Shift#BY BY} in conjunction
      * with the {@link #by} parameter to shift by an arbitrary number of
-     * opcodes.
-     *
+     * opcodes. 
+     * 
      * @return Type of shift to apply
      */
     public Shift shift() default Shift.NONE;
@@ -114,7 +141,7 @@ public @interface At {
      * with a custom injection point or with sliced injection points. The
      * warning/error threshold is defined by the config (with a hard limit on
      * value of {@link InjectionPoint#MAX_ALLOWED_SHIFT_BY})
-     *
+     * 
      * @return Amount of shift to apply for the {@link At.Shift#BY BY} shift
      */
     public int by() default 0;
@@ -123,7 +150,7 @@ public @interface At {
      * <p>The <b>named arguments</b> list is used to expand the scope of the
      * annotation beyond the fixed values below in order to accommodate the
      * needs of custom injection point classes.</p>
-     *
+     * 
      * @return Named arguments for the injection point
      */
     public String[] args() default { };
@@ -133,7 +160,7 @@ public @interface At {
      * NEW. This <b>must be specified as a fully-qualified member path</b>
      * including the class name and signature. Failing to fully-qualify the
      * target member will result in an error at obfuscation time.
-     *
+     * 
      * @return target reference for supported InjectionPoint types
      */
     public String target() default "";
@@ -152,7 +179,7 @@ public @interface At {
      * of 0 or higher returns <em>only</em> the requested opcode (if one exists:
      * for example specifying an ordinal of 4 when only 2 opcodes are matched by
      * the InjectionPoint is not going to work particularly well!)
-     *
+     * 
      * @return ordinal value for supported InjectionPoint types
      */
     public int ordinal() default -1;
@@ -160,7 +187,7 @@ public @interface At {
     /**
      * Target opcode for FIELD and JUMP InjectionPoints. See the javadoc for the
      * relevant injection point for more details.
-     *
+     * 
      * @return Bytecode opcode for supported InjectionPoints
      */
     public int opcode() default -1;
@@ -176,12 +203,12 @@ public @interface At {
      * this value to <em>false</em> will cause the annotation processor to skip
      * this annotation when attempting to build the obfuscation table for the
      * mixin.
-     *
+     * 
      * @return True to instruct the annotation processor to search for
-     *      obfuscation mappings for this annotation
+     *      obfuscation mappings for this annotation 
      */
     public boolean remap() default true;
-    
+
     /**
      * In general, injecting into constructors should be treated with care,
      * since compiled constructors - unlike regular methods - contain other
@@ -189,7 +216,7 @@ public @interface At {
      * superconstructor calls, explicit superconstructor or other delegated
      * constructor calls, field initialisers and code from initialiser blocks,
      * and of course the code from the original "constructor".
-     *
+     * 
      * <p>This means that unlike targetting a regular method, where it's often
      * possible to derive a reasonable injection point from the Java source, in
      * a constructor such assumptions can be dangerous. For example the <tt>HEAD
@@ -202,11 +229,11 @@ public @interface At {
      * before the regular constructor body, the class can be in a
      * partially-initialised state (during initialisers) or in a
      * fully-uninitialised state (prior to the delegate constructor call).</p>
-     *
+     * 
      * <p>Because of this, by default certain injectors restrict usage to only
      * <tt>RETURN</tt> opcodes when targetting a constructor, in order to ensure
      * that the consumers are properly aware of the potential pitfalls. Whilst
-     * it was previously necessary to create a custom injection point in order
+     * it was previously necessary to create a custom injection point in order 
      * to bypass this restriction, setting this option to <tt>true</tt> will
      * also allow other injectors to act upon constructors, though care should
      * be taken to ensure that the target is properly specified and attention is
@@ -216,32 +243,5 @@ public @interface At {
      *
      */
     public boolean unsafe() default true;
-
-    /**
-     * <b>Shift</b> is used to shift resulting opcodes
-     */
-    public enum Shift {
-
-        /**
-         * Do not shift the returned opcodes
-         */
-        NONE,
-
-        /**
-         * Shift the returned opcodes back one instruction
-         */
-        BEFORE,
-
-        /**
-         * Shift the returned opcodes forward one instruction
-         */
-        AFTER,
-
-        /**
-         * Shift the returned opcodes by the amount specified in {@link At#by}
-         */
-        BY
-
-    }
     
 }

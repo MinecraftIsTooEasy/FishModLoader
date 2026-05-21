@@ -189,34 +189,8 @@ public final class TargetMap extends HashMap<TypeReference, Set<TypeReference>> 
     }
 
     /**
-     * Attemp to deserialise a TargetMap from the specified file
-     *
-     * @param sessionFile File to read
-     * @return deserialised map or null if deserialisation failed
-     */
-    private static TargetMap read(File sessionFile) {
-        try (Reader reader = new BufferedReader(new FileReader(sessionFile))) {
-            final JsonObject jsonObject = GSON.fromJson(reader, JsonObject.class);
-            final TargetMap targetMap = new TargetMap();
-
-            for (Entry<String, JsonElement> entry : jsonObject.entrySet()) {
-                JsonArray array = entry.getValue().getAsJsonArray();
-
-                for (JsonElement element : array) {
-                    targetMap.addMixin(entry.getKey(), element.getAsString());
-                }
-            }
-
-            return targetMap;
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-        return null;
-    }
-    
-    /**
      * Write this target map to temporary session file
-     *
+     * 
      * @param temp Set "delete on exit" for the file
      */
     public void write(boolean temp) {
@@ -244,6 +218,32 @@ public final class TargetMap extends HashMap<TypeReference, Set<TypeReference>> 
         } catch (Exception ex) {
             ex.printStackTrace();
         }
+    }
+    
+    /**
+     * Attemp to deserialise a TargetMap from the specified file
+     * 
+     * @param sessionFile File to read
+     * @return deserialised map or null if deserialisation failed
+     */
+    private static TargetMap read(File sessionFile) {
+        try (Reader reader = new BufferedReader(new FileReader(sessionFile))) {
+            final JsonObject jsonObject = GSON.fromJson(reader, JsonObject.class);
+            final TargetMap targetMap = new TargetMap();
+
+            for (Entry<String, JsonElement> entry : jsonObject.entrySet()) {
+                JsonArray array = entry.getValue().getAsJsonArray();
+
+                for (JsonElement element : array) {
+                    targetMap.addMixin(entry.getKey(), element.getAsString());
+                }
+            }
+
+            return targetMap;
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+        return null;
     }
     
     /**

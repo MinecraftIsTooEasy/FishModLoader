@@ -43,10 +43,35 @@ public class Clinit {
         this.finalReturn = finalReturn;
     }
 
+    public void append(IMixinInfo mixinInfo, MethodNode mixinClinit) {
+        prepareClinit(mixinClinit, null);
+
+        Map<LabelNode, LabelNode> labels = Bytecode.cloneLabels(mixinClinit.instructions);
+        this.appendInsns(mixinInfo, mixinClinit, labels);
+        
+        this.clinit.maxLocals = Math.max(this.clinit.maxLocals, mixinClinit.maxLocals);
+        this.clinit.maxStack = Math.max(this.clinit.maxStack, mixinClinit.maxStack);
+        for (TryCatchBlockNode tryCatch : mixinClinit.tryCatchBlocks) {
+            this.clinit.tryCatchBlocks.add(new TryCatchBlockNode(labels.get(tryCatch.start), labels.get(tryCatch.end), labels.get(tryCatch.handler), tryCatch.type));
+        }
+        for (LocalVariableNode local : mixinClinit.localVariables) {
+            this.clinit.localVariables.add(new LocalVariableNode(local.name, local.desc, local.signature, labels.get(local.start), labels.get(local.end), local.index));
+        }
+    }
+    
+    protected void appendInsns(IMixinInfo mixinInfo, MethodNode mixinClinit, Map<LabelNode, LabelNode> labels) {
+        for (AbstractInsnNode insn : mixinClinit.instructions) {
+            if (insn.getOpcode() == Opcodes.RETURN) {
+                continue;
+            }
+            this.clinit.instructions.insertBefore(this.finalReturn, insn.clone(labels));
+        }
+    }
+
     public static Clinit prepare(Target clinit) {
         return new Clinit(clinit.method, Clinit.prepareClinit(clinit.method, clinit));
     }
-    
+
     /**
      * Rewrites RETURN instructions to instead GOTO a final RETURN instruction, and returns said instruction.
      */
@@ -68,7 +93,7 @@ public class Clinit {
                     InjectionNodes.InjectionNode injectionNode = target.getInjectionNode(insn);
                     if (injectionNode != null) {
                         // Ensure our rewriting doesn't break injectors which have targeted these RETURNs.
-                        // Since void RETURNs are value-less anyway, they are only targeted by injectors which accept
+                        // Since void RETURNs are value-less anyway, they are only targeted by injectors which accept 
                         // all instructions, so the replacement is sound.
                         injectionNode.replace(newInsn);
                     }
@@ -84,30 +109,5 @@ public class Clinit {
         InsnNode finalReturn = new InsnNode(Opcodes.RETURN);
         clinit.instructions.add(finalReturn);
         return finalReturn;
-    }
-
-    public void append(IMixinInfo mixinInfo, MethodNode mixinClinit) {
-        prepareClinit(mixinClinit, null);
-
-        Map<LabelNode, LabelNode> labels = Bytecode.cloneLabels(mixinClinit.instructions);
-        this.appendInsns(mixinInfo, mixinClinit, labels);
-
-        this.clinit.maxLocals = Math.max(this.clinit.maxLocals, mixinClinit.maxLocals);
-        this.clinit.maxStack = Math.max(this.clinit.maxStack, mixinClinit.maxStack);
-        for (TryCatchBlockNode tryCatch : mixinClinit.tryCatchBlocks) {
-            this.clinit.tryCatchBlocks.add(new TryCatchBlockNode(labels.get(tryCatch.start), labels.get(tryCatch.end), labels.get(tryCatch.handler), tryCatch.type));
-        }
-        for (LocalVariableNode local : mixinClinit.localVariables) {
-            this.clinit.localVariables.add(new LocalVariableNode(local.name, local.desc, local.signature, labels.get(local.start), labels.get(local.end), local.index));
-        }
-    }
-
-    protected void appendInsns(IMixinInfo mixinInfo, MethodNode mixinClinit, Map<LabelNode, LabelNode> labels) {
-        for (AbstractInsnNode insn : mixinClinit.instructions) {
-            if (insn.getOpcode() == Opcodes.RETURN) {
-                continue;
-            }
-            this.clinit.instructions.insertBefore(this.finalReturn, insn.clone(labels));
-        }
     }
 }

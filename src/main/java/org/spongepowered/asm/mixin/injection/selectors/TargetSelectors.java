@@ -53,12 +53,55 @@ import org.spongepowered.asm.util.Bytecode;
 
 public class TargetSelectors implements Iterable<TargetSelectors.SelectedMethod> {
     
-    public TargetSelectors(ISelectorContext context, ClassNode classNode) {
-        this.context = context;
-        this.targetClassNode = classNode;
-        this.mixin = context.getMixin();
-        this.method = context.getMethod();
-        this.isStatic = this.method instanceof MethodNode && Bytecode.isStatic((MethodNode)this.method);
+    /**
+     * Selected target method, paired with the selector which identified it
+     */
+    public static class SelectedMethod {
+        
+        /**
+         * The parent target of this target. If this target is a lambda then
+         * this will be the selector for the enclosing method. Parent is null
+         * for the outermost method.
+         */
+        private final SelectedMethod parent;
+        
+        /**
+         * The target selector which selected this target
+         */
+        private final ITargetSelector selector;
+        
+        /**
+         * The selected target method
+         */
+        private final MethodNode method;
+
+        SelectedMethod(SelectedMethod parent, ITargetSelector selector, MethodNode method) {
+            this.parent = parent;
+            this.selector = selector;
+            this.method = method;
+        }
+        
+        SelectedMethod(ITargetSelector selector, MethodNode method) {
+            this(null, selector, method);
+        }
+        
+        @Override
+        public String toString() {
+            return this.method.name + this.method.desc;
+        }
+        
+        public SelectedMethod getParent() {
+            return this.parent;
+        }
+        
+        public ITargetSelector next() {
+            return this.selector.next();
+        }
+
+        public MethodNode getMethod() {
+            return this.method;
+        }
+
     }
     
     /**
@@ -100,27 +143,12 @@ public class TargetSelectors implements Iterable<TargetSelectors.SelectedMethod>
     
     private boolean doPermissivePass;
 
-    /**
-     * Print the names of the specified members as a human-readable list
-     *
-     * @param selectors members to print
-     * @return human-readable list of member names
-     */
-    private static String namesOf(Collection<ITargetSelector> selectors) {
-        int index = 0, count = selectors.size();
-        StringBuilder sb = new StringBuilder();
-        for (ITargetSelector selector : selectors) {
-            if (index > 0) {
-                if (index == (count - 1)) {
-                    sb.append(" or ");
-                } else {
-                    sb.append(", ");
-                }
-            }
-            sb.append('\'').append(selector.toString()).append('\'');
-            index++;
-        }
-        return sb.toString();
+    public TargetSelectors(ISelectorContext context, ClassNode classNode) {
+        this.context = context;
+        this.targetClassNode = classNode; 
+        this.mixin = context.getMixin();
+        this.method = context.getMethod();       
+        this.isStatic = this.method instanceof MethodNode && Bytecode.isStatic((MethodNode)this.method);
     }
 
     public void parse(Set<ITargetSelector> selectors) {
@@ -322,54 +350,26 @@ public class TargetSelectors implements Iterable<TargetSelectors.SelectedMethod>
     }
 
     /**
-     * Selected target method, paired with the selector which identified it
+     * Print the names of the specified members as a human-readable list 
+     * 
+     * @param selectors members to print
+     * @return human-readable list of member names
      */
-    public static class SelectedMethod {
-
-        /**
-         * The parent target of this target. If this target is a lambda then
-         * this will be the selector for the enclosing method. Parent is null
-         * for the outermost method.
-         */
-        private final SelectedMethod parent;
-
-        /**
-         * The target selector which selected this target
-         */
-        private final ITargetSelector selector;
-
-        /**
-         * The selected target method
-         */
-        private final MethodNode method;
-
-        SelectedMethod(SelectedMethod parent, ITargetSelector selector, MethodNode method) {
-            this.parent = parent;
-            this.selector = selector;
-            this.method = method;
+    private static String namesOf(Collection<ITargetSelector> selectors) {
+        int index = 0, count = selectors.size();
+        StringBuilder sb = new StringBuilder();
+        for (ITargetSelector selector : selectors) {
+            if (index > 0) {
+                if (index == (count - 1)) {
+                    sb.append(" or ");
+                } else {
+                    sb.append(", ");
+                }
+            }
+            sb.append('\'').append(selector.toString()).append('\'');
+            index++;
         }
-
-        SelectedMethod(ITargetSelector selector, MethodNode method) {
-            this(null, selector, method);
-        }
-
-        @Override
-        public String toString() {
-            return this.method.name + this.method.desc;
-        }
-
-        public SelectedMethod getParent() {
-            return this.parent;
-        }
-
-        public ITargetSelector next() {
-            return this.selector.next();
-        }
-
-        public MethodNode getMethod() {
-            return this.method;
-        }
-
+        return sb.toString();
     }
 
 }

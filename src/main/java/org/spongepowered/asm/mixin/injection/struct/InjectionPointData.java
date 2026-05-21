@@ -197,23 +197,25 @@ public class InjectionPointData {
         return this.specifier;
     }
 
-    private static Pattern createPattern() {
-        return Pattern.compile(String.format("^(.+?)(:(%s))?$", Joiner.on('|').join(Specifier.values())));
+    /**
+     * Get the target restriction specified in the annotation
+     */
+    public RestrictTargetLevel getTargetRestriction() {
+        return this.targetRestriction;
     }
 
     /**
-     * Parse a constructor type from the supplied <tt>at</tt> string
-     *
-     * @param at at to parse
-     * @return parsed constructor type
+     * Get the injection point context
      */
-    public static String parseType(String at) {
-        Matcher matcher = InjectionPointData.AT_PATTERN.matcher(at);
-        return InjectionPointData.parseType(matcher, at);
+    public IInjectionPointContext getContext() {
+        return this.context;
     }
     
-    private static String parseType(Matcher matcher, String at) {
-        return matcher.matches() ? matcher.group(1) : at;
+    /**
+     * Get the mixin context
+     */
+    public IMixinContext getMixin() {
+        return this.context.getMixin();
     }
     
     /**
@@ -230,8 +232,11 @@ public class InjectionPointData {
         return Type.getReturnType(this.getMethod().desc);
     }
     
-    private static Specifier parseSpecifier(Matcher matcher) {
-        return matcher.matches() && matcher.group(3) != null ? Specifier.valueOf(matcher.group(3)) : Specifier.DEFAULT;
+    /**
+     * Get the root annotation (eg. {@link Inject})
+     */
+    public AnnotationNode getParent() {
+        return this.context.getAnnotationNode();
     }
     
     /**
@@ -282,20 +287,33 @@ public class InjectionPointData {
         return InjectionPointData.parseBoolean(this.get(key, String.valueOf(defaultValue)), defaultValue);
     }
     
-    @SuppressWarnings("unchecked")
-    private static <T extends Enum<T>> T parseEnum(String string, T defaultValue) {
-        try {
-            return (T)Enum.valueOf(defaultValue.getClass(), string);
-        } catch (Exception ex) {
-            return defaultValue;
-        }
+    /**
+     * Get the supplied value from the named args, return defaultValue if the
+     * arg is not set
+     * 
+     * @param <T> enum type
+     * @param key argument name
+     * @param defaultValue value to return if the arg is not set
+     * @return argument value or default if not set
+     */
+    public <T extends Enum<T>> T get(String key, T defaultValue) {
+        return InjectionPointData.<T>parseEnum(this.get(key, defaultValue.name()), defaultValue);
     }
 
     /**
-     * Get the target restriction specified in the annotation
+     * Get the supplied value from the named args as a target selector,
+     * throws an exception if the argument cannot be parsed as a target selector
+     * 
+     * @param key argument name
+     * @return argument value as a target selector
      */
-    public RestrictTargetLevel getTargetRestriction() {
-        return this.targetRestriction;
+    public ITargetSelector get(String key) {
+        try {
+            return TargetSelector.parseAndValidate(this.get(key, ""), this.context);
+        } catch (InvalidSelectorException ex) {
+            throw new InvalidInjectionPointException(this.getMixin(), ex, "Failed parsing @At(\"%s\").%s \"%s\" on %s",
+                    this.at, key, this.target, this.getDescription());
+        }
     }
     
     /**
@@ -328,56 +346,6 @@ public class InjectionPointData {
     }
 
     /**
-     * Get the injection point context
-     */
-    public IInjectionPointContext getContext() {
-        return this.context;
-    }
-    
-    /**
-     * Get the mixin context
-     */
-    public IMixinContext getMixin() {
-        return this.context.getMixin();
-    }
-    
-    /**
-     * Get the root annotation (eg. {@link Inject})
-     */
-    public AnnotationNode getParent() {
-        return this.context.getAnnotationNode();
-    }
-    
-    /**
-     * Get the supplied value from the named args, return defaultValue if the
-     * arg is not set
-     *
-     * @param <T> enum type
-     * @param key argument name
-     * @param defaultValue value to return if the arg is not set
-     * @return argument value or default if not set
-     */
-    public <T extends Enum<T>> T get(String key, T defaultValue) {
-        return InjectionPointData.<T>parseEnum(this.get(key, defaultValue.name()), defaultValue);
-    }
-
-    /**
-     * Get the supplied value from the named args as a target selector,
-     * throws an exception if the argument cannot be parsed as a target selector
-     *
-     * @param key argument name
-     * @return argument value as a target selector
-     */
-    public ITargetSelector get(String key) {
-        try {
-            return TargetSelector.parseAndValidate(this.get(key, ""), this.context);
-        } catch (InvalidSelectorException ex) {
-            throw new InvalidInjectionPointException(this.getMixin(), ex, "Failed parsing @At(\"%s\").%s \"%s\" on %s",
-                    this.at, key, this.target, this.getDescription());
-        }
-    }
-
-    /**
      * Get the ordinal specified on the injection point
      */
     public int getOrdinal() {
@@ -394,19 +362,19 @@ public class InjectionPointData {
     /**
      * Get the opcode specified on the injection point or return the default if
      * no opcode was specified
-     *
+     * 
      * @param defaultOpcode opcode to return if none specified
      * @return opcode or default
      */
     public int getOpcode(int defaultOpcode) {
         return this.opcode > 0 ? this.opcode : defaultOpcode;
     }
-
+    
     /**
      * Get the opcode specified on the injection point or return the default if
      * no opcode was specified or if the specified opcode does not appear in the
      * supplied list of valid opcodes
-     *
+     * 
      * @param defaultOpcode opcode to return if none specified
      * @param validOpcodes valid opcodes
      * @return opcode or default
@@ -426,7 +394,7 @@ public class InjectionPointData {
      * constant name from the {@link Opcodes} interface. All the values should
      * be separated by spaces or commas. The returned array is sorted in order
      * to make it suitable for use with the {@link Arrays#binarySearch} method.
-     *
+     * 
      * @param key argument name
      * @param defaultValue value to return if the key is not specified
      * @return parsed opcodes as array or default value if the key is not
@@ -437,16 +405,16 @@ public class InjectionPointData {
         if (value == null) {
             return defaultValue;
         }
-
+        
         Set<Integer> parsed = new TreeSet<Integer>();
         String[] values = value.split("[ ,;]");
         for (String strOpcode : values) {
             int opcode = Bytecode.parseOpcodeName(strOpcode.trim());
             if (opcode > 0) {
                 parsed.add(opcode);
-            }
+            }                
         }
-
+        
         return Ints.toArray(parsed);
     }
 
@@ -456,12 +424,40 @@ public class InjectionPointData {
     public String getId() {
         return this.id;
     }
-
+    
     /**
      * Get whether the <tt>unsafe</tt> option is set on the injection point
      */
     public boolean isUnsafe() {
         return (this.flags & InjectionPoint.Flags.UNSAFE) != 0;
+    }
+    
+    @Override
+    public String toString() {
+        return this.type;
+    }
+
+    private static Pattern createPattern() {
+        return Pattern.compile(String.format("^(.+?)(:(%s))?$", Joiner.on('|').join(Specifier.values())));
+    }
+
+    /**
+     * Parse a constructor type from the supplied <tt>at</tt> string
+     * 
+     * @param at at to parse
+     * @return parsed constructor type
+     */
+    public static String parseType(String at) {
+        Matcher matcher = InjectionPointData.AT_PATTERN.matcher(at);
+        return InjectionPointData.parseType(matcher, at);
+    }
+
+    private static String parseType(Matcher matcher, String at) {
+        return matcher.matches() ? matcher.group(1) : at;
+    }
+
+    private static Specifier parseSpecifier(Matcher matcher) {
+        return matcher.matches() && matcher.group(3) != null ? Specifier.valueOf(matcher.group(3)) : Specifier.DEFAULT;
     }
     
     private static int parseInt(String string, int defaultValue) {
@@ -480,8 +476,12 @@ public class InjectionPointData {
         }
     }
 
-    @Override
-    public String toString() {
-        return this.type;
+    @SuppressWarnings("unchecked")
+    private static <T extends Enum<T>> T parseEnum(String string, T defaultValue) {
+        try {
+            return (T)Enum.valueOf(defaultValue.getClass(), string);
+        } catch (Exception ex) {
+            return defaultValue;
+        }
     }
 }

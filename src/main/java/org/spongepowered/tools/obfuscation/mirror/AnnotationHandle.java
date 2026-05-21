@@ -74,18 +74,15 @@ public final class AnnotationHandle implements IAnnotationHandle {
         return this.annotation;
     }
     
-    @SuppressWarnings("unchecked")
-    protected static <T> List<T> unwrapAnnotationValueList(List<AnnotationValue> list) {
-        if (list == null) {
-            return Collections.<T>emptyList();
-        }
-
-        List<T> unfolded = new ArrayList<T>(list.size());
-        for (AnnotationValue value : list) {
-            unfolded.add((T)value.getValue());
-        }
-
-        return unfolded;
+    /**
+     * Get whether the annotation mirror actually exists, if the mirror is null
+     * returns false
+     * 
+     * @return true if the annotation exists
+     */
+    @Override
+    public boolean exists() {
+        return this.annotation != null;
     }
     
     /* (non-Javadoc)
@@ -107,25 +104,10 @@ public final class AnnotationHandle implements IAnnotationHandle {
         return "@" + this.annotation.getAnnotationType().asElement().getSimpleName();
     }
     
-    public static AnnotationMirror asMirror(IAnnotationHandle handle) {
-        return handle instanceof AnnotationHandle ? ((AnnotationHandle)handle).asMirror() : null;
-    }
-
-    /**
-     * Get whether the annotation mirror actually exists, if the mirror is null
-     * returns false
-     *
-     * @return true if the annotation exists
-     */
-    @Override
-    public boolean exists() {
-        return this.annotation != null;
-    }
-    
     /**
      * Get a value with the specified key from this annotation, return the
      * specified default value if the key is not set or is not present
-     *
+     * 
      * @param key key
      * @param defaultValue value to return if the key is not set or not present
      * @param <T> duck type
@@ -137,7 +119,7 @@ public final class AnnotationHandle implements IAnnotationHandle {
         if (this.annotation == null) {
             return defaultValue;
         }
-
+        
         AnnotationValue value = this.getAnnotationValue(key);
         if (defaultValue instanceof Enum && value != null) {
             VariableElement varValue = (VariableElement)value.getValue();
@@ -146,13 +128,13 @@ public final class AnnotationHandle implements IAnnotationHandle {
             }
             return (T)Enum.valueOf((Class<? extends Enum>)defaultValue.getClass(), varValue.getSimpleName().toString());
         }
-
+        
         return value != null ? (T)value.getValue() : defaultValue;
     }
 
     /**
      * Get the annotation value or return null if not present or not set
-     *
+     * 
      * @param <T> duck type
      * @return value or null if not present or not set
      */
@@ -160,11 +142,11 @@ public final class AnnotationHandle implements IAnnotationHandle {
     public <T> T getValue() {
         return this.getValue("value", null);
     }
-
+    
     /**
      * Get the annotation value with the specified key or return null if not
      * present or not set
-     *
+     * 
      * @param key key to fetch
      * @param <T> duck type
      * @return value or null if not present or not set
@@ -177,7 +159,7 @@ public final class AnnotationHandle implements IAnnotationHandle {
     /**
      * Get the primitive boolean value with the specified key or return null if
      * not present or not set
-     *
+     * 
      * @param key key to fetch
      * @param defaultValue default value to return if value is not present
      * @return value or default if not present or not set
@@ -186,10 +168,10 @@ public final class AnnotationHandle implements IAnnotationHandle {
     public boolean getBoolean(String key, boolean defaultValue) {
         return this.<Boolean>getValue(key, Boolean.valueOf(defaultValue)).booleanValue();
     }
-    
+
     /**
      * Get an annotation value as an annotation handle
-     *
+     * 
      * @param key key to search for in the value map
      * @return value or <tt>null</tt> if not set
      */
@@ -210,7 +192,7 @@ public final class AnnotationHandle implements IAnnotationHandle {
     /**
      * Retrieve the annotation value as a list with values of the specified
      * type. Returns an empty list if the value is not present or not set.
-     *
+     * 
      * @param <T> list element duck type
      * @return list of values
      */
@@ -223,7 +205,7 @@ public final class AnnotationHandle implements IAnnotationHandle {
      * Retrieve the annotation value with the specified key as a list with
      * values of the specified type. Returns an empty list if the value is not
      * present or not set.
-     *
+     * 
      * @param key key to fetch
      * @param <T> list element duck type
      * @return list of values
@@ -233,10 +215,10 @@ public final class AnnotationHandle implements IAnnotationHandle {
         List<AnnotationValue> list = this.<List<AnnotationValue>>getValue(key, Collections.<AnnotationValue>emptyList());
         return AnnotationHandle.<T>unwrapAnnotationValueList(list);
     }
-    
+
     /**
      * Retrieve an annotation key as a list of annotation handles
-     *
+     * 
      * @param key key to fetch
      * @return list of annotations
      */
@@ -246,18 +228,36 @@ public final class AnnotationHandle implements IAnnotationHandle {
         if (val == null) {
             return Collections.<IAnnotationHandle>emptyList();
         }
-
+        
         // Fix for JDT, single values are just returned as a bare AnnotationMirror
         if (val instanceof AnnotationMirror) {
-            return ImmutableList.<IAnnotationHandle>of(AnnotationHandle.of((AnnotationMirror)val));
+            return ImmutableList.<IAnnotationHandle>of(AnnotationHandle.of((AnnotationMirror)val)); 
         }
-
+        
         @SuppressWarnings("unchecked") List<AnnotationValue> list = (List<AnnotationValue>)val;
         List<AnnotationHandle> annotations = new ArrayList<AnnotationHandle>(list.size());
         for (AnnotationValue value : list) {
             annotations.add(new AnnotationHandle((AnnotationMirror)value.getValue()));
         }
         return Collections.<IAnnotationHandle>unmodifiableList(annotations);
+    }
+    
+    @Override
+    public Type getTypeValue(String key) {
+        TypeMirror typeMirror = this.<TypeMirror>getValue(key);
+        return typeMirror == null ? Type.VOID_TYPE : Type.getType(TypeUtils.getInternalName(typeMirror));
+    }
+    
+    @Override
+    public List<Type> getTypeList(String key) {
+        List<Type> list = this.<Type>getList(key);
+        for (ListIterator<Type> iter = list.listIterator(); iter.hasNext();) {
+            Object next = iter.next();
+            if (next instanceof TypeMirror) {
+                iter.set(Type.getType(TypeUtils.getInternalName((TypeMirror)next)));
+            }
+        }
+        return list;
     }
 
     protected AnnotationValue getAnnotationValue(String key) {
@@ -270,10 +270,18 @@ public final class AnnotationHandle implements IAnnotationHandle {
         return null;
     }
     
-    @Override
-    public Type getTypeValue(String key) {
-        TypeMirror typeMirror = this.<TypeMirror>getValue(key);
-        return typeMirror == null ? Type.VOID_TYPE : Type.getType(TypeUtils.getInternalName(typeMirror));
+    @SuppressWarnings("unchecked")
+    protected static <T> List<T> unwrapAnnotationValueList(List<AnnotationValue> list) {
+        if (list == null) {
+            return Collections.<T>emptyList();
+        }
+        
+        List<T> unfolded = new ArrayList<T>(list.size());
+        for (AnnotationValue value : list) {
+            unfolded.add((T)value.getValue());
+        }
+        
+        return unfolded;
     }
     
     protected static AnnotationMirror getAnnotation(Element elem, Class<? extends Annotation> annotationClass) {
@@ -301,16 +309,8 @@ public final class AnnotationHandle implements IAnnotationHandle {
         return null;
     }
 
-    @Override
-    public List<Type> getTypeList(String key) {
-        List<Type> list = this.<Type>getList(key);
-        for (ListIterator<Type> iter = list.listIterator(); iter.hasNext();) {
-            Object next = iter.next();
-            if (next instanceof TypeMirror) {
-                iter.set(Type.getType(TypeUtils.getInternalName((TypeMirror)next)));
-            }
-        }
-        return list;
+    public static AnnotationMirror asMirror(IAnnotationHandle handle) {
+        return handle instanceof AnnotationHandle ? ((AnnotationHandle)handle).asMirror() : null;
     }
     
     /**

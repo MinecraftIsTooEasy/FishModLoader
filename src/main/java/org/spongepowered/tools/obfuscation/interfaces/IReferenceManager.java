@@ -38,21 +38,21 @@ import org.spongepowered.tools.obfuscation.ReferenceManager.ReferenceConflictExc
 public interface IReferenceManager {
     
     /**
-     * Get whether replacement mappings are allowed. Normally a mapping conflict
-     * will raise a {@link ReferenceConflictException}.
-     *
-     * @return true if conflicts are allowed
-     */
-    public boolean getAllowConflicts();
-    
-    /**
      * Set whether this reference manager should allow conflicts to be inserted
      * without raising an exception. Set to allow overrides to be written into
      * the refmap when necessary
-     *
+     * 
      * @param allowConflicts allow conflicts without raising an exception
      */
     public void setAllowConflicts(boolean allowConflicts);
+    
+    /**
+     * Get whether replacement mappings are allowed. Normally a mapping conflict
+     * will raise a {@link ReferenceConflictException}.
+     * 
+     * @return true if conflicts are allowed
+     */
+    public boolean getAllowConflicts();
 
     /**
      * Write the generated refmap to file

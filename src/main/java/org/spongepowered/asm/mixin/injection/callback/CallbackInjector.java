@@ -63,11 +63,312 @@ import com.google.common.base.Strings;
  */
 public class CallbackInjector extends Injector {
     
-t count) {
-        return CallbackInjector.summariseLocals(Type.getArgumentTypes(desc), pos, count);
-    }
+    /**
+     * Struct to replace all the horrible state variables from before 
+     */
+    private class Callback extends InsnList {
+        
+        /**
+         * Handler method
+         */
+        private final MethodNode handler;
+        
+        /**
+         * HEAD instruction 
+         */
+        private final AbstractInsnNode head;
+        
+        /**
+         * Target method handle
+         */
+        final Target target;
+        
+        /**
+         * Target node, callback injected <b>before</b> this node 
+         */
+        final InjectionNode node;
+        
+        /**
+         * Calculated local variables 
+         */
+        final LocalVariableNode[] locals;
+        
+        /**
+         * Local variable types
+         */
+        final Type[] localTypes;
+        
+        /**
+         * The initial frame size based on the target method's arguments
+         */
+        final int frameSize;
 
-    private static List<String> summariseLocals(Type[] locals, int pos/
+        /**
+         * Number of extra arguments above the initial frame size, expected to
+         * be locals
+         */
+        final int extraArgs;
+
+        /**
+         * True if the injector is set to capture locals and we acutally <b>can
+         * </b> capture the locals (have sufficient info etc.)
+         */
+        final boolean canCaptureLocals;
+
+        /**
+         * True if the target insn is a RETURN opcode
+         */
+        final boolean isAtReturn;
+
+        /**
+         * Callback descriptor without locals
+         */
+        final String desc;
+        
+        /**
+         * Callback descriptor with locals
+         */
+        final String descl;
+        
+        /**
+         * Callback argument names, unlike the locals arrays this array does not
+         * contain null entries for TOP slots, so each index in this array
+         * matches the corresponding argument index in the callback  
+         */
+        final String[] argNames;
+        
+        /**
+         * Arguments which require a type cast before being LOADed 
+         */
+//        final Type[] typeCasts;
+
+        /**
+         * These two variables keep track of the (additional) stack size
+         * required for the two actions we're going to be injecting insns to
+         * perform, namely calling the CallbackInfo ctor, and then invoking the
+         * callback itself. When we get to the end of this injection we will
+         * then set the MAXS value on the target method to its original value
+         * plus the larger of the two values.
+         */
+        Extension ctor, invoke;
+
+        /**
+         * Marshal var is the local where we marshal the utility references we
+         * need during invoke of the callback, those being the current return
+         * value for value-return scenarios (we store the topmost stack entry
+         * and then push it into the ctor of the CallbackInfo) and also the
+         * CallbackInfo reference itself (we use the same local var for these
+         * two purposes because they don't exist at the same time).
+         */
+        private int marshalVar = -1;
+        
+        /**
+         * True if this callback expects the target method arguments to be
+         * passed in. Set to false if {@link #checkDescriptor} determines that
+         * the "simple" descriptor matches. 
+         */
+        private boolean captureArgs = true;
+
+        /**
+         * Whether {@link #handler} uses the {@link CallbackInfo}/
+         * {@link CallbackInfoReturnable} it would normally be passed
+         */
+        final boolean usesCallbackInfo;
+
+        Callback(MethodNode handler, Target target, final InjectionNode node, final LocalVariableNode[] locals, boolean captureLocals) {
+            this.handler = handler;
+            this.target = target;
+            this.head = target.insns.getFirst();
+            this.node = node;
+            this.locals = locals;
+            this.localTypes = locals != null ? new Type[locals.length] : null;
+            this.frameSize = Bytecode.getFirstNonArgLocalIndex(target.arguments, !target.isStatic);
+            List<String> argNames = null;
+            
+            if (locals != null) {
+                int baseArgIndex = target.isStatic ? 0 : 1;
+                argNames = new ArrayList<String>();
+                for (int l = 0; l <= locals.length; l++) {
+                    if (l == this.frameSize) {
+                        argNames.add(target.returnType == Type.VOID_TYPE ? "ci" : "cir");
+                    }
+                    if (l < locals.length && locals[l] != null) {
+                        this.localTypes[l] = Type.getType(locals[l].desc);
+                        if (l >= baseArgIndex) {
+                            argNames.add(CallbackInjector.meltSnowman(l, locals[l].name));
+                        }
+                    }
+                }
+            }
+            
+            // Calc number of args for the handler method, additional 1 is to ignore the CallbackInfo arg
+            Type[] handlerArgs = Type.getArgumentTypes(this.handler.desc);
+            this.extraArgs = Math.max(0, handlerArgs.length - target.arguments.length - 1);
+            this.argNames = argNames != null ? argNames.toArray(new String[argNames.size()]) : null;
+            this.canCaptureLocals = captureLocals && locals != null && locals.length > this.frameSize;
+            this.isAtReturn = this.node.getCurrentTarget() instanceof InsnNode && this.isValueReturnOpcode(this.node.getCurrentTarget().getOpcode());
+            this.desc = target.getCallbackDescriptor(this.localTypes, target.arguments);
+            this.descl = target.getCallbackDescriptor(true, this.localTypes, target.arguments, this.frameSize, this.extraArgs);
+//            this.typeCasts = new Type[this.frameSize + this.extraArgs];
+            
+            this.invoke = target.extendStack();
+            this.ctor = target.extendStack();
+
+            this.invoke.add().add(handlerArgs);
+
+            int callbackInfoSlot = Bytecode.isStatic(handler) ? 0 : 1;
+            // It'll be the first arg if no params are captured, or will come after the target's params otherwise
+            if (handlerArgs.length != 1) {
+                callbackInfoSlot += Bytecode.getArgsSize(this.target.arguments);
+            }
+            boolean seenCallbackInfoUse = false;
+            for (AbstractInsnNode insn : handler.instructions) {
+                //Look for anywhere the CallbackInfo(Returnable) is loaded in the handler, it's unused if it is never loaded in
+                if (insn.getType() == AbstractInsnNode.VAR_INSN && insn.getOpcode() == Opcodes.ALOAD && ((VarInsnNode) insn).var == callbackInfoSlot) {
+                    seenCallbackInfoUse = true;
+                    break;
+                }
+            }
+            Injector.logger.debug("{} does{} use it's CallbackInfo{}", info, seenCallbackInfoUse ? "" : "n't", Type.VOID_TYPE == target.returnType ? "" : "Returnable");
+            if (!seenCallbackInfoUse && !Bytecode.isStatic(handler) && (handler.access & Opcodes.ACC_FINAL) == 0 && (target.classNode.access & Opcodes.ACC_FINAL) == 0) {
+                //Although the CallbackInfo appears unused, there is the possibility that the handler is overridden, so we'll have to check
+                String handlerName = handler instanceof MethodNodeEx ? ((MethodNodeEx) handler).getOriginalName() : handler.name;
+                List<MethodNode> childHandlers = MixinInheritanceTracker.INSTANCE.findOverrides(info.getClassInfo(), handlerName, handler.desc);
+                Injector.logger.debug("{} has {} override(s) in child classes", info, childHandlers.size());
+
+                out: for (MethodNode childHandle : childHandlers) {
+                    for (AbstractInsnNode insn : childHandle.instructions) {
+                        if (insn.getType() == AbstractInsnNode.VAR_INSN && insn.getOpcode() == Opcodes.ALOAD && ((VarInsnNode) insn).var == callbackInfoSlot) {
+                            seenCallbackInfoUse = true;
+                            break out; //If a child uses it then the parent will need to receive it
+                        }
+                    }
+                }
+
+                Injector.logger.debug("{} w{} be passed a CallbackInfo{} as a result", info, seenCallbackInfoUse ? "ill" : "on't", Type.VOID_TYPE == target.returnType ? "" : "Returnable");
+            }
+            usesCallbackInfo = seenCallbackInfoUse;
+        }
+
+        /**
+         * Returns true if the supplied opcode represents a <em>non-void</em>
+         * RETURN opcode
+         * 
+         * @param opcode opcode to check
+         * @return true if value return
+         */
+        private boolean isValueReturnOpcode(int opcode) {
+            return opcode >= Opcodes.IRETURN && opcode < Opcodes.RETURN;
+        }
+        
+        String getDescriptor() {
+            return this.canCaptureLocals ? this.descl : this.desc;
+        }
+        
+        String getDescriptorWithAllLocals() {
+            return this.target.getCallbackDescriptor(true, this.localTypes, this.target.arguments, this.frameSize, Short.MAX_VALUE);
+        }
+
+        String getCallbackInfoConstructorDescriptor() {
+            return this.isAtReturn ? CallbackInfo.getConstructorDescriptor(this.target.returnType) : CallbackInfo.getConstructorDescriptor();
+        }
+
+        /**
+         * Add an instruction to this callback and increment the appropriate
+         * stack sizes
+         * 
+         * @param insn Instruction to append
+         * @param ctorStack true if this insn contributes to the ctor stack
+         * @param invokeStack true if this insn contributes to the invoke stack
+         */
+        void add(AbstractInsnNode insn, boolean ctorStack, boolean invokeStack) {
+            this.add(insn, ctorStack, invokeStack, false);
+        }
+        
+        void add(AbstractInsnNode insn, boolean ctorStack, boolean invokeStack, boolean head) {
+            if (head) {
+                this.target.insns.insertBefore(this.head, insn);
+            } else {
+                this.add(insn);
+            }
+            if (ctorStack) {
+                this.ctor.add();
+            }
+            if (invokeStack) {
+                this.invoke.add();
+            }
+        }        
+        
+        /**
+         * Inject our generated code into the method and set the max stack size
+         * for the method based on our calculated values
+         */
+        void inject() {
+            this.target.insertBefore(this.node, this);
+            this.invoke.apply();
+            this.ctor.apply();
+        }
+
+        boolean checkDescriptor(String desc) {
+            if (this.getDescriptor().equals(desc)) {
+                return true; // Descriptor matches exactly, this is good
+            }
+            
+            if (this.target.getSimpleCallbackDescriptor().equals(desc) && !this.canCaptureLocals) {
+                this.captureArgs = false;
+                return true;
+            }
+            
+            Type[] inTypes = Type.getArgumentTypes(desc);
+            Type[] myTypes = Type.getArgumentTypes(this.descl);
+            
+            if (inTypes.length != myTypes.length) {
+                return false;
+            }
+            
+            for (int arg = 0; arg < myTypes.length; arg++) {
+                Type type = inTypes[arg];
+                if (type.equals(myTypes[arg])) {
+                    continue; // Type matches
+                }
+                
+                if (type.getSort() == Type.ARRAY) {
+                    return false; // Array types must match exactly
+                }
+
+                if (Annotations.getInvisibleParameter(this.handler, Coerce.class, arg) == null) {
+                    return false; // No @Coerce specified, types must match
+                }
+
+                if (!Injector.canCoerce(inTypes[arg], myTypes[arg])) {
+//                    if (Injector.canCoerce(myTypes[arg], inTypes[arg])) {
+//                        this.typeCasts[arg] = inTypes[arg];
+//                    } else {
+                        return false; // Can't coerce or cast source type to local type, give up
+//                    }
+                }
+            }
+            
+            return true;
+        }
+        
+        boolean captureArgs() {
+            return this.captureArgs;
+        }
+
+        int marshalVar() {
+            if (this.marshalVar < 0) {
+                this.marshalVar = this.target.allocateLocal();
+            }
+            
+            return this.marshalVar;
+        }
+        
+    }
+    
+    /**
+     * Decorator key for local variables decoration
+     */
     private static final String LOCALS_KEY = "locals";
 
     /**
@@ -195,23 +496,7 @@ t count) {
     /**
      * Generate the actual bytecode for the callback
      * 
-
-int count) {
-        List<String> list = new ArrayList<String>();
-        if (locals != null) {
-            for (; pos < locals.length && list.size() < count; pos++) {
-                if (locals[pos] != null) {
-                    list.add(locals[pos].toString());
-                }
-            }
-        }
-        return list;
-    }
-
-    static String meltSnowman(int index, String varName) {
-        ret
-
-  * @param callback callback handle
+     * @param callback callback handle
      */
     private void inject(final Callback callback) {
         if (this.localCapture.isPrintLocals()) {
@@ -219,7 +504,7 @@ int count) {
             this.info.addCallbackInvocation(this.methodNode);
             return;
         }
-
+        
         // The actual callback method, to start with this is set to the handler
         // method but we will redirect to our generated handler if the signature
         // is invalid and we have to generate an error handler stub method
@@ -243,7 +528,7 @@ int count) {
                 } else {
                     // No matching method, generate a message to bitch about it
                     String message = this.generateBadLVTMessage(callback);
-
+                    
                     switch (this.localCapture) {
                         case CAPTURE_FAILEXCEPTION:
                             Injector.logger.error("Injection error: {}", message);
@@ -267,9 +552,9 @@ int count) {
                 if (callback.checkDescriptor(returnableSig)) {
                     // Switching out CallbackInfo for CallbackInfoReturnable
                     // worked, so notify the user that they done derped
-                    throw new InvalidInjectionException(this.info, "Invalid descriptor on " + this.info + "! CallbackInfoReturnable is required!");
+                    throw new InvalidInjectionException(this.info, "Invalid descriptor on " + this.info + "! CallbackInfoReturnable is required!");  
                 }
-
+                
                 MethodNode surrogateHandler = Bytecode.findMethod(this.classNode, this.methodNode.name, callback.getDescriptor());
                 if (surrogateHandler != null && Annotations.getVisible(surrogateHandler, Surrogate.class) != null) {
                     // Found a matching surrogate method, use it
@@ -280,7 +565,7 @@ int count) {
                 }
             }
         }
-
+        
         if (callback.usesCallbackInfo) {
             this.dupReturnValue(callback);
             if (this.cancellable || this.totalInjections > 1) {
@@ -291,14 +576,34 @@ int count) {
         if (callback.usesCallbackInfo) {
             this.injectCancellationCode(callback);
         }
-
+        
         callback.inject();
         this.info.notifyInjected(callback.target);
     }
 
     /**
      * Generate the "bad local variable table" message
-     *  @param callback callback handle
+     * 
+     * @param callback callback handle
+     * @return generated message
+     */
+    private String generateBadLVTMessage(final Callback callback) {
+        int position = callback.target.indexOf(callback.node);
+        int targetArgc = callback.target.arguments.length + 1;
+        List<String> expected = CallbackInjector.summariseLocals(this.methodNode.desc, targetArgc, 255);
+        List<String> found = CallbackInjector.summariseLocals(callback.getDescriptorWithAllLocals(), targetArgc, expected.size());
+        if (expected.equals(found)) {
+            return String.format("Invalid descriptor on %s! Expected %s but found %s", this.info, callback.getDescriptor(), this.methodNode.desc);
+        }
+        List<String> available = CallbackInjector.summariseLocals(callback.getDescriptorWithAllLocals(), targetArgc, 255);
+        return String.format("LVT in %s has incompatible changes at opcode %d in callback %s.\n Expected: %s\n    Found: %s\nAvailable: %s",
+                callback.target, position, this.info, expected, found, available);
+    }
+
+    /**
+     * Generates a method which throws an error
+     * 
+     * @param callback callback handle
      * @param errorClass error class to throw
      * @param message message for the error
      * @return generated method
@@ -318,28 +623,7 @@ int count) {
     
     /**
      * Pretty-print local variable information to stderr
-     *
-    * @param callback callback handle
-     * @return generated message
-     */
-    private String generateBadLVTMessage(final Callback callback) {
-        int position = callback.target.indexOf(callback.node);
-        int targetArgc = callback.target.arguments.length + 1;
-        List<String> expected = CallbackInjector.summariseLocals(this.methodNode.desc, targetArgc, 255);
-        List<String> found = CallbackInjector.summariseLocals(callback.getDescriptorWithAllLocals(), targetArgc, expected.size());
-        if (expected.equals(found)) {
-            return String.format("Invalid descriptor on %s! Expected %s but found %s", this.info, callback.getDescriptor(), this.methodNode.desc);
-        }
-        List<String> available = CallbackInjector.summariseLocals(callback.getDescriptorWithAllLocals(), targetArgc, 255);
-        return String.format("LVT in %s has incompatible changes at opcode %d in callback %s.\n Expected: %s\n    Found: %s\nAvailable: %s",
-                callback.target, position, this.info, expected, found, available);
-    }
-
-    /**
-     * Generates a method which throws an error
-     *
-     *re
-
+     * 
      * @param callback callback handle
      */
     private void printLocals(final Callback callback) {
@@ -347,7 +631,7 @@ int count) {
         SignaturePrinter methodSig = new SignaturePrinter(callback.target.method, callback.argNames);
         SignaturePrinter handlerSig = new SignaturePrinter(this.info.getMethodName(), callback.target.returnType, args, callback.argNames);
         handlerSig.setModifiers(this.methodNode);
-
+        
         PrettyPrinter printer = new PrettyPrinter();
         printer.kv("Target Class", this.classNode.name.replace('/', '.'));
         printer.kv("Target Method", methodSig);
@@ -378,8 +662,7 @@ int count) {
 
     /**
      * @param callback callback handle
-     * @param store stod
- the callback info in a local variable
+     * @param store store the callback info in a local variable
      */
     private void createCallbackInfo(final Callback callback, boolean store) {
         // Reset vars on new target
@@ -391,7 +674,7 @@ int count) {
 
         String id = this.getIdentifier(callback);
         String desc = callback.getCallbackInfoConstructorDescriptor();
-
+        
         // If ID and descriptor match, and if we're not handling a returnable or cancellable CI, just re-use the last one
         if (id.equals(this.lastId) && desc.equals(this.lastDesc) && !callback.isAtReturn && !this.cancellable) {
             return;
@@ -403,7 +686,18 @@ int count) {
     /**
      * @param callback callback handle
      */
-    private voiRETURN opcode (so
+    private void loadOrCreateCallbackInfo(final Callback callback) {
+        if (!callback.usesCallbackInfo) {
+            callback.add(new InsnNode(Opcodes.ACONST_NULL));
+        } else if (this.cancellable || this.totalInjections > 1) {
+            callback.add(new VarInsnNode(Opcodes.ALOAD, this.callbackInfoVar), false, true);
+        } else {
+            this.createCallbackInfo(callback, false);
+        }
+    }
+
+    /**
+     * If this is a ReturnEventInfo AND we are right before a RETURN opcode (so
      * we can expect the *original* return value to be on the stack, then we dup
      * the return value into a local var so we can push it later when we invoke
      * the ReturnEventInfo ctor
@@ -462,19 +756,31 @@ int count) {
     /**
      * @param callback callback handle
      */
-    private void
-loadOrCreateCallbackInfo(final Callback callback) {
-        if (!callback.usesCallbackInfo) {
-            callback.add(new InsnNode(Opcodes.ACONST_NULL));
-        } else if (this.cancellable || this.totalInjections > 1) {
-            callback.add(new VarInsnNode(Opcodes.ALOAD, this.callbackInfoVar), false, true);
-        } else {
-            this.createCallbackInfo(callback, false);
+    private void invokeCallback(final Callback callback, final MethodNode callbackMethod) {
+        // Push "this" onto the stack if the callback is not static
+        if (!this.isStatic) {
+            callback.add(new VarInsnNode(Opcodes.ALOAD, 0), false, true);
         }
+
+        // Push the target method's parameters onto the stack
+        if (callback.captureArgs()) {
+            Bytecode.loadArgs(callback.target.arguments, callback, callback.target.isStatic ? 0 : 1, -1); //, callback.typeCasts);
+        }
+        
+        // Push the callback info onto the stack
+        this.loadOrCreateCallbackInfo(callback);
+        
+        // (Maybe) push the locals onto the stack
+        if (callback.canCaptureLocals) {
+            Locals.loadLocals(callback.localTypes, callback, callback.frameSize, callback.extraArgs);
+        }
+        
+        // Call the callback!
+        this.invokeHandler(callback, callbackMethod);
     }
 
     /**
-     * If this is a ReturnEventInfo AND we are right before a f an id was
+     * Get the identifier to use for the specified callback. If an id was
      * specified by the end user on the annotation then use the value specified,
      * otherwise defaults to the target method name.
      * 
@@ -543,322 +849,24 @@ loadOrCreateCallbackInfo(final Callback callback) {
         return this.isStatic;
     }
 
-    private static List<String> summariseLocals(String desc, int pos, in
-invokeCallback(final Callback callback, final MethodNode callbackMethod) {
-        // Push "this" onto the stack if the callback is not static
-        if (!this.isStatic) {
-            callback.add(new VarInsnNode(Opcodes.ALOAD, 0), false, true);
-        }
-
-        // Push the target method's parameters onto the stack
-        if (callback.captureArgs()) {
-            Bytecode.loadArgs(callback.target.arguments, callback, callback.target.isStatic ? 0 : 1, -1); //, callback.typeCasts);
-        }
-
-        // Push the callback info onto the stack
-        this.loadOrCreateCallbackInfo(callback);
-
-        // (Maybe) push the locals onto the stack
-        if (callback.canCaptureLocals) {
-            Locals.loadLocals(callback.localTypes, callback, callback.frameSize, callback.extraArgs);
-        }
-
-        // Call the callback!
-        this.invokeHandler(callback, callbackMethod);
+    private static List<String> summariseLocals(String desc, int pos, int count) {
+        return CallbackInjector.summariseLocals(Type.getArgumentTypes(desc), pos, count);
     }
 
-    /**
-     * Get the identifier to use for the specified callback. I,
-    /**
-     * Struct to replace all the horrible state variables from before
-     */
-    private class Callback extends InsnList {
-
-        /**
-         * Target method handle
-         */
-        final Target target;
-        /**
-         * Target node, callback injected <b>before</b> this node
-         */
-        final InjectionNode node;
-        /**
-         * Calculated local variables
-         */
-        final LocalVariableNode[] locals;
-        /**
-         * Local variable types
-         */
-        final Type[] localTypes;
-        /**
-         * The initial frame size based on the target method's arguments
-         */
-        final int frameSize;
-        /**
-         * Number of extra arguments above the initial frame size, expected to
-         * be locals
-         */
-        final int extraArgs;
-        /**
-         * True if the injector is set to capture locals and we acutally <b>can
-         * </b> capture the locals (have sufficient info etc.)
-         */
-        final boolean canCaptureLocals;
-        /**
-         * True if the target insn is a RETURN opcode
-         */
-        final boolean isAtReturn;
-        /**
-         * Callback descriptor without locals
-         */
-        final String desc;
-        /**
-         * Callback descriptor with locals
-         */
-        final String descl;
-        /**
-         * Callback argument names, unlike the locals arrays this array does not
-         * contain null entries for TOP slots, so each index in this array
-         * matches the corresponding argument index in the callback
-         */
-        final String[] argNames;
-        /**
-         * Whether {@link #handler} uses the {@link CallbackInfo}/
-         * {@link CallbackInfoReturnable} it would normally be passed
-         */
-        final boolean usesCallbackInfo;
-        /**
-         * Handler method
-         */
-        private final MethodNode handler;
-
-        /**
-         * Arguments which require a type cast before being LOADed
-         */
-//        final Type[] typeCasts;
-        /**
-         * HEAD instruction
-         */
-        private final AbstractInsnNode head;
-        /**
-         * These two variables keep track of the (additional) stack size
-         * required for the two actions we're going to be injecting insns to
-         * perform, namely calling the CallbackInfo ctor, and then invoking the
-         * callback itself. When we get to the end of this injection we will
-         * then set the MAXS value on the target method to its original value
-         * plus the larger of the two values.
-         */
-        Extension ctor, invoke;
-        /**
-         * Marshal var is the local where we marshal the utility references we
-         * need during invoke of the callback, those being the current return
-         * value for value-return scenarios (we store the topmost stack entry
-         * and then push it into the ctor of the CallbackInfo) and also the
-         * CallbackInfo reference itself (we use the same local var for these
-         * two purposes because they don't exist at the same time).
-         */
-        private int marshalVar = -1;
-        /**
-         * True if this callback expects the target method arguments to be
-         * passed in. Set to false if {@link #checkDescriptor} determines that
-         * the "simple" descriptor matches.
-         */
-        private boolean captureArgs = true;
-
-        Callback(MethodNode handler, Target target, final InjectionNode node, final LocalVariableNode[] locals, boolean captureLocals) {
-            this.handler = handler;
-            this.target = target;
-            this.head = target.insns.getFirst();
-            this.node = node;
-            this.locals = locals;
-            this.localTypes = locals != null ? new Type[locals.length] : null;
-            this.frameSize = Bytecode.getFirstNonArgLocalIndex(target.arguments, !target.isStatic);
-            List<String> argNames = null;
-
-            if (locals != null) {
-                int baseArgIndex = target.isStatic ? 0 : 1;
-                argNames = new ArrayList<String>();
-                for (int l = 0; l <= locals.length; l++) {
-                    if (l == this.frameSize) {
-                        argNames.add(target.returnType == Type.VOID_TYPE ? "ci" : "cir");
-                    }
-                    if (l < locals.length && locals[l] != null) {
-                        this.localTypes[l] = Type.getType(locals[l].desc);
-                        if (l >= baseArgIndex) {
-                            argNames.add(CallbackInjector.meltSnowman(l, locals[l].name));
-                        }
-                    }
+    private static List<String> summariseLocals(Type[] locals, int pos, int count) {
+        List<String> list = new ArrayList<String>();
+        if (locals != null) {
+            for (; pos < locals.length && list.size() < count; pos++) {
+                if (locals[pos] != null) {
+                    list.add(locals[pos].toString());
                 }
             }
-
-            // Calc number of args for the handler method, additional 1 is to ignore the CallbackInfo arg
-            Type[] handlerArgs = Type.getArgumentTypes(this.handler.desc);
-            this.extraArgs = Math.max(0, handlerArgs.length - target.arguments.length - 1);
-            this.argNames = argNames != null ? argNames.toArray(new String[argNames.size()]) : null;
-            this.canCaptureLocals = captureLocals && locals != null && locals.length > this.frameSize;
-            this.isAtReturn = this.node.getCurrentTarget() instanceof InsnNode && this.isValueReturnOpcode(this.node.getCurrentTarget().getOpcode());
-            this.desc = target.getCallbackDescriptor(this.localTypes, target.arguments);
-            this.descl = target.getCallbackDescriptor(true, this.localTypes, target.arguments, this.frameSize, this.extraArgs);
-//            this.typeCasts = new Type[this.frameSize + this.extraArgs];
-
-            this.invoke = target.extendStack();
-            this.ctor = target.extendStack();
-
-            this.invoke.add().add(handlerArgs);
-
-            int callbackInfoSlot = Bytecode.isStatic(handler) ? 0 : 1;
-            // It'll be the first arg if no params are captured, or will come after the target's params otherwise
-            if (handlerArgs.length != 1) {
-                callbackInfoSlot += Bytecode.getArgsSize(this.target.arguments);
-            }
-            boolean seenCallbackInfoUse = false;
-            for (AbstractInsnNode insn : handler.instructions) {
-                //Look for anywhere the CallbackInfo(Returnable) is loaded in the handler, it's unused if it is never loaded in
-                if (insn.getType() == AbstractInsnNode.VAR_INSN && insn.getOpcode() == Opcodes.ALOAD && ((VarInsnNode) insn).var == callbackInfoSlot) {
-                    seenCallbackInfoUse = true;
-                    break;
-                }
-            }
-            Injector.logger.debug("{} does{} use it's CallbackInfo{}", info, seenCallbackInfoUse ? "" : "n't", Type.VOID_TYPE == target.returnType ? "" : "Returnable");
-            if (!seenCallbackInfoUse && !Bytecode.isStatic(handler) && (handler.access & Opcodes.ACC_FINAL) == 0 && (target.classNode.access & Opcodes.ACC_FINAL) == 0) {
-                //Although the CallbackInfo appears unused, there is the possibility that the handler is overridden, so we'll have to check
-                String handlerName = handler instanceof MethodNodeEx ? ((MethodNodeEx) handler).getOriginalName() : handler.name;
-                List<MethodNode> childHandlers = MixinInheritanceTracker.INSTANCE.findOverrides(info.getClassInfo(), handlerName, handler.desc);
-                Injector.logger.debug("{} has {} override(s) in child classes", info, childHandlers.size());
-
-                out: for (MethodNode childHandle : childHandlers) {
-                    for (AbstractInsnNode insn : childHandle.instructions) {
-                        if (insn.getType() == AbstractInsnNode.VAR_INSN && insn.getOpcode() == Opcodes.ALOAD && ((VarInsnNode) insn).var == callbackInfoSlot) {
-                            seenCallbackInfoUse = true;
-                            break out; //If a child uses it then the parent will need to receive it
-                        }
-                    }
-                }
-
-                Injector.logger.debug("{} w{} be passed a CallbackInfo{} as a result", info, seenCallbackInfoUse ? "ill" : "on't", Type.VOID_TYPE == target.returnType ? "" : "Returnable");
-            }
-            usesCallbackInfo = seenCallbackInfoUse;
         }
-
-        /**
-         * Returns true if the supplied opcode represents a <em>non-void</em>
-         * RETURN opcode
-         *
-         * @param opcode opcode to check
-         * @return true if value return
-         */
-        private boolean isValueReturnOpcode(int opcode) {
-            return opcode >= Opcodes.IRETURN && opcode < Opcodes.RETURN;
-        }
-
-        String getDescriptor() {
-            return this.canCaptureLocals ? this.descl : this.desc;
-        }
-
-        String getDescriptorWithAllLocals() {
-            return this.target.getCallbackDescriptor(true, this.localTypes, this.target.arguments, this.frameSize, Short.MAX_VALUE);
-        }
-
-        String getCallbackInfoConstructorDescriptor() {
-            return this.isAtReturn ? CallbackInfo.getConstructorDescriptor(this.target.returnType) : CallbackInfo.getConstructorDescriptor();
-        }
-
-        /**
-         * Add an instruction to this callback and increment the appropriate
-         * stack sizes
-         *
-         * @param insn Instruction to append
-         * @param ctorStack true if this insn contributes to the ctor stack
-         * @param invokeStack true if this insn contributes to the invoke stack
-         */
-        void add(AbstractInsnNode insn, boolean ctorStack, boolean invokeStack) {
-            this.add(insn, ctorStack, invokeStack, false);
-        }
-
-        void add(AbstractInsnNode insn, boolean ctorStack, boolean invokeStack, boolean head) {
-            if (head) {
-                this.target.insns.insertBefore(this.head, insn);
-            } else {
-                this.add(insn);
-            }
-            if (ctorStack) {
-                this.ctor.add();
-            }
-            if (invokeStack) {
-                this.invoke.add();
-            }
-        }
-
-        /**
-         * Inject our generated code into the method and set the max stack size
-         * for the method based on our calculated values
-         */
-        void inject() {
-            this.target.insertBefore(this.node, this);
-            this.invoke.apply();
-            this.ctor.apply();
-        }
-
-        boolean checkDescriptor(String desc) {
-            if (this.getDescriptor().equals(desc)) {
-                return true; // Descriptor matches exactly, this is good
-            }
-
-            if (this.target.getSimpleCallbackDescriptor().equals(desc) && !this.canCaptureLocals) {
-                this.captureArgs = false;
-                return true;
-            }
-
-            Type[] inTypes = Type.getArgumentTypes(desc);
-            Type[] myTypes = Type.getArgumentTypes(this.descl);
-
-            if (inTypes.length != myTypes.length) {
-                return false;
-            }
-
-            for (int arg = 0; arg < myTypes.length; arg++) {
-                Type type = inTypes[arg];
-                if (type.equals(myTypes[arg])) {
-                    continue; // Type matches
-                }
-
-                if (type.getSort() == Type.ARRAY) {
-                    return false; // Array types must match exactly
-                }
-
-                if (Annotations.getInvisibleParameter(this.handler, Coerce.class, arg) == null) {
-                    return false; // No @Coerce specified, types must match
-                }
-
-                if (!Injector.canCoerce(inTypes[arg], myTypes[arg])) {
-//                    if (Injector.canCoerce(myTypes[arg], inTypes[arg])) {
-//                        this.typeCasts[arg] = inTypes[arg];
-//                    } else {
-                        return false; // Can't coerce or cast source type to local type, give up
-//                    }
-                }
-            }
-
-            return true;
-        }
-
-        boolean captureArgs() {
-            return this.captureArgs;
-        }
-
-        int marshalVar() {
-            if (this.marshalVar < 0) {
-                this.marshalVar = this.target.allocateLocal();
-            }
-
-            return this.marshalVar;
-        }
-
+        return list;
     }
 
-    /**
-     * Decorator key for local variables decoration
-     *urn varName != null && Constants.UNICODE_SNOWMAN == varName.charAt(0) ? "var" + index : varName;
+    static String meltSnowman(int index, String varName) {
+        return varName != null && Constants.UNICODE_SNOWMAN == varName.charAt(0) ? "var" + index : varName;
     }
     
 }

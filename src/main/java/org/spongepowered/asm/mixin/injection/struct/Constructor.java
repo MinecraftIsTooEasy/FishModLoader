@@ -71,8 +71,21 @@ public class Constructor extends Target {
         this.targetSuperName = this.classInfo.getSuperName();
     }
     
-    private static String fieldKey(FieldInsnNode fieldNode) {
-        return String.format("%s:%s", fieldNode.desc, fieldNode.name);
+    /**
+     * Find the call to <tt>super()</tt> or <tt>this()</tt> in a constructor.
+     * This attempts to locate the first call to <tt>&lt;init&gt;</tt> which
+     * isn't an inline call to another object ctor being passed into the super
+     * invocation.
+     * 
+     * @return Call to <tt>super()</tt>, <tt>this()</tt> or
+     *      <tt>DelegateInitialiser.NONE</tt> if not found
+     */
+    public DelegateInitialiser findDelegateInitNode() {
+        if (this.delegateInitialiser == null) {
+            this.delegateInitialiser = Bytecode.findDelegateInit(this.method, this.classInfo.getSuperName(), this.classNode.name);
+        }
+        
+        return this.delegateInitialiser;
     }
     
     /**
@@ -86,72 +99,11 @@ public class Constructor extends Target {
     }
     
     /**
-     * Identifies line numbers in the supplied ctor which correspond to the
-     * start and end of the method body.
-     *
-     * @param ctor constructor to scan
-     * @return range indicating the line numbers of the specified constructor
-     *      and the position of the superclass ctor invocation
-     */
-    public static InsnRange getRange(MethodNode ctor) {
-        boolean lineNumberIsValid = false;
-        AbstractInsnNode endReturn = null;
-
-        int line = 0, start = 0, end = 0, delegateIndex = -1;
-        for (Iterator<AbstractInsnNode> iter = ctor.instructions.iterator(); iter.hasNext();) {
-            AbstractInsnNode insn = iter.next();
-            if (insn instanceof LineNumberNode) {
-                line = ((LineNumberNode)insn).line;
-                lineNumberIsValid = true;
-            } else if (insn instanceof MethodInsnNode) {
-                if (insn.getOpcode() == Opcodes.INVOKESPECIAL && Constants.CTOR.equals(((MethodInsnNode)insn).name) && delegateIndex == -1) {
-                    delegateIndex = ctor.instructions.indexOf(insn);
-                    start = line;
-                }
-            } else if (insn.getOpcode() == Opcodes.PUTFIELD) {
-                lineNumberIsValid = false;
-            } else if (insn.getOpcode() == Opcodes.RETURN) {
-                if (lineNumberIsValid) {
-                    end = line;
-                } else {
-                    end = start;
-                    endReturn = insn;
-                }
-            }
-        }
-
-        if (endReturn != null) {
-            LabelNode label = new LabelNode(new Label());
-            ctor.instructions.insertBefore(endReturn, label);
-            ctor.instructions.insertBefore(endReturn, new LineNumberNode(start, label));
-        }
-
-        return new InsnRange(start, end, delegateIndex);
-    }
-
-    /**
-     * Find the call to <tt>super()</tt> or <tt>this()</tt> in a constructor.
-     * This attempts to locate the first call to <tt>&lt;init&gt;</tt> which
-     * isn't an inline call to another object ctor being passed into the super
-     * invocation.
-     *
-     * @return Call to <tt>super()</tt>, <tt>this()</tt> or
-     *      <tt>DelegateInitialiser.NONE</tt> if not found
-     */
-    public DelegateInitialiser findDelegateInitNode() {
-        if (this.delegateInitialiser == null) {
-            this.delegateInitialiser = Bytecode.findDelegateInit(this.method, this.classInfo.getSuperName(), this.classNode.name);
-        }
-
-        return this.delegateInitialiser;
-    }
-
-    /**
      * Inspect an incoming initialiser to determine which fields are touched by
      * the mixin. This is then used in {@link #findInitialiserInjectionPoint} to
      * determine the instruction after which the mixin initialisers will be
      * placed
-     *
+     * 
      * @param initialiser the initialiser to inspect
      */
     public void inspect(Initialiser initialiser) {
@@ -172,8 +124,8 @@ public class Constructor extends Target {
      * placed immediately after the delegate initialiser call, but then searches
      * for field assignments and selects the last <em>unique</em> field
      * assignment in the ctor body which represents a reasonable heuristic for
-     * the end of the existing initialisers.
-     *
+     * the end of the existing initialisers. 
+     * 
      * @param mode Injection mode for this specific environment
      * @return target node
      */
@@ -198,20 +150,20 @@ public class Constructor extends Target {
                 if (this.mixinInitialisedFields.contains(key)) {
                     lastInsn = insn;
                 }
-            }
+            }            
         }
-
+        
         if (lastInsn == null) {
             return null;
         }
-
+        
         this.initialiserInjectionPoint = new MarkerNode(MarkerNode.INITIALISER_TAIL);
         this.insert(lastInsn, this.initialiserInjectionPoint);
         return this.initialiserInjectionPoint;
     }
 
     /**
-     * Find the injection point
+     * Find the injection point 
      */
     public AbstractInsnNode findFirstBodyInsn() {
         if (this.bodyStart == null) {
@@ -227,5 +179,53 @@ public class Constructor extends Target {
             }
         }
         return this.bodyStart;
+    }
+
+    private static String fieldKey(FieldInsnNode fieldNode) {
+        return String.format("%s:%s", fieldNode.desc, fieldNode.name);
+    }
+
+    /**
+     * Identifies line numbers in the supplied ctor which correspond to the
+     * start and end of the method body.
+     * 
+     * @param ctor constructor to scan
+     * @return range indicating the line numbers of the specified constructor
+     *      and the position of the superclass ctor invocation
+     */
+    public static InsnRange getRange(MethodNode ctor) {
+        boolean lineNumberIsValid = false;
+        AbstractInsnNode endReturn = null;
+        
+        int line = 0, start = 0, end = 0, delegateIndex = -1;
+        for (Iterator<AbstractInsnNode> iter = ctor.instructions.iterator(); iter.hasNext();) {
+            AbstractInsnNode insn = iter.next();
+            if (insn instanceof LineNumberNode) {
+                line = ((LineNumberNode)insn).line;
+                lineNumberIsValid = true;
+            } else if (insn instanceof MethodInsnNode) {
+                if (insn.getOpcode() == Opcodes.INVOKESPECIAL && Constants.CTOR.equals(((MethodInsnNode)insn).name) && delegateIndex == -1) {
+                    delegateIndex = ctor.instructions.indexOf(insn);
+                    start = line;
+                }
+            } else if (insn.getOpcode() == Opcodes.PUTFIELD) {
+                lineNumberIsValid = false;
+            } else if (insn.getOpcode() == Opcodes.RETURN) {
+                if (lineNumberIsValid) {
+                    end = line;
+                } else {
+                    end = start;
+                    endReturn = insn;
+                }
+            }
+        }
+        
+        if (endReturn != null) {
+            LabelNode label = new LabelNode(new Label());
+            ctor.instructions.insertBefore(endReturn, label);
+            ctor.instructions.insertBefore(endReturn, new LineNumberNode(start, label));
+        }
+        
+        return new InsnRange(start, end, delegateIndex);
     }
 }

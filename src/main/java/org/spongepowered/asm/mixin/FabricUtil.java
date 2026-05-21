@@ -91,7 +91,8 @@ public final class FabricUtil {
         return getCompatibility(context.getMixin().getConfig());
     }
 
-    private FabricUtil() {
+    public static int getCompatibility(IMixinConfig config) {
+        return getDecoration(config, KEY_COMPATIBILITY, COMPATIBILITY_LATEST);
     }
 
     private static IMixinConfig getConfig(ISelectorContext context) {
@@ -106,7 +107,6 @@ public final class FabricUtil {
         }
     }
 
-    public static int getCompatibility(IMixinConfig config) {
-        return getDecoration(config, KEY_COMPATIBILITY, COMPATIBILITY_LATEST);
+    private FabricUtil() {
     }
 }

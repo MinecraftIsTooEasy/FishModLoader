@@ -90,7 +90,41 @@ import com.google.common.base.Strings;
  */
 class MixinPreProcessorStandard {
     
-    protected final Profiler profiler = Profiler.getProfiler("mixin");
+    /**
+     * Types of annotated special method handled by the preprocessor
+     */
+    enum SpecialMethod {
+        
+        MERGE(true),
+        OVERWRITE(true, Overwrite.class),
+        SHADOW(false, Shadow.class),
+        ACCESSOR(false, Accessor.class),
+        INVOKER(false, Invoker.class);
+        
+        final boolean isOverwrite;
+        
+        final Class<? extends Annotation> annotation;
+        
+        final String description;
+
+        private SpecialMethod(boolean isOverwrite, Class<? extends Annotation> type) {
+            this.isOverwrite = isOverwrite;
+            this.annotation = type;
+            this.description = "@" + Annotations.getSimpleName(type);
+        }
+        
+        private SpecialMethod(boolean isOverwrite) {
+            this.isOverwrite = isOverwrite;
+            this.annotation = null;
+            this.description = "overwrite";
+        }
+        
+        @Override
+        public String toString() {
+            return this.description;
+        }
+        
+    }
     
     /**
      * Logger
@@ -109,14 +143,7 @@ class MixinPreProcessorStandard {
     
     protected final MixinEnvironment env;
     
-    private static String getDynamicInfo(String targetType, AnnotationNode annotation) {
-        String description = Strings.nullToEmpty(Annotations.<String>getValue(annotation));
-        Type upstream = Annotations.<Type>getValue(annotation, "mixin");
-        if (upstream != null) {
-            description = String.format("{%s} %s", upstream.getClassName(), description).trim();
-        }
-        return description.length() > 0 ? String.format(" %s is @Dynamic(%s)", targetType, description) : "";
-    }
+    protected final Profiler profiler = Profiler.getProfiler("mixin");
     
     protected final ActivityStack activities = new ActivityStack();
 
@@ -828,40 +855,13 @@ class MixinPreProcessorStandard {
         return MixinPreProcessorStandard.getDynamicInfo("Field", Annotations.getInvisible(method, Dynamic.class));
     }
 
-    /**
-     * Types of annotated special method handled by the preprocessor
-     */
-    enum SpecialMethod {
-
-        MERGE(true),
-        OVERWRITE(true, Overwrite.class),
-        SHADOW(false, Shadow.class),
-        ACCESSOR(false, Accessor.class),
-        INVOKER(false, Invoker.class);
-
-        final boolean isOverwrite;
-
-        final Class<? extends Annotation> annotation;
-
-        final String description;
-
-        private SpecialMethod(boolean isOverwrite, Class<? extends Annotation> type) {
-            this.isOverwrite = isOverwrite;
-            this.annotation = type;
-            this.description = "@" + Annotations.getSimpleName(type);
+    private static String getDynamicInfo(String targetType, AnnotationNode annotation) {
+        String description = Strings.nullToEmpty(Annotations.<String>getValue(annotation));
+        Type upstream = Annotations.<Type>getValue(annotation, "mixin");
+        if (upstream != null) {
+            description = String.format("{%s} %s", upstream.getClassName(), description).trim();
         }
-
-        private SpecialMethod(boolean isOverwrite) {
-            this.isOverwrite = isOverwrite;
-            this.annotation = null;
-            this.description = "overwrite";
-        }
-
-        @Override
-        public String toString() {
-            return this.description;
-        }
-
+        return description.length() > 0 ? String.format(" %s is @Dynamic(%s)", targetType, description) : "";
     }
 
 }

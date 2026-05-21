@@ -86,29 +86,8 @@ class MethodMapper {
     }
 
     /**
-     * Get clean sourceId from mixin
-     *
-     * @param mixin mixin info
-     * @return clean source id with dollar suffix or empty string
-     */
-    private static String getMixinSourceId(MixinInfo mixin, String separator) {
-        String sourceId = mixin.getConfig().getCleanSourceId();
-        if (sourceId == null) {
-            String modId = FabricUtil.getModId(mixin.getConfig(), null);
-            if (modId == null) {
-                return "";
-            }
-            return modId + separator;
-        }
-        if (sourceId.length() > 12) {
-            sourceId = sourceId.substring(0, 12);
-        }
-        return String.format("%s%s", sourceId, separator);
-    }
-    
-    /**
      * Conforms an injector handler method
-     *
+     * 
      * @param mixin owner mixin
      * @param handler annotated injector handler method
      * @param method method in target
@@ -117,23 +96,23 @@ class MethodMapper {
         if (!(handler instanceof MixinMethodNode) || !((MixinMethodNode)handler).isInjector()) {
             return;
         }
-
+        
         if (method.isUnique()) {
             MethodMapper.logger.warn("Redundant @Unique on injector method {} in {}. Injectors are implicitly unique", method, mixin);
         }
-
+        
         if (method.isRenamed()) {
             handler.name = method.getName();
             return;
         }
-
+        
         String handlerName = this.getHandlerName(mixin, (MixinMethodNode)handler);
         handler.name = method.conform(handlerName);
     }
-
+    
     /**
      * Get the name for a handler method provided a source mixin method
-     *
+     * 
      * @param method mixin method
      * @return conformed handler name
      */
@@ -155,7 +134,7 @@ class MethodMapper {
 
     /**
      * Get a unique name for a method
-     *
+     * 
      * @param method Method to obtain a unique name for
      * @param sessionId Session ID, for uniqueness
      * @param preservePrefix If true, appends the unique part, preserving any
@@ -185,7 +164,7 @@ class MethodMapper {
 
     /**
      * Get a unique name for a field
-     *
+     * 
      * @param field Field to obtain a unique name for
      * @param sessionId Session ID, for uniqueness
      * @return Unique field name
@@ -193,6 +172,27 @@ class MethodMapper {
     public String getUniqueName(MixinInfo mixin, FieldNode field, String sessionId) {
         String uniqueIndex = Integer.toHexString(this.nextUniqueFieldIndex++);
         return String.format("fd%s$%s%s$%s", sessionId.substring(30), MethodMapper.getMixinSourceId(mixin, "$"), field.name, uniqueIndex);
+    }
+
+    /**
+     * Get clean sourceId from mixin
+     *
+     * @param mixin mixin info
+     * @return clean source id with dollar suffix or empty string
+     */
+    private static String getMixinSourceId(MixinInfo mixin, String separator) {
+        String sourceId = mixin.getConfig().getCleanSourceId();
+        if (sourceId == null) {
+            String modId = FabricUtil.getModId(mixin.getConfig(), null);
+            if (modId == null) {
+                return "";
+            }
+            return modId + separator;
+        }
+        if (sourceId.length() > 12) {
+            sourceId = sourceId.substring(0, 12);
+        }
+        return String.format("%s%s", sourceId, separator);
     }
 
     /**

@@ -45,10 +45,20 @@ import org.spongepowered.asm.util.asm.ASM;
 final class MixinTransformer extends TreeTransformer implements IMixinTransformer {
     
     /**
-     * Coprocessor which handles merging nest members into nest hosts which may
-     * or may not be mixin targets themselves
+     * Impl of mixin transformer factory
      */
-    private final MixinCoprocessorNestHost nestHostCoprocessor;
+    static class Factory implements IMixinTransformerFactory {
+        
+        /* (non-Javadoc)
+         * @see org.spongepowered.asm.mixin.transformer.IMixinTransformerFactory
+         *      #createTransformer()
+         */
+        @Override
+        public IMixinTransformer createTransformer() throws MixinInitialisationError {
+            return new MixinTransformer();
+        }
+        
+    }
     
     private static final String MIXIN_AGENT_CLASS = "org.spongepowered.tools.agent.MixinAgent";
     
@@ -66,25 +76,22 @@ final class MixinTransformer extends TreeTransformer implements IMixinTransforme
      * Hotswap agent, if available 
      */
     private final IHotSwap hotSwapper;
+    
+    /**
+     * Coprocessor which handles merging nest members into nest hosts which may
+     * or may not be mixin targets themselves 
+     */
+    private final MixinCoprocessorNestHost nestHostCoprocessor;
+
     /**
      * Mixin processor which actually manages application of mixins
      */
     private final MixinProcessor processor;
-    /**
-     * Class generator
-     */
-    private final MixinClassGenerator generator;
     
     /**
-     * You need to ask yourself why you're reading this comment
+     * Class generator 
      */
-    private static ClassNode createEmptyClass(String name) {
-        ClassNode classNode = new ClassNode(ASM.API_VERSION);
-        classNode.name = name.replace('.', '/');
-        classNode.version = MixinEnvironment.getCompatibilityLevel().getClassVersion();
-        classNode.superName = Constants.OBJECT;
-        return classNode;
-    }
+    private final MixinClassGenerator generator;
 
     MixinTransformer() {
         MixinEnvironment environment = MixinEnvironment.getCurrentEnvironment();
@@ -286,19 +293,14 @@ final class MixinTransformer extends TreeTransformer implements IMixinTransforme
     }
     
     /**
-     * Impl of mixin transformer factory
+     * You need to ask yourself why you're reading this comment  
      */
-    static class Factory implements IMixinTransformerFactory {
-
-        /* (non-Javadoc)
-         * @see org.spongepowered.asm.mixin.transformer.IMixinTransformerFactory
-         *      #createTransformer()
-         */
-        @Override
-        public IMixinTransformer createTransformer() throws MixinInitialisationError {
-            return new MixinTransformer();
-        }
-
+    private static ClassNode createEmptyClass(String name) {
+        ClassNode classNode = new ClassNode(ASM.API_VERSION);
+        classNode.name = name.replace('.', '/');
+        classNode.version = MixinEnvironment.getCompatibilityLevel().getClassVersion();
+        classNode.superName = Constants.OBJECT;
+        return classNode;
     }
 
 }

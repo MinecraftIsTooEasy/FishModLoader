@@ -41,9 +41,23 @@ import org.spongepowered.asm.service.MixinService;
 public class InsnFinder {
     
     /**
-     * Log more things
+     * Exception to be throw to quick-exit the analyser once result is found
      */
-    private static final ILogger logger = MixinService.getService().getLogger("mixin");
+    static class AnalysisResultException extends RuntimeException {
+
+        private static final long serialVersionUID = 1L;
+
+        private AbstractInsnNode result;
+
+        public AnalysisResultException(AbstractInsnNode popNode) {
+            this.result = popNode;
+        }
+        
+        public AbstractInsnNode getResult() {
+            return this.result;
+        }
+        
+    }
     
     /**
      * Current analyser state
@@ -133,23 +147,9 @@ public class InsnFinder {
     }
     
     /**
-     * Exception to be throw to quick-exit the analyser once result is found
+     * Log more things
      */
-    static class AnalysisResultException extends RuntimeException {
-
-        private static final long serialVersionUID = 1L;
-
-        private AbstractInsnNode result;
-
-        public AnalysisResultException(AbstractInsnNode popNode) {
-            this.result = popNode;
-        }
-
-        public AbstractInsnNode getResult() {
-            return this.result;
-        }
-
-    }
+    private static final ILogger logger = MixinService.getService().getLogger("mixin");
     
     /**
      * Find the instruction which pops the value pushed by the specified

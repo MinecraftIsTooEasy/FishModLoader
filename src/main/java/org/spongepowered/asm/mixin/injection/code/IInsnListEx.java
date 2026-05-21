@@ -36,13 +36,28 @@ import org.spongepowered.asm.mixin.injection.InjectionPoint;
 public interface IInsnListEx {
     
     /**
-     * Get - if available - the specified special node from the target. The
-     * returned node is not guaranteed to be non-null.
-     *
-     * @param type type of special node to fetch
-     * @return the special node or null if not available
+     * Type of special nodes supported by {@link #getSpecialNode}
      */
-    public abstract AbstractInsnNode getSpecialNode(SpecialNodeType type);
+    public enum SpecialNodeType {
+        
+        /**
+         * The delegate constructor call in a constructor
+         */
+        DELEGATE_CTOR,
+        
+        /**
+         * The location for injected initialisers in a constructor 
+         */
+        INITIALISER_INJECTION_POINT,
+        
+        /**
+         * The location after field initialisers but before the first
+         * constructor body instruction, requires line numbers to be present in
+         * the target class
+         */
+        CTOR_BODY
+        
+    }
     
     /**
      * Get the name of the target method
@@ -80,16 +95,26 @@ public interface IInsnListEx {
     public abstract boolean isTargetStaticInitialiser();
 
     /**
+     * Get - if available - the specified special node from the target. The
+     * returned node is not guaranteed to be non-null.
+     * 
+     * @param type type of special node to fetch
+     * @return the special node or null if not available
+     */
+    public abstract AbstractInsnNode getSpecialNode(SpecialNodeType type);
+
+    
+    /**
      * Get whether this list is decorated with the specified key
-     *
+     * 
      * @param key meta key
      * @return true if the specified decoration exists
      */
     public abstract boolean hasDecoration(String key);
-
+    
     /**
      * Get the specified decoration
-     *
+     * 
      * @param key meta key
      * @param <V> value type
      * @return decoration value or null if absent
@@ -98,36 +123,12 @@ public interface IInsnListEx {
     
     /**
      * Get the specified decoration or default value
-     *
+     * 
      * @param key meta key
      * @param defaultValue default value to return
      * @param <V> value type
      * @return decoration value or default value if absent
      */
     public abstract <V> V getDecoration(String key, V defaultValue);
-    
-    /**
-     * Type of special nodes supported by {@link #getSpecialNode}
-     */
-    public enum SpecialNodeType {
-
-        /**
-         * The delegate constructor call in a constructor
-         */
-        DELEGATE_CTOR,
-
-        /**
-         * The location for injected initialisers in a constructor
-         */
-        INITIALISER_INJECTION_POINT,
-
-        /**
-         * The location after field initialisers but before the first
-         * constructor body instruction, requires line numbers to be present in
-         * the target class
-         */
-        CTOR_BODY
-
-    }
 
 }

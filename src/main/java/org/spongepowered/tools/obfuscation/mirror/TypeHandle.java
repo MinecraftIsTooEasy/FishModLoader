@@ -163,36 +163,9 @@ public class TypeHandle {
         return this.element;
     }
 
-    @SuppressWarnings("unchecked")
-    protected static <T extends Element> List<T> getEnclosedElements(TypeElement targetElement, ElementKind... kind) {
-        if (kind == null || kind.length < 1) {
-            return (List<T>)TypeHandle.getEnclosedElements(targetElement);
-        }
-
-        if (targetElement == null) {
-            return Collections.<T>emptyList();
-        }
-
-        Builder<T> list = ImmutableList.<T>builder();
-        for (Element elem : targetElement.getEnclosedElements()) {
-            for (ElementKind ek : kind) {
-                if (elem.getKind() == ek) {
-                    list.add((T)elem);
-                    break;
-                }
-            }
-        }
-
-        return list.build();
-    }
-
-    protected static List<? extends Element> getEnclosedElements(TypeElement targetElement) {
-        return targetElement != null ? targetElement.getEnclosedElements() : Collections.<Element>emptyList();
-    }
-    
     /**
      * Get an annotation handle for the specified annotation on this type
-     *
+     * 
      * @param annotationClass type of annotation to search for
      * @return new annotation handle, call <tt>exists</tt> on the returned
      *      handle to determine whether the annotation is present
@@ -207,15 +180,33 @@ public class TypeHandle {
     protected final List<? extends Element> getEnclosedElements() {
         return TypeHandle.getEnclosedElements(this.getTargetElement());
     }
-
+    
     /**
      * Returns enclosed elements (methods, fields, etc.) of a particular type
-     *
+     * 
      * @param kind types of element to return
      * @param <T> list element type
      */
     protected <T extends Element> List<T> getEnclosedElements(ElementKind... kind) {
         return TypeHandle.getEnclosedElements(this.getTargetElement(), kind);
+    }
+
+    /**
+     * Get whether the type handle can return a type mirror for the represented
+     * type. This is true only for types returned by mirror and is not available
+     * for simulated types or classpath types inaccessible via mirror (eg. anon
+     * classes) 
+     */
+    public boolean hasTypeMirror() {
+        return this.getTargetElement() != null;
+    }
+
+    /**
+     * Returns the enclosed element as a type mirror, or null if this is an
+     * imaginary type
+     */
+    public TypeMirror getTypeMirror() {
+        return this.getTargetElement() != null ? this.getTargetElement().asType() : null;
     }
     
     /**
@@ -264,32 +255,6 @@ public class TypeHandle {
     }
 
     /**
-     * Get whether the type handle can return a type mirror for the represented
-     * type. This is true only for types returned by mirror and is not available
-     * for simulated types or classpath types inaccessible via mirror (eg. anon
-     * classes)
-     */
-    public boolean hasTypeMirror() {
-        return this.getTargetElement() != null;
-    }
-    
-    /**
-     * Get whether the element is imaginary (inaccessible via mirror or
-     * classpath)
-     */
-    public boolean isImaginary() {
-        return this.getTargetElement() == null;
-    }
-    
-    /**
-     * Returns the enclosed element as a type mirror, or null if this is an
-     * imaginary type
-     */
-    public TypeMirror getTypeMirror() {
-        return this.getTargetElement() != null ? this.getTargetElement().asType() : null;
-    }
-
-    /**
      * Get whether the element is probably public
      */
     public boolean isPublic() {
@@ -304,11 +269,46 @@ public class TypeHandle {
         }
         return true;
     }
-
+    
+    /**
+     * Get whether the element is imaginary (inaccessible via mirror or
+     * classpath)
+     */
+    public boolean isImaginary() {
+        return this.getTargetElement() == null;
+    }
+    
     /**
      * Get whether this handle is simulated
      */
     public boolean isSimulated() {
+        return false;
+    }
+
+    /**
+     * Gets whether this handle definitely does not represent an interface
+     */
+    public boolean isNotInterface() {
+        TypeElement target = this.getTargetElement();
+        return target != null && !target.getKind().isInterface();
+    }
+
+    /**
+     * Gets whether this handle is a supertype of the other handle
+     *
+     * @param other the TypeHandle to compare with
+     */
+    public boolean isSuperTypeOf(TypeHandle other) {
+        List<TypeHandle> superTypes = new ArrayList<TypeHandle>();
+        if (other.getSuperclass() != null) {
+            superTypes.add(other.getSuperclass());
+        }
+        superTypes.addAll(other.getInterfaces());
+        for (TypeHandle superType : superTypes) {
+            if (this.name.equals(superType.name) || this.isSuperTypeOf(superType)) {
+                return true;
+            }
+        }
         return false;
     }
 
@@ -366,11 +366,15 @@ public class TypeHandle {
     }
     
     /**
-     * Gets whether this handle definitely does not represent an interface
+     * Find a member field in this type which matches the name and declared type
+     * of the supplied element
+     * 
+     * @param element Element to match
+     * @param matchCase True if case-sensitive comparison should be used
+     * @return handle to the discovered field if matched or null if no match
      */
-    public boolean isNotInterface() {
-        TypeElement target = this.getTargetElement();
-        return target != null && !target.getKind().isInterface();
+    public final FieldHandle findField(VariableElement element, boolean matchCase) {
+        return this.findField(element.getSimpleName().toString(), TypeUtils.getTypeName(element.asType()), matchCase);
     }
     
     /**
@@ -386,22 +390,26 @@ public class TypeHandle {
     }
     
     /**
-     * Gets whether this handle is a supertype of the other handle
-     *
-     * @param other the TypeHandle to compare with
+     * Find a member field in this type which matches the name and declared type
+     * specified
+     * 
+     * @param name Field name to search for
+     * @param type Field descriptor (java-style)
+     * @param matchCase True if case-sensitive comparison should be used
+     * @return handle to the discovered field if matched or null if no match
      */
-    public boolean isSuperTypeOf(TypeHandle other) {
-        List<TypeHandle> superTypes = new ArrayList<TypeHandle>();
-        if (other.getSuperclass() != null) {
-            superTypes.add(other.getSuperclass());
+    public FieldHandle findField(String name, String type, boolean matchCase) {
+        String rawType = TypeUtils.stripGenerics(type);
+
+        for (VariableElement field : this.<VariableElement>getEnclosedElements(ElementKind.FIELD)) {
+            if (TypeHandle.compareElement(field, name, type, matchCase)) {
+                return new FieldHandle(this.getTargetElement(), field);
+            } else if (TypeHandle.compareElement(field, name, rawType, matchCase)) {
+                return new FieldHandle(this.getTargetElement(), field, true);
+            }                
         }
-        superTypes.addAll(other.getInterfaces());
-        for (TypeHandle superType : superTypes) {
-            if (this.name.equals(superType.name) || this.isSuperTypeOf(superType)) {
-                return true;
-            }
-        }
-        return false;
+        
+        return null;
     }
     
     /**
@@ -416,15 +424,15 @@ public class TypeHandle {
     }
 
     /**
-     * Find a member field in this type which matches the name and declared type
-     * of the supplied element
-     *
+     * Find a member method in this type which matches the name and declared
+     * type of the supplied element
+     * 
      * @param element Element to match
      * @param matchCase True if case-sensitive comparison should be used
-     * @return handle to the discovered field if matched or null if no match
+     * @return handle to the discovered method if matched or null if no match
      */
-    public final FieldHandle findField(VariableElement element, boolean matchCase) {
-        return this.findField(element.getSimpleName().toString(), TypeUtils.getTypeName(element.asType()), matchCase);
+    public final MethodHandle findMethod(ExecutableElement element, boolean matchCase) {
+        return this.findMethod(element.getSimpleName().toString(), TypeUtils.getJavaSignature(element), matchCase);
     }
 
     /**
@@ -475,39 +483,31 @@ public class TypeHandle {
         }
     }
 
-    /**
-     * Find a member field in this type which matches the name and declared type
-     * specified
-     *
-     * @param name Field name to search for
-     * @param type Field descriptor (java-style)
-     * @param matchCase True if case-sensitive comparison should be used
-     * @return handle to the discovered field if matched or null if no match
-     */
-    public FieldHandle findField(String name, String type, boolean matchCase) {
-        String rawType = TypeUtils.stripGenerics(type);
-
-        for (VariableElement field : this.<VariableElement>getEnclosedElements(ElementKind.FIELD)) {
-            if (TypeHandle.compareElement(field, name, type, matchCase)) {
-                return new FieldHandle(this.getTargetElement(), field);
-            } else if (TypeHandle.compareElement(field, name, rawType, matchCase)) {
-                return new FieldHandle(this.getTargetElement(), field, true);
+    @SuppressWarnings("unchecked")
+    protected static <T extends Element> List<T> getEnclosedElements(TypeElement targetElement, ElementKind... kind) {
+        if (kind == null || kind.length < 1) {
+            return (List<T>)TypeHandle.getEnclosedElements(targetElement);
+        }
+        
+        if (targetElement == null) {
+            return Collections.<T>emptyList();
+        }
+        
+        Builder<T> list = ImmutableList.<T>builder();
+        for (Element elem : targetElement.getEnclosedElements()) {
+            for (ElementKind ek : kind) {
+                if (elem.getKind() == ek) {
+                    list.add((T)elem);
+                    break;
+                }
             }
         }
 
-        return null;
+        return list.build();
     }
 
-    /**
-     * Find a member method in this type which matches the name and declared
-     * type of the supplied element
-     *
-     * @param element Element to match
-     * @param matchCase True if case-sensitive comparison should be used
-     * @return handle to the discovered method if matched or null if no match
-     */
-    public final MethodHandle findMethod(ExecutableElement element, boolean matchCase) {
-        return this.findMethod(element.getSimpleName().toString(), TypeUtils.getJavaSignature(element), matchCase);
+    protected static List<? extends Element> getEnclosedElements(TypeElement targetElement) {
+        return targetElement != null ? targetElement.getEnclosedElements() : Collections.<Element>emptyList();
     }
 
 }

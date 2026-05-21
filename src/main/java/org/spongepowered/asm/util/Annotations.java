@@ -53,7 +53,96 @@ import com.google.common.collect.Lists;
  */
 public final class Annotations {
     
-    private static Pattern mergeableAnnotationPattern = Annotations.getMergeableAnnotationPattern();
+    /**
+     * Wrapper for {@link AnnotationNode} to support access via common interface
+     */
+    public static class Handle implements IAnnotationHandle {
+        
+        private final AnnotationNode annotation;
+        
+        Handle(AnnotationNode annotation) {
+            Preconditions.checkNotNull(annotation, "annotation");
+            this.annotation = annotation;
+        }
+        
+        @Override
+        public boolean exists() {
+            return true;
+        }
+        
+        public AnnotationNode getNode() {
+            return this.annotation;
+        }
+        
+        @Override
+        public String getDesc() {
+            return Type.getType(this.annotation.desc).getInternalName();
+        }
+
+        @Override
+        public List<IAnnotationHandle> getAnnotationList(String key) {
+            List<AnnotationNode> value = Annotations.<AnnotationNode>getValue(this.annotation, key, false);
+            List<IAnnotationHandle> list = new ArrayList<IAnnotationHandle>();
+            if (value != null) {
+                for (AnnotationNode node : value) {
+                    list.add(new Handle(node));
+                }
+            }
+            return list;
+        }
+        
+        @Override
+        public Type getTypeValue(String key) {
+            return this.<Type>getValue(key, Type.VOID_TYPE);
+        }
+        
+        @Override
+        public List<Type> getTypeList(String key) {
+            return this.<Type>getList(key);
+        }
+
+        @Override
+        public IAnnotationHandle getAnnotation(String key) {
+            AnnotationNode value = Annotations.<AnnotationNode>getValue(this.annotation, key);
+            return value != null ? new Handle(value) : null;
+        }
+
+        @Override
+        public <T> T getValue(String key, T defaultValue) {
+            return Annotations.<T>getValue(this.annotation, key, defaultValue);
+        }
+
+        @Override
+        public <T> T getValue() {
+            return this.getValue("value", null);
+        }
+        
+        @Override
+        public <T> T getValue(String key) {
+            return this.getValue(key, null);
+        }
+        
+        @Override
+        public boolean getBoolean(String key, boolean defaultValue) {
+            return this.<Boolean>getValue(key, Boolean.valueOf(defaultValue)).booleanValue();
+        }
+        
+        @Override
+        public <T> List<T> getList() {
+            return this.<T>getList("value");
+        }
+        
+        @Override
+        public <T> List<T> getList(String key) {
+            return Annotations.<T>getValue(this.annotation, key, false);
+        }
+        
+        @Override
+        public String toString() {
+            return "@" + Annotations.getSimpleName(this.annotation);
+        }
+
+    }
     
     /**
      * Annotations which are eligible for merge via {@link #mergeAnnotations}
@@ -65,9 +154,15 @@ public final class Annotations {
         Debug.class
     };
 
+    private static Pattern mergeableAnnotationPattern = Annotations.getMergeableAnnotationPattern();
+
+    private Annotations() {
+        // Utility class
+    }
+    
     /**
-     * Get the supplied annotation object as an annotation handle
-     *
+     * Get the supplied annotation object as an annotation handle 
+     * 
      * @param annotation Annotation to return
      * @return Wrapped or cast annotation
      */
@@ -82,67 +177,37 @@ public final class Annotations {
             throw new IllegalArgumentException("Unsupported annotation type: " + annotation.getClass().getName());
         }
     }
-
-    private Annotations() {
-        // Utility class
-    }
     
     /**
      * Returns the bytecode descriptor of an annotation
-     *
+     * 
      * @param annotationType annotation
      * @return annotation's descriptor
      */
     public static String getDesc(Class<? extends Annotation> annotationType) {
         return Type.getType(annotationType).getInternalName();
     }
-    
+
     /**
      * Returns the simple name of an annotation, mainly used for printing
      * annotation names in error messages/user-facing strings
-     *
+     * 
      * @param annotationType annotation
      * @return annotation's simple name
      */
     public static String getSimpleName(Class<? extends Annotation> annotationType) {
         return annotationType.getSimpleName();
     }
-
+    
     /**
      * Returns the simple name of an annotation, mainly used for printing
      * annotation names in error messages/user-facing strings
-     *
+     * 
      * @param annotation annotation node
      * @return annotation's simple name
      */
     public static String getSimpleName(AnnotationNode annotation) {
         return Bytecode.getSimpleName(annotation.desc);
-    }
-    
-    /**
-     * Get the value of an annotation node and do pseudo-duck-typing via Java's
-     * crappy generics
-     *
-     * @param <T> duck type
-     * @param annotation Annotation node to query
-     * @param key Key to search for
-     * @return duck-typed annotation value, null if missing, or inevitable
-     *      {@link ClassCastException} if your duck is actually a rooster
-     */
-    @SuppressWarnings("unchecked")
-    public static <T> T getValue(AnnotationNode annotation, String key) {
-        if (annotation == null || annotation.values == null) {
-            return null;
-        }
-
-        // Keys and value are stored in successive pairs, search for the key and if found return the following entry
-        for (int i = 0; i < annotation.values.size() - 1; i += 2) {
-            if (annotation.values.get(i).equals(key)) {
-                return (T) annotation.values.get(i + 1);
-            }
-        }
-
-        return null;
     }
 
     /**
@@ -476,25 +541,29 @@ public final class Annotations {
     }
 
     /**
-     * Return the specified annotation node value as a list of nodes
+     * Get the value of an annotation node and do pseudo-duck-typing via Java's
+     * crappy generics
      *
-     * @param <T> list element type
+     * @param <T> duck type
      * @param annotation Annotation node to query
      * @param key Key to search for
-     * @param notNull if true, return an empty list instead of null if the
-     *      annotation value is absent
+     * @return duck-typed annotation value, null if missing, or inevitable
+     *      {@link ClassCastException} if your duck is actually a rooster 
      */
     @SuppressWarnings("unchecked")
-    public static <T> List<T> getValue(AnnotationNode annotation, String key, boolean notNull) {
-        Object value = Annotations.<Object>getValue(annotation, key);
-        if (value instanceof List) {
-            return (List<T>)value;
-        } else if (value != null) {
-            List<T> list = new ArrayList<T>();
-            list.add((T)value);
-            return list;
+    public static <T> T getValue(AnnotationNode annotation, String key) {
+        if (annotation == null || annotation.values == null) {
+            return null;
         }
-        return Collections.<T>emptyList();
+
+        // Keys and value are stored in successive pairs, search for the key and if found return the following entry
+        for (int i = 0; i < annotation.values.size() - 1; i += 2) {
+            if (annotation.values.get(i).equals(key)) {
+                return (T) annotation.values.get(i + 1);
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -517,8 +586,30 @@ public final class Annotations {
     }
 
     /**
+     * Return the specified annotation node value as a list of nodes
+     * 
+     * @param <T> list element type
+     * @param annotation Annotation node to query
+     * @param key Key to search for
+     * @param notNull if true, return an empty list instead of null if the
+     *      annotation value is absent
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> List<T> getValue(AnnotationNode annotation, String key, boolean notNull) {
+        Object value = Annotations.<Object>getValue(annotation, key);
+        if (value instanceof List) {
+            return (List<T>)value;
+        } else if (value != null) {
+            List<T> list = new ArrayList<T>();
+            list.add((T)value);
+            return list;
+        }
+        return Collections.<T>emptyList();
+    }
+    
+    /**
      * Return the specified annotation node value as a list of enums
-     *
+     * 
      * @param <T> list element type
      * @param annotation Annotation node to query
      * @param key Key to search for
@@ -540,47 +631,6 @@ public final class Annotations {
             return list;
         }
         return Collections.<T>emptyList();
-    }
-    
-    /**
-     * Merge annotations from the source list to the target list. Returns the
-     * target list or a new list if the target list was null.
-     *
-     * @param from Annotations to merge
-     * @param to Annotation list to merge into
-     * @param type Type of element being merged
-     * @param name Name of the item being merged, for debugging purposes
-     * @return The merged list (or a new list if the target list was null)
-     */
-    private static List<AnnotationNode> merge(List<AnnotationNode> from, List<AnnotationNode> to, String type, String name) {
-        try {
-            if (from == null) {
-                return to;
-            }
-
-            if (to == null) {
-                to = new ArrayList<AnnotationNode>();
-            }
-
-            for (AnnotationNode annotation : from) {
-                if (!Annotations.isMergeableAnnotation(annotation)) {
-                    continue;
-                }
-
-                for (Iterator<AnnotationNode> iter = to.iterator(); iter.hasNext();) {
-                    if (iter.next().desc.equals(annotation.desc)) {
-                        iter.remove();
-                        break;
-                    }
-                }
-
-                to.add(annotation);
-            }
-        } catch (Exception ex) {
-            MixinService.getService().getLogger("mixin").warn("Exception encountered whilst merging annotations for {} {}", type, name);
-        }
-
-        return to;
     }
 
     /**
@@ -676,94 +726,44 @@ public final class Annotations {
     }
     
     /**
-     * Wrapper for {@link AnnotationNode} to support access via common interface
+     * Merge annotations from the source list to the target list. Returns the
+     * target list or a new list if the target list was null.
+     * 
+     * @param from Annotations to merge
+     * @param to Annotation list to merge into
+     * @param type Type of element being merged
+     * @param name Name of the item being merged, for debugging purposes
+     * @return The merged list (or a new list if the target list was null)
      */
-    public static class Handle implements IAnnotationHandle {
-
-        private final AnnotationNode annotation;
-
-        Handle(AnnotationNode annotation) {
-            Preconditions.checkNotNull(annotation, "annotation");
-            this.annotation = annotation;
-        }
-
-        @Override
-        public boolean exists() {
-            return true;
-        }
-
-        public AnnotationNode getNode() {
-            return this.annotation;
-        }
-
-        @Override
-        public String getDesc() {
-            return Type.getType(this.annotation.desc).getInternalName();
-        }
-
-        @Override
-        public List<IAnnotationHandle> getAnnotationList(String key) {
-            List<AnnotationNode> value = Annotations.<AnnotationNode>getValue(this.annotation, key, false);
-            List<IAnnotationHandle> list = new ArrayList<IAnnotationHandle>();
-            if (value != null) {
-                for (AnnotationNode node : value) {
-                    list.add(new Handle(node));
-                }
+    private static List<AnnotationNode> merge(List<AnnotationNode> from, List<AnnotationNode> to, String type, String name) {
+        try {
+            if (from == null) {
+                return to;
             }
-            return list;
+            
+            if (to == null) {
+                to = new ArrayList<AnnotationNode>();
+            }
+            
+            for (AnnotationNode annotation : from) {
+                if (!Annotations.isMergeableAnnotation(annotation)) {
+                    continue;
+                }
+                
+                for (Iterator<AnnotationNode> iter = to.iterator(); iter.hasNext();) {
+                    if (iter.next().desc.equals(annotation.desc)) {
+                        iter.remove();
+                        break;
+                    }
+                }
+                
+                to.add(annotation);
+            }
+        } catch (Exception ex) {
+            MixinService.getService().getLogger("mixin").warn("Exception encountered whilst merging annotations for {} {}", type, name);
         }
-
-        @Override
-        public Type getTypeValue(String key) {
-            return this.<Type>getValue(key, Type.VOID_TYPE);
-        }
-
-        @Override
-        public List<Type> getTypeList(String key) {
-            return this.<Type>getList(key);
-        }
-
-        @Override
-        public IAnnotationHandle getAnnotation(String key) {
-            AnnotationNode value = Annotations.<AnnotationNode>getValue(this.annotation, key);
-            return value != null ? new Handle(value) : null;
-        }
-
-        @Override
-        public <T> T getValue(String key, T defaultValue) {
-            return Annotations.<T>getValue(this.annotation, key, defaultValue);
-        }
-
-        @Override
-        public <T> T getValue() {
-            return this.getValue("value", null);
-        }
-
-        @Override
-        public <T> T getValue(String key) {
-            return this.getValue(key, null);
-        }
-
-        @Override
-        public boolean getBoolean(String key, boolean defaultValue) {
-            return this.<Boolean>getValue(key, Boolean.valueOf(defaultValue)).booleanValue();
-        }
-
-        @Override
-        public <T> List<T> getList() {
-            return this.<T>getList("value");
-        }
-
-        @Override
-        public <T> List<T> getList(String key) {
-            return Annotations.<T>getValue(this.annotation, key, false);
-        }
-
-        @Override
-        public String toString() {
-            return "@" + Annotations.getSimpleName(this.annotation);
-        }
-
+        
+        return to;
     }
 
     private static boolean isMergeableAnnotation(AnnotationNode annotation) {

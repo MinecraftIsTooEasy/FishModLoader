@@ -46,7 +46,66 @@ import com.google.common.collect.ObjectArrays;
  */
 public final class MixinService {
     
-*
+    /**
+     * Since we want to log things during startup but need the service itself to
+     * provide a logging implementation adapter, we need a place to store log
+     * messages prior to the service startup which can later be flushed into the
+     * logger itself if startup succeeds, or into the console if startup fails.
+     */
+    static class LogBuffer {
+        
+        public static class LogEntry {
+            
+            public String message;
+            public Object[] params;
+            public Throwable t;
+            
+            public LogEntry(String message, Object[] params, Throwable t) {
+                this.message = message;
+                this.params = params;
+                this.t = t;
+            }
+            
+        }
+        
+        private final List<LogEntry> buffer = new ArrayList<LogEntry>();
+        
+        private ILogger logger;
+
+        synchronized void debug(String message, Object... params) {
+            if (this.logger != null) {
+                this.logger.debug(message, params);
+                return;
+            }
+            this.buffer.add(new LogEntry(message, params, null));
+        }
+
+        synchronized void debug(String message, Throwable t) {
+            if (this.logger != null) {
+                this.logger.debug(message, t);
+                return;
+            }
+            this.buffer.add(new LogEntry(message, new Object[0], t));
+        }
+
+        /**
+         * Flush the contents of the buffer into the specified logger
+         */
+        synchronized void flush(ILogger logger) {
+            for (LogEntry buffered : this.buffer) {
+                if (buffered.t != null) {
+                    logger.debug(buffered.message, ObjectArrays.concat(buffered.params, buffered.t));
+                } else {
+                    logger.debug(buffered.message, buffered.params);
+                }
+            }
+            this.buffer.clear();
+            this.logger = logger;
+        }
+
+    }
+
+    /**
      * Log buffer for messages generated during service startup but before the
      * actual logger can be retrieved from the service, flushed once the service
      * is started
@@ -84,7 +143,40 @@ public final class MixinService {
         this.runBootServices();
     }
 
-    priv*
+    private void runBootServices() {
+     // bypass service loader if the mixin.bootstrapService system property yields the desired IMixinServiceBootstrap implementation directly
+        String serviceCls = System.getProperty("mixin.bootstrapService");
+        
+        if (serviceCls != null) {
+            try {
+                IMixinServiceBootstrap bootService = (IMixinServiceBootstrap) Class.forName(serviceCls).getConstructor().newInstance();
+                bootService.bootstrap();
+                bootedServices.add(bootService.getServiceClassName());
+                
+                return;
+            } catch (ReflectiveOperationException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        
+        this.bootstrapServiceLoader = ServiceLoader.<IMixinServiceBootstrap>load(IMixinServiceBootstrap.class, this.getClass().getClassLoader());
+        Iterator<IMixinServiceBootstrap> iter = this.bootstrapServiceLoader.iterator();
+        while (iter.hasNext()) {
+            try {
+                IMixinServiceBootstrap bootService = iter.next();
+                bootService.bootstrap();
+                this.bootedServices.add(bootService.getServiceClassName());
+            } catch (ServiceInitialisationException ex) {
+                // Expected if service cannot start
+                MixinService.logBuffer.debug("Mixin bootstrap service {} is not available: {}", ex.getStackTrace()[0].getClassName(),
+                        ex.getMessage());
+            } catch (Throwable th) {
+                MixinService.logBuffer.debug("Catching {}:{} initialising service", th.getClass().getName(), th.getMessage(), th);
+            }
+        }
+    }
+
+    /**
      * Singleton pattern, get or create the instance
      */
     private static MixinService getInstance() {
@@ -106,42 +198,7 @@ public final class MixinService {
         return MixinService.getInstance().getServiceInstance();
     }
 
-    priv
-ate void runBootServices() {
-     // bypass service loader if the mixin.bootstrapService system property yields the desired IMixinServiceBootstrap implementation directly
-        String serviceCls = System.getProperty("mixin.bootstrapService");
-
-        if (serviceCls != null) {
-            try {
-                IMixinServiceBootstrap bootService = (IMixinServiceBootstrap) Class.forName(serviceCls).getConstructor().newInstance();
-                bootService.bootstrap();
-                bootedServices.add(bootService.getServiceClassName());
-
-                return;
-            } catch (ReflectiveOperationException e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        this.bootstrapServiceLoader = ServiceLoader.<IMixinServiceBootstrap>load(IMixinServiceBootstrap.class, this.getClass().getClassLoader());
-        Iterator<IMixinServiceBootstrap> iter = this.bootstrapServiceLoader.iterator();
-        while (iter.hasNext()) {
-            try {
-                IMixinServiceBootstrap bootService = iter.next();
-                bootService.bootstrap();
-                this.bootedServices.add(bootService.getServiceClassName());
-            } catch (ServiceInitialisationException ex) {
-                // Expected if service cannot start
-                MixinService.logBuffer.debug("Mixin bootstrap service {} is not available: {}", ex.getStackTrace()[0].getClassName(),
-                        ex.getMessage());
-            } catch (Throwable th) {
-                MixinService.logBuffer.debug("Catching {}:{} initialising service", th.getClass().getName(), th.getMessage(), th);
-            }
-        }
-    }
-
-    /*iv
-ate synchronized IMixinService getServiceInstance() {
+    private synchronized IMixinService getServiceInstance() {
         if (this.service == null) {
             try {
                 this.service = this.initService();
@@ -157,25 +214,23 @@ ate synchronized IMixinService getServiceInstance() {
         return this.service;
     }
 
-    pr*
-
-ate IMixinService initService() {
+    private IMixinService initService() {
         // bypass service loader if the mixin.service system property yields the desired IMixinService implementation directly
         String serviceCls = System.getProperty("mixin.service"); // FIXME: there is overlap with bootedServices, may just use that directly?
-
+        
         if (serviceCls != null) {
             try {
                 IMixinService service = (IMixinService) Class.forName(serviceCls).getConstructor().newInstance();
                 if (!service.isValid()) {
                     throw new RuntimeException("invalid service " + serviceCls + " configured via system property");
                 }
-
+                
                 return service;
             } catch (ReflectiveOperationException e) {
                 throw new RuntimeException(e);
             }
         }
-
+        
         this.serviceLoader = ServiceLoader.<IMixinService>load(IMixinService.class, this.getClass().getClassLoader());
         Iterator<IMixinService> iter = this.serviceLoader.iterator();
         List<String> badServices = new ArrayList<String>();
@@ -203,12 +258,13 @@ ate IMixinService initService() {
 //                th.printStackTrace();
             }
         }
-
+        
         String brokenServiceNote = brokenServiceCount == 0 ? "" : " and " + brokenServiceCount + " other invalid services.";
         throw new ServiceNotAvailableError("No mixin host service is available. Services: " + Joiner.on(", ").join(badServices) + brokenServiceNote);
     }
 
-    /*     * Blackboard
+    /**
+     * Blackboard
      */
     public static IGlobalPropertyService getGlobalPropertyService() {
         return MixinService.getInstance().getGlobalPropertyServiceInstance();
@@ -226,8 +282,7 @@ ate IMixinService initService() {
         return this.propertyService;
     }
 
-    priv
-ate IGlobalPropertyService initPropertyService() {
+    private IGlobalPropertyService initPropertyService() {
         ServiceLoader<IGlobalPropertyService> serviceLoader = ServiceLoader.<IGlobalPropertyService>load(IGlobalPropertyService.class,
                 this.getClass().getClassLoader());
         
@@ -246,66 +301,7 @@ ate IGlobalPropertyService initPropertyService() {
     }
 
     /**
-
-    /**
-     * Since we want to log things during startup but need the service itself to
-     * provide a logging implementation adapter, we need a place to store log
-     * messages prior to the service startup which can later be flushed into the
-     * logger itself if startup succeeds, or into the console if startup fails.
-     */
-    static class LogBuffer {
-
-        private final List<LogEntry> buffer = new ArrayList<LogEntry>();
-        private ILogger logger;
-
-        synchronized void debug(String message, Object... params) {
-            if (this.logger != null) {
-                this.logger.debug(message, params);
-                return;
-            }
-            this.buffer.add(new LogEntry(message, params, null));
-        }
-
-        synchronized void debug(String message, Throwable t) {
-            if (this.logger != null) {
-                this.logger.debug(message, t);
-                return;
-            }
-            this.buffer.add(new LogEntry(message, new Object[0], t));
-        }
-
-        /**
-         * Flush the contents of the buffer into the specified logger
-         */
-        synchronized void flush(ILogger logger) {
-            for (LogEntry buffered : this.buffer) {
-                if (buffered.t != null) {
-                    logger.debug(buffered.message, ObjectArrays.concat(buffered.params, buffered.t));
-                } else {
-                    logger.debug(buffered.message, buffered.params);
-                }
-            }
-            this.buffer.clear();
-            this.logger = logger;
-        }
-
-        public static class LogEntry {
-
-            public String message;
-            public Object[] params;
-            public Throwable t;
-
-            public LogEntry(String message, Object[] params, Throwable t) {
-                this.message = message;
-                this.params = params;
-                this.t = t;
-            }
-
-        }
-
-    }
-
-    /*     * Returns Object so that ILogger is not classloaded until after it doesn't
+     * Returns Object so that ILogger is not classloaded until after it doesn't
      * matter any more
      */
     @SuppressWarnings("unchecked")

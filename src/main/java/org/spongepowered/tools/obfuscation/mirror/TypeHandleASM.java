@@ -133,13 +133,16 @@ public class TypeHandleASM extends TypeHandle {
         return null;
     }
 
-    protected static boolean compareElement(String elementName, String elementType, String name, String type, boolean matchCase) {
-        try {
-            boolean compared = matchCase ? name.equals(elementName) : name.equalsIgnoreCase(elementName);
-            return compared && (type.length() == 0 || type.equals(elementType));
-        } catch (NullPointerException ex) {
-            return false;
+    /* (non-Javadoc)
+     * @see org.spongepowered.tools.obfuscation.mirror.TypeHandle
+     *      #getSuperclass()
+     */
+    @Override
+    public TypeHandle getSuperclass() {
+        if (this.classNode.superName == null) {
+            return null;
         }
+        return this.typeProvider.getTypeHandle(this.classNode.superName);
     }
 
     /* (non-Javadoc)
@@ -188,66 +191,6 @@ public class TypeHandleASM extends TypeHandle {
         return false;
     }
 
-    /**
-     * Attempts to read a class from the compile classpath using ASM. This at
-     * least lets us determine whether the class exists and inspect the methods
-     * and fields it contains. Returns <tt>null</tt> if the class resource could
-     * not be resolved via the compile classpath.
-     *
-     * @param pkg Containing package
-     * @param name Class name
-     * @param ap Annotation Processor, used to access Filer and
-     *      TypeHandleProvider
-     * @return ASM TypeHandle or null if the class could not be read
-     */
-    public static TypeHandle of(PackageElement pkg, String name, IMixinAnnotationProcessor ap) {
-        String fqName = pkg.getQualifiedName() + "." + name;
-        if (TypeHandleASM.cache.containsKey(fqName)) {
-            return TypeHandleASM.cache.get(fqName);
-        }
-
-        InputStream is = null;
-        try {
-            Filer filer = ap.getProcessingEnvironment().getFiler();
-            try {
-                is = filer.getResource(StandardLocation.CLASS_PATH, pkg.getQualifiedName(), name + ".class").openInputStream();
-            } catch (FileNotFoundException ignored) {
-                is = filer.getResource(StandardLocation.PLATFORM_CLASS_PATH, pkg.getQualifiedName(), name + ".class").openInputStream();
-            }
-            ClassNode classNode = new ClassNode();
-            new ClassReader(is).accept(classNode, 0);
-            TypeHandleASM typeHandle = new TypeHandleASM(pkg, fqName, classNode, ap.getTypeProvider());
-            TypeHandleASM.cache.put(fqName, typeHandle);
-            return typeHandle;
-        } catch (FileNotFoundException fnfe) {
-            // This is expected if the resource doesn't exist
-            TypeHandleASM.cache.put(fqName, null);
-        } catch (Exception ex) {
-            // This isn't expected but there's not a lot we can do about it, so just give up
-        } finally {
-            if (is != null) {
-                try {
-                    is.close();
-                } catch (IOException ex) {
-                    ex.printStackTrace();
-                }
-            }
-        }
-        return null;
-    }
-
-    /* (non-Javadoc)
-     * @see org.spongepowered.tools.obfuscation.mirror.TypeHandle
-     *      #getSuperclass()
-     */
-    @Override
-    public TypeHandle getSuperclass() {
-        if (this.classNode.superName == null) {
-            return null;
-        }
-        return this.typeProvider.getTypeHandle(this.classNode.superName);
-    }
-
     /* (non-Javadoc)
      * @see org.spongepowered.tools.obfuscation.mirror.TypeHandle#isInterface()
      */
@@ -283,7 +226,7 @@ public class TypeHandleASM extends TypeHandle {
         for (FieldNode field : this.classNode.fields) {
             if (TypeHandleASM.compareElement(field.name, TypeUtils.getJavaSignature(field.desc), name, type, matchCase)) {
                 return new FieldHandleASM(this, field);
-            }
+            }                
         }
         return null;
     }
@@ -297,6 +240,63 @@ public class TypeHandleASM extends TypeHandle {
         for (MethodNode method : this.classNode.methods) {
             if (TypeHandleASM.compareElement(method.name, TypeUtils.getJavaSignature(method.desc), name, signature, matchCase)) {
                 return new MethodHandleASM(this, method);
+            }
+        }
+        return null;
+    }
+
+    protected static boolean compareElement(String elementName, String elementType, String name, String type, boolean matchCase) {
+        try {
+            boolean compared = matchCase ? name.equals(elementName) : name.equalsIgnoreCase(elementName);
+            return compared && (type.length() == 0 || type.equals(elementType));
+        } catch (NullPointerException ex) {
+            return false;
+        }
+    }
+
+    /**
+     * Attempts to read a class from the compile classpath using ASM. This at
+     * least lets us determine whether the class exists and inspect the methods
+     * and fields it contains. Returns <tt>null</tt> if the class resource could
+     * not be resolved via the compile classpath.
+     * 
+     * @param pkg Containing package
+     * @param name Class name
+     * @param ap Annotation Processor, used to access Filer and
+     *      TypeHandleProvider
+     * @return ASM TypeHandle or null if the class could not be read
+     */
+    public static TypeHandle of(PackageElement pkg, String name, IMixinAnnotationProcessor ap) {
+        String fqName = pkg.getQualifiedName() + "." + name;
+        if (TypeHandleASM.cache.containsKey(fqName)) {
+            return TypeHandleASM.cache.get(fqName);
+        }
+        
+        InputStream is = null;
+        try {
+            Filer filer = ap.getProcessingEnvironment().getFiler();
+            try {
+                is = filer.getResource(StandardLocation.CLASS_PATH, pkg.getQualifiedName(), name + ".class").openInputStream();
+            } catch (FileNotFoundException ignored) {
+                is = filer.getResource(StandardLocation.PLATFORM_CLASS_PATH, pkg.getQualifiedName(), name + ".class").openInputStream();
+            }
+            ClassNode classNode = new ClassNode();
+            new ClassReader(is).accept(classNode, 0);
+            TypeHandleASM typeHandle = new TypeHandleASM(pkg, fqName, classNode, ap.getTypeProvider());
+            TypeHandleASM.cache.put(fqName, typeHandle);
+            return typeHandle;
+        } catch (FileNotFoundException fnfe) {
+            // This is expected if the resource doesn't exist
+            TypeHandleASM.cache.put(fqName, null);
+        } catch (Exception ex) {
+            // This isn't expected but there's not a lot we can do about it, so just give up
+        } finally {
+            if (is != null) {
+                try {
+                    is.close();
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
             }
         }
         return null;

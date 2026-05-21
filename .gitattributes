@@ -1,0 +1,14 @@
+# Default: let git auto-detect text and normalize line endings
+* text=auto
+
+# Vendored third-party sources: keep exact bytes, do not touch line endings.
+# Cross-system EOL conversion has corrupted these in the past.
+src/main/java/org/spongepowered/** -text
+src/main/java/com/llamalad7/**     -text
+src/main/java/com/chocohead/**     -text
+src/main/java/net/fabricmc/**      -text
+src/main/java/javax/annotation/**  -text
+
+# Resources that must keep raw bytes
+*.tiny binary
+*.accesswidener -text

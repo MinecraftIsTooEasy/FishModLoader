@@ -33,14 +33,88 @@ import org.spongepowered.asm.mixin.extensibility.IActivityContext;
 public class ActivityStack implements IActivityContext {
     
     /**
-     * Begin a new activity (push it onto this activity stack)
-     *
-     * @param description Activity description
-     * @return new activity handle
+     * An activity node in the activity stack (yes it's actually a doubly-linked
+     * list).
      */
-    @Override
-    public IActivity begin(String description) {
-        return this.tail = new Activity(this.tail, description != null ? description : "null");
+    public class Activity implements IActivity {
+        
+        /**
+         * Description of this activity
+         */
+        public String description;
+        
+        Activity last, next;
+        
+        Activity(Activity last, String description) {
+            if (last != null) {
+                last.next = this;
+            }
+            this.last = last;
+            this.description = description;
+        }
+        
+        /**
+         * Append text to the activity description
+         * 
+         * @param text Text to append
+         */
+        @Override
+        public void append(String text) {
+            this.description = this.description != null ? this.description + text : text;
+        }
+        
+        /**
+         * Append text to the activity description
+         * 
+         * @param textFormat Format for text to append
+         * @param args Format args
+         */
+        @Override
+        public void append(String textFormat, Object...args) {
+            this.append(String.format(textFormat, args));
+        }
+        
+        /**
+         * End this activity and remove it (and any descendants)
+         */
+        @Override
+        public void end() {
+            // Cannot end head or ended activity
+            if (this.last != null) {
+                ActivityStack.this.end(this);
+                this.last = null;
+            }
+        }
+        
+        /**
+         * End this activity (and any descendants) and begin the next activity
+         * using the same activity handle
+         * 
+         * @param description New activity description
+         */
+        @Override
+        public void next(String description) {
+            if (this.next != null) {
+                this.next.end();
+            }
+            this.description = description;
+        }
+        
+        /**
+         * End this activity (and any descendants) and begin the next activity
+         * using the same activity handle
+         * 
+         * @param descriptionFormat New activity description format
+         * @param args New activity description args
+         */
+        @Override
+        public void next(String descriptionFormat, Object... args) {
+            if (descriptionFormat == null) {
+                descriptionFormat = "null";
+            }
+            this.next(String.format(descriptionFormat, args));
+        }
+        
     }
 
     public static final String GLUE_STRING = " -> ";
@@ -74,7 +148,18 @@ public class ActivityStack implements IActivityContext {
     
     /**
      * Begin a new activity (push it onto this activity stack)
-     *
+     * 
+     * @param description Activity description
+     * @return new activity handle
+     */
+    @Override
+    public IActivity begin(String description) {
+        return this.tail = new Activity(this.tail, description != null ? description : "null");
+    }
+    
+    /**
+     * Begin a new activity (push it onto this activity stack)
+     * 
      * @param descriptionFormat Activity description format
      * @param args format args
      * @return new activity handle
@@ -85,31 +170,6 @@ public class ActivityStack implements IActivityContext {
             descriptionFormat = "null";
         }
         return this.tail = new Activity(this.tail, String.format(descriptionFormat, args));
-    }
-    
-    /**
-     * Convert this activity stack to a string representation using the
-     * specified glue string
-     *
-     * @param glue glue string
-     * @return string representation of this activity stack
-     */
-    @Override
-    public String toString(String glue) {
-        if (this.head.description == null && this.head.next == null) {
-            return "Unknown";
-        }
-
-        StringBuilder sb = new StringBuilder();
-        for (Activity activity = this.head; activity != null; activity = activity.next) {
-            if (activity.description != null) {
-                sb.append(activity.description);
-                if (activity.next != null) {
-                    sb.append(glue);
-                }
-            }
-        }
-        return sb.toString();
     }
 
     void end(Activity activity) {
@@ -126,88 +186,28 @@ public class ActivityStack implements IActivityContext {
     }
 
     /**
-     * An activity node in the activity stack (yes it's actually a doubly-linked
-     * list).
+     * Convert this activity stack to a string representation using the
+     * specified glue string
+     * 
+     * @param glue glue string
+     * @return string representation of this activity stack
      */
-    public class Activity implements IActivity {
-
-        /**
-         * Description of this activity
-         */
-        public String description;
-
-        Activity last, next;
-
-        Activity(Activity last, String description) {
-            if (last != null) {
-                last.next = this;
-            }
-            this.last = last;
-            this.description = description;
+    @Override
+    public String toString(String glue) {
+        if (this.head.description == null && this.head.next == null) {
+            return "Unknown";
         }
-
-        /**
-         * Append text to the activity description
-         *
-         * @param text Text to append
-         */
-        @Override
-        public void append(String text) {
-            this.description = this.description != null ? this.description + text : text;
-        }
-
-        /**
-         * Append text to the activity description
-         *
-         * @param textFormat Format for text to append
-         * @param args Format args
-         */
-        @Override
-        public void append(String textFormat, Object...args) {
-            this.append(String.format(textFormat, args));
-        }
-
-        /**
-         * End this activity and remove it (and any descendants)
-         */
-        @Override
-        public void end() {
-            // Cannot end head or ended activity
-            if (this.last != null) {
-                ActivityStack.this.end(this);
-                this.last = null;
+        
+        StringBuilder sb = new StringBuilder();
+        for (Activity activity = this.head; activity != null; activity = activity.next) {
+            if (activity.description != null) {
+                sb.append(activity.description);
+                if (activity.next != null) {
+                    sb.append(glue);
+                }
             }
         }
-
-        /**
-         * End this activity (and any descendants) and begin the next activity
-         * using the same activity handle
-         *
-         * @param description New activity description
-         */
-        @Override
-        public void next(String description) {
-            if (this.next != null) {
-                this.next.end();
-            }
-            this.description = description;
-        }
-
-        /**
-         * End this activity (and any descendants) and begin the next activity
-         * using the same activity handle
-         *
-         * @param descriptionFormat New activity description format
-         * @param args New activity description args
-         */
-        @Override
-        public void next(String descriptionFormat, Object... args) {
-            if (descriptionFormat == null) {
-                descriptionFormat = "null";
-            }
-            this.next(String.format(descriptionFormat, args));
-        }
-
+        return sb.toString();
     }
 
 }

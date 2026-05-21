@@ -170,20 +170,34 @@ import com.google.common.base.Strings;
 public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelectorByName {
     
     /**
-     * Resolved id
+     * Next selector
      */
-    private final String id;
+    final class Next extends DynamicSelectorDesc {
+        
+        private final int index;
+        
+        Next(int index, IResolvedDescriptor next) {
+            super(null, null, next.getOwner(), next.getName(), next.getArgs(), next.getReturnType(), next.getMatches(), null, next.isDebug());
+            this.index = index;
+        }
+        
+        @Override
+        public ITargetSelector next() {
+            return DynamicSelectorDesc.this.next(this.index + 1);
+        }
+        
+    }
 
     /**
      * Parser/resolver error mesage, only stored if the descriptor is invalid so
      * we can emit it when {@link #validate} is called
      */
     private final InvalidSelectorException parseException;
+
     /**
-     * Method descriptor, used for matching against methods. Computed from
-     * argument types and return type
+     * Resolved id 
      */
-    private final String methodDesc;
+    private final String id;
     
     /**
      * The owner specified in the resolved {@link Desc} annotation, or null if
@@ -208,10 +222,12 @@ public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelec
      * null if resolution failed
      */
     private final Type returnType;
+    
     /**
-     * True if matching is disabled for this selector
+     * Method descriptor, used for matching against methods. Computed from
+     * argument types and return type 
      */
-    private final boolean disabled;
+    private final String methodDesc;
     
     /**
      * Required matches
@@ -224,22 +240,9 @@ public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelec
     private final List<IAnnotationHandle> next;
     
     /**
-     * Parse a descriptor selector from the supplied input. The input is treated
-     * as a descriptor id to be resolved, or if empty uses implicit coordinates
-     * from the selection context
-     *
-     * @param input ID string, can be empty
-     * @param context Selector context
-     * @return parsed selector
+     * True if matching is disabled for this selector
      */
-    public static DynamicSelectorDesc parse(String input, ISelectorContext context) {
-        IResolvedDescriptor descriptor = DescriptorResolver.resolve(input, context);
-        if (!descriptor.isResolved() && !descriptor.isDebug()) {
-            String extra = input.length() == 0 ? ". " + descriptor.getResolutionInfo() : "";
-            return new DynamicSelectorDesc(new InvalidSelectorException("Could not resolve @Desc(" + input + ") for " + context + extra));
-        }
-        return DynamicSelectorDesc.of(descriptor);
-    }
+    private final boolean disabled;
     
     private DynamicSelectorDesc(IResolvedDescriptor desc) {
         this(null, desc.getId(), desc.getOwner(), desc.getName(), desc.getArgs(), desc.getReturnType(), desc.getMatches(),
@@ -274,8 +277,26 @@ public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelec
     }
     
     /**
+     * Parse a descriptor selector from the supplied input. The input is treated
+     * as a descriptor id to be resolved, or if empty uses implicit coordinates
+     * from the selection context
+     * 
+     * @param input ID string, can be empty
+     * @param context Selector context
+     * @return parsed selector
+     */
+    public static DynamicSelectorDesc parse(String input, ISelectorContext context) {
+        IResolvedDescriptor descriptor = DescriptorResolver.resolve(input, context);
+        if (!descriptor.isResolved() && !descriptor.isDebug()) {
+            String extra = input.length() == 0 ? ". " + descriptor.getResolutionInfo() : "";
+            return new DynamicSelectorDesc(new InvalidSelectorException("Could not resolve @Desc(" + input + ") for " + context + extra));
+        }
+        return DynamicSelectorDesc.of(descriptor);
+    }
+    
+    /**
      * Convert the supplied annotation into a selector instance
-     *
+     * 
      * @param context Selector context
      * @param desc Annotation to parse
      * @return selector
@@ -291,7 +312,7 @@ public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelec
     /**
      * Resolve a descriptor selector from the supplied context only, implicit
      * coordinates are used.
-     *
+     * 
      * @param context Selector context
      * @return parsed selector
      */
@@ -305,7 +326,7 @@ public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelec
     
     /**
      * Convert the supplied annotation into a selector instance
-     *
+     * 
      * @param desc Annotation to parse
      * @param context Selector context
      * @return selector
@@ -320,22 +341,12 @@ public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelec
     
     /**
      * Convert the supplied annotation into a selector instance
-     *
+     * 
      * @param desc Resolved descriptor
      * @return selector
      */
     public static DynamicSelectorDesc of(IResolvedDescriptor desc) {
         return new DynamicSelectorDesc(desc);
-    }
-    
-    protected ITargetSelector next(int index) {
-        if (index >= 0 && index < this.next.size()) {
-            IAnnotationHandle nextAnnotation = this.next.get(index);
-            IResolvedDescriptor descriptor = DescriptorResolver.resolve(nextAnnotation, null);
-            return new Next(index, descriptor);
-        }
-
-        return null;
     }
     
     @Override
@@ -426,19 +437,14 @@ public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelec
         return this.next(0);
     }
     
-    /* (non-Javadoc)
-     * @see org.spongepowered.asm.mixin.injection.selectors.ITargetSelector
-     *      #match(org.spongepowered.asm.util.asm.ElementNode)
-     */
-    @Override
-    public <TNode> MatchResult match(ElementNode<TNode> node) {
-        if (node == null || this.disabled) {
-            return MatchResult.NONE;
-        } else if (node.isField()) {
-            return this.matches(node.getOwner(), node.getName(), node.getDesc(), this.returnType.getDescriptor());
-        } else {
-            return this.matches(node.getOwner(), node.getName(), node.getDesc(), this.methodDesc);
+    protected ITargetSelector next(int index) {
+        if (index >= 0 && index < this.next.size()) {
+            IAnnotationHandle nextAnnotation = this.next.get(index);
+            IResolvedDescriptor descriptor = DescriptorResolver.resolve(nextAnnotation, null);
+            return new Next(index, descriptor);
         }
+        
+        return null;
     }
 
     @Override
@@ -488,23 +494,19 @@ public class DynamicSelectorDesc implements ITargetSelectorDynamic, ITargetSelec
         return this.matches(owner, name, desc, this.methodDesc);
     }
     
-    /**
-     * Next selector
+    /* (non-Javadoc)
+     * @see org.spongepowered.asm.mixin.injection.selectors.ITargetSelector
+     *      #match(org.spongepowered.asm.util.asm.ElementNode)
      */
-    final class Next extends DynamicSelectorDesc {
-
-        private final int index;
-
-        Next(int index, IResolvedDescriptor next) {
-            super(null, null, next.getOwner(), next.getName(), next.getArgs(), next.getReturnType(), next.getMatches(), null, next.isDebug());
-            this.index = index;
+    @Override
+    public <TNode> MatchResult match(ElementNode<TNode> node) {
+        if (node == null || this.disabled) {
+            return MatchResult.NONE;
+        } else if (node.isField()) {
+            return this.matches(node.getOwner(), node.getName(), node.getDesc(), this.returnType.getDescriptor());
+        } else {
+            return this.matches(node.getOwner(), node.getName(), node.getDesc(), this.methodDesc);
         }
-
-        @Override
-        public ITargetSelector next() {
-            return DynamicSelectorDesc.this.next(this.index + 1);
-        }
-
     }
     
     private MatchResult matches(String owner, String name, String desc, String compareWithDesc) {

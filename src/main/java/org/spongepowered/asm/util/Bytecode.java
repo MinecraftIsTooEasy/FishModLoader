@@ -56,16 +56,67 @@ import com.google.common.primitives.Ints;
  */
 public final class Bytecode {
     
-    private static final String[] CONSTANTS_TYPES = {
-        "V", // null is returned as Type.VOID_TYPE
-        "I",
-        "I", "I", "I", "I", "I", "I",
-        "J", "J",
-        "F", "F", "F",
-        "D", "D",
-        "I", //"B",
-        "I", //"S"
-    };
+    /**
+     * Ordinal member visibility level. This is used to represent visibility of
+     * a member in a formal way from lowest to highest. The
+     * {@link Bytecode#getVisibility} methods can be used to convert access
+     * flags to this enum. The value returned from {@link #ordinal} can then be
+     * used to determine whether a visibility level is <i>higher</i> or <i>lower
+     * </i> than any other given visibility level.  
+     */
+    public enum Visibility {
+        
+        /**
+         * Members decorated with {@link Opcodes#ACC_PRIVATE} 
+         */
+        PRIVATE(Opcodes.ACC_PRIVATE),
+        
+        /**
+         * Members decorated with {@link Opcodes#ACC_PROTECTED} 
+         */
+        PROTECTED(Opcodes.ACC_PROTECTED),
+        
+        /**
+         * Members not decorated with any access flags
+         */
+        PACKAGE(0),
+        
+        /**
+         * Members decorated with {@link Opcodes#ACC_PUBLIC} 
+         */
+        PUBLIC(Opcodes.ACC_PUBLIC);
+        
+        static final int MASK = Opcodes.ACC_PRIVATE | Opcodes.ACC_PROTECTED | Opcodes.ACC_PUBLIC;
+        
+        final int access;
+
+        private Visibility(int access) {
+            this.access = access;
+        }
+        
+        /**
+         * Get whether this visibility level represents a level which is the
+         * same or greater than the supplied level
+         * 
+         * @param other level to compare to
+         * @return true if greater or equal
+         */
+        public boolean isAtLeast(Visibility other) {
+            return other == null || other.ordinal() <= this.ordinal();
+        }
+        
+        /**
+         * Get whether this visibility level represents a level which less than
+         * the supplied level
+         * 
+         * @param other level to compare to
+         * @return true if greater or equal
+         */
+        public boolean isLessThan(Visibility other) {
+            return other != null && this.ordinal() < other.ordinal();
+        }
+        
+    }
     
     /**
      * Information bundle returned from {@link Bytecode#findDelegateInit}
@@ -160,15 +211,16 @@ public final class Bytecode {
         Double.valueOf(0.0), Double.valueOf(1.0)
     };
     
-    /**
-     * Gets a description of the supplied node for debugging purposes
-     *
-     * @param node node to describe
-     * @return human-readable description of node
-     */
-    public static String describeNode(AbstractInsnNode node) {
-        return Bytecode.describeNode(node, true);
-    }
+    private static final String[] CONSTANTS_TYPES = {
+        "V", // null is returned as Type.VOID_TYPE
+        "I",
+        "I", "I", "I", "I", "I", "I",
+        "J", "J",
+        "F", "F", "F", 
+        "D", "D",
+        "I", //"B",
+        "I", //"S"
+    };
     
     /**
      * Mapping of {@link Type#getSort()} return values to boxing types 
@@ -369,7 +421,17 @@ public final class Bytecode {
 
     /**
      * Gets a description of the supplied node for debugging purposes
-     *
+     * 
+     * @param node node to describe
+     * @return human-readable description of node
+     */
+    public static String describeNode(AbstractInsnNode node) {
+        return Bytecode.describeNode(node, true);
+    }
+        
+    /**
+     * Gets a description of the supplied node for debugging purposes
+     * 
      * @param node node to describe
      * @param listFormat format the returned string so that returned nodes line
      *      up (node names aligned to 14 chars)
@@ -379,16 +441,16 @@ public final class Bytecode {
         if (node == null) {
             return listFormat ? String.format("   %-14s ", "null") : "null";
         }
-
+        
         if (node instanceof MarkerNode) {
             MarkerNode marker = (MarkerNode)node;
             return String.format("[%s] Marker type=%d", marker.getLabel(), marker.type);
         }
-
+        
         if (node instanceof LabelNode) {
             return String.format("[%s]", ((LabelNode)node).getLabel());
         }
-
+        
         String out = String.format(listFormat ? "   %-14s " : "%s ", node.getClass().getSimpleName().replace("Node", ""));
         if (node instanceof JumpInsnNode) {
             out += String.format("[%s] [%s]", Bytecode.getOpcodeName(node), ((JumpInsnNode)node).label.getLabel());
@@ -420,56 +482,25 @@ public final class Bytecode {
         }
         return out;
     }
-        
+    
     /**
      * Finds a constant name match for the supplied node's opcode
-     *
+     * 
      * @param node Node to query for opcode
      * @return opcode name
      */
     public static String getOpcodeName(AbstractInsnNode node) {
         return node != null ? Bytecode.getOpcodeName(node.getOpcode()) : "";
     }
-    
+
     /**
      * Finds a constant name match for the supplied node's opcode
-     *
+     * 
      * @param opcode Opcode to look up
      * @return opcode name
      */
     public static String getOpcodeName(int opcode) {
         return Bytecode.getOpcodeName(opcode, Printer.OPCODES);
-    }
-
-    /**
-     * Finds a matching constant in the {@link Opcodes}
-     * interface for the specified opcode name. Supported formats are raw
-     * numeric values, bare constant names (eg. <tt>ACONST_NULL</tt>) or
-     * qualified names (eg. <tt>Opcodes.ACONST_NULL</tt>). Returns the value if
-     * found or -1 if not matched. Note that no validation is performed on
-     * numeric opcode values.
-     *
-     * @param opcodeName Opcode string to match
-     * @return matched opcode value or -1 if not matched.
-     */
-    public static int parseOpcodeName(String opcodeName) {
-        if (opcodeName == null) {
-            return -1;
-        }
-
-        if (opcodeName.matches("^1[0-9]{0,2}|[1-9][0-9]?$")) {
-            return Integer.parseInt(opcodeName);
-        }
-
-        if (opcodeName.startsWith("Opcodes.")) {
-            opcodeName = opcodeName.substring(8);
-        }
-
-        if (!opcodeName.matches("^[A-Z][A-Z0-9_]+$")) {
-            return -1;
-        }
-
-        return Bytecode.parseOpcodeName(opcodeName, Printer.OPCODES);
     }
 
     private static String getOpcodeName(int opcode, String[] names) {
@@ -502,17 +533,34 @@ public final class Bytecode {
     }
     
     /**
-     * Injects appropriate LOAD opcodes into the supplied InsnList appropriate
-     * for each entry in the args array starting at start (inclusive) and ending
-     * at end (inclusive)
-     *
-     * @param args Argument types
-     * @param insns Instruction List to inject into
-     * @param start Start position
-     * @param end End position
+     * Finds a matching constant in the {@link Opcodes}
+     * interface for the specified opcode name. Supported formats are raw
+     * numeric values, bare constant names (eg. <tt>ACONST_NULL</tt>) or
+     * qualified names (eg. <tt>Opcodes.ACONST_NULL</tt>). Returns the value if
+     * found or -1 if not matched. Note that no validation is performed on
+     * numeric opcode values.
+     * 
+     * @param opcodeName Opcode string to match
+     * @return matched opcode value or -1 if not matched.
      */
-    public static void loadArgs(Type[] args, InsnList insns, int start, int end) {
-        Bytecode.loadArgs(args, insns, start, end, null);
+    public static int parseOpcodeName(String opcodeName) {
+        if (opcodeName == null) {
+            return -1;
+        }
+        
+        if (opcodeName.matches("^1[0-9]{0,2}|[1-9][0-9]?$")) {
+            return Integer.parseInt(opcodeName);
+        }
+        
+        if (opcodeName.startsWith("Opcodes.")) {
+            opcodeName = opcodeName.substring(8);
+        }
+        
+        if (!opcodeName.matches("^[A-Z][A-Z0-9_]+$")) {
+            return -1;
+        }
+        
+        return Bytecode.parseOpcodeName(opcodeName, Printer.OPCODES);
     }
 
     private static int parseOpcodeName(String name, String[] names) {
@@ -637,7 +685,21 @@ public final class Bytecode {
      * Injects appropriate LOAD opcodes into the supplied InsnList appropriate
      * for each entry in the args array starting at start (inclusive) and ending
      * at end (inclusive)
-     *
+     * 
+     * @param args Argument types
+     * @param insns Instruction List to inject into
+     * @param start Start position
+     * @param end End position
+     */
+    public static void loadArgs(Type[] args, InsnList insns, int start, int end) {
+        Bytecode.loadArgs(args, insns, start, end, null);
+    }
+
+    /**
+     * Injects appropriate LOAD opcodes into the supplied InsnList appropriate
+     * for each entry in the args array starting at start (inclusive) and ending
+     * at end (inclusive)
+     * 
      * @param args Argument types
      * @param insns Instruction List to inject into
      * @param start Start position
@@ -657,20 +719,6 @@ public final class Bytecode {
                 return;
             }
         }
-    }
-
-    /**
-     * Get an array of Types from an array of classes.
-     *
-     * @param classes Array of classes to convert
-     * @return Array of types
-     */
-    public static Type[] getTypes(Class<?>... classes) {
-        Type[] types = new Type[classes.length];
-        for (int index = 0; index < classes.length; index++) {
-            types[index] = Type.getType(classes[index]);
-        }
-        return types;
     }
     
 //    /**
@@ -726,33 +774,17 @@ public final class Bytecode {
 //    }
 
     /**
-     * If the supplied instruction is a constant, returns the constant value
-     * from the instruction
-     *
-     * @param insn constant instruction to process
-     * @return the constant value or <tt>null</tt> if the value cannot be parsed
-     *      (<tt>null</tt> constant is returned as <tt>Type.VOID_TYPE</tt>)
+     * Get an array of Types from an array of classes.
+     * 
+     * @param classes Array of classes to convert
+     * @return Array of types
      */
-    public static Object getConstant(AbstractInsnNode insn) {
-        if (insn == null) {
-            return null;
-        } else if (insn instanceof LdcInsnNode) {
-            return ((LdcInsnNode)insn).cst;
-        } else if (insn instanceof IntInsnNode) {
-            int value = ((IntInsnNode)insn).operand;
-            if (insn.getOpcode() == Opcodes.BIPUSH || insn.getOpcode() == Opcodes.SIPUSH) {
-                return Integer.valueOf(value);
-            }
-            return null;
-        } else if (insn instanceof TypeInsnNode) {
-            if (insn.getOpcode() < Opcodes.CHECKCAST) {
-                return null; // Don't treat NEW and ANEWARRAY as constants
-            }
-            return Type.getObjectType(((TypeInsnNode)insn).desc);
+    public static Type[] getTypes(Class<?>... classes) {
+        Type[] types = new Type[classes.length];
+        for (int index = 0; index < classes.length; index++) {
+            types[index] = Type.getType(classes[index]);
         }
-
-        int index = Ints.indexOf(Bytecode.CONSTANTS_ALL, insn.getOpcode());
-        return index < 0 ? null : Bytecode.CONSTANTS_VALUES[index];
+        return types;
     }
     
     /**
@@ -897,21 +929,33 @@ public final class Bytecode {
     }
 
     /**
-     * Returns the <i>ordinal visibility</i> of the supplied argument where a
-     * higher value equals higher "visibility":
-     *
-     * <ol start="0">
-     *   <li>{@link Visibility#PRIVATE}</li>
-     *   <li>{@link Visibility#PROTECTED}</li>
-     *   <li>{@link Visibility#PACKAGE}</li>
-     *   <li>{@link Visibility#PUBLIC}</li>
-     * </ol>
-     *
-     * @param method method to get visibility for
-     * @return visibility level
+     * If the supplied instruction is a constant, returns the constant value
+     * from the instruction
+     * 
+     * @param insn constant instruction to process
+     * @return the constant value or <tt>null</tt> if the value cannot be parsed
+     *      (<tt>null</tt> constant is returned as <tt>Type.VOID_TYPE</tt>)
      */
-    public static Visibility getVisibility(MethodNode method) {
-        return Bytecode.getVisibility(method.access & 0x7);
+    public static Object getConstant(AbstractInsnNode insn) {
+        if (insn == null) {
+            return null;
+        } else if (insn instanceof LdcInsnNode) {
+            return ((LdcInsnNode)insn).cst;
+        } else if (insn instanceof IntInsnNode) {
+            int value = ((IntInsnNode)insn).operand;
+            if (insn.getOpcode() == Opcodes.BIPUSH || insn.getOpcode() == Opcodes.SIPUSH) {
+                return Integer.valueOf(value);
+            }
+            return null;
+        } else if (insn instanceof TypeInsnNode) {
+            if (insn.getOpcode() < Opcodes.CHECKCAST) {
+                return null; // Don't treat NEW and ANEWARRAY as constants 
+            }
+            return Type.getObjectType(((TypeInsnNode)insn).desc);
+        }
+        
+        int index = Ints.indexOf(Bytecode.CONSTANTS_ALL, insn.getOpcode());
+        return index < 0 ? null : Bytecode.CONSTANTS_VALUES[index];
     }
 
     /**
@@ -1025,32 +1069,50 @@ public final class Bytecode {
     /**
      * Returns the <i>ordinal visibility</i> of the supplied argument where a
      * higher value equals higher "visibility":
-     *
+     * 
      * <ol start="0">
      *   <li>{@link Visibility#PRIVATE}</li>
      *   <li>{@link Visibility#PROTECTED}</li>
      *   <li>{@link Visibility#PACKAGE}</li>
      *   <li>{@link Visibility#PUBLIC}</li>
      * </ol>
-     *
+     * 
+     * @param method method to get visibility for
+     * @return visibility level
+     */
+    public static Visibility getVisibility(MethodNode method) {
+        return Bytecode.getVisibility(method.access & 0x7);
+    }
+    
+    /**
+     * Returns the <i>ordinal visibility</i> of the supplied argument where a
+     * higher value equals higher "visibility":
+     * 
+     * <ol start="0">
+     *   <li>{@link Visibility#PRIVATE}</li>
+     *   <li>{@link Visibility#PROTECTED}</li>
+     *   <li>{@link Visibility#PACKAGE}</li>
+     *   <li>{@link Visibility#PUBLIC}</li>
+     * </ol>
+     * 
      * @param field field to get visibility for
      * @return visibility level
      */
     public static Visibility getVisibility(FieldNode field) {
         return Bytecode.getVisibility(field.access & 0x7);
     }
-    
+
     /**
      * Returns the <i>ordinal visibility</i> of the supplied argument where a
      * higher value equals higher "visibility":
-     *
+     * 
      * <ol start="0">
      *   <li>{@link Visibility#PRIVATE}</li>
      *   <li>{@link Visibility#PROTECTED}</li>
      *   <li>{@link Visibility#PACKAGE}</li>
      *   <li>{@link Visibility#PUBLIC}</li>
      * </ol>
-     *
+     * 
      * @param flags access flags of member
      * @return visibility level
      */
@@ -1064,27 +1126,16 @@ public final class Bytecode {
         }
         return Bytecode.Visibility.PACKAGE;
     }
-
+    
     /**
      * Set the visibility of the specified class, leaving other access flags
      * unchanged
-     *
+     * 
      * @param classNode class to change
      * @param visibility new visibility
      */
     public static void setVisibility(ClassNode classNode, Visibility visibility) {
         classNode.access = Bytecode.setVisibility(classNode.access, visibility.access);
-    }
-    
-    /**
-     * Set the visibility of the specified class, leaving other access flags
-     * unchanged
-     *
-     * @param classNode class to change
-     * @param access new visibility
-     */
-    public static void setVisibility(ClassNode classNode, int access) {
-        classNode.access = Bytecode.setVisibility(classNode.access, access);
     }
     
     /**
@@ -1110,52 +1161,14 @@ public final class Bytecode {
     }
     
     /**
-     * Compares two synthetic bridge methods and throws an exception if they are
-     * not compatible.
-     *
-     * @param a Incumbent method
-     * @param b Incoming method
+     * Set the visibility of the specified class, leaving other access flags
+     * unchanged
+     * 
+     * @param classNode class to change
+     * @param access new visibility
      */
-    public static void compareBridgeMethods(MethodNode a, MethodNode b) {
-        Iterator<AbstractInsnNode> ia = Iterators.filter(a.instructions.iterator(), Bytecode::isRealInsn);
-        Iterator<AbstractInsnNode> ib = Iterators.filter(b.instructions.iterator(), Bytecode::isRealInsn);
-
-        int index = 0;
-        for (; ia.hasNext() && ib.hasNext(); index++) {
-            AbstractInsnNode na = ia.next();
-            AbstractInsnNode nb = ib.next();
-
-            if (na instanceof MethodInsnNode) {
-                MethodInsnNode ma = (MethodInsnNode)na;
-                MethodInsnNode mb = (MethodInsnNode)nb;
-                if (!ma.name.equals(mb.name)) {
-                    throw new SyntheticBridgeException(Problem.BAD_INVOKE_NAME, a.name, a.desc, index, na, nb);
-                } else if (!ma.desc.equals(mb.desc)) {
-                    throw new SyntheticBridgeException(Problem.BAD_INVOKE_DESC, a.name, a.desc, index, na, nb);
-                }
-            } else if (na.getOpcode() != nb.getOpcode()) {
-                throw new SyntheticBridgeException(Problem.BAD_INSN, a.name, a.desc, index, na, nb);
-            } else if (na instanceof VarInsnNode) {
-                VarInsnNode va = (VarInsnNode)na;
-                VarInsnNode vb = (VarInsnNode)nb;
-                if (va.var != vb.var) {
-                    throw new SyntheticBridgeException(Problem.BAD_LOAD, a.name, a.desc, index, na, nb);
-                }
-            } else if (na instanceof TypeInsnNode) {
-                TypeInsnNode ta = (TypeInsnNode)na;
-                TypeInsnNode tb = (TypeInsnNode)nb;
-                if (ta.getOpcode() == Opcodes.CHECKCAST && !ta.desc.equals(tb.desc)) {
-                    throw new SyntheticBridgeException(Problem.BAD_CAST, a.name, a.desc, index, na, nb);
-                }
-            }
-        }
-
-        if (ia.hasNext()) {
-            throw new SyntheticBridgeException(Problem.BAD_LENGTH, a.name, a.desc, index, ia.next(), null);
-        }
-        if (ib.hasNext()) {
-            throw new SyntheticBridgeException(Problem.BAD_LENGTH, a.name, a.desc, index, null, ib.next());
-        }
+    public static void setVisibility(ClassNode classNode, int access) {
+        classNode.access = Bytecode.setVisibility(classNode.access, access);
     }
     
     /**
@@ -1230,8 +1243,61 @@ public final class Bytecode {
     }
 
     /**
-     * Perform a naïve merge of ClassNode members onto a target ClassNode
-     *
+     * Compares two synthetic bridge methods and throws an exception if they are
+     * not compatible.
+     * 
+     * @param a Incumbent method
+     * @param b Incoming method
+     */
+    public static void compareBridgeMethods(MethodNode a, MethodNode b) {
+        Iterator<AbstractInsnNode> ia = Iterators.filter(a.instructions.iterator(), Bytecode::isRealInsn);
+        Iterator<AbstractInsnNode> ib = Iterators.filter(b.instructions.iterator(), Bytecode::isRealInsn);
+        
+        int index = 0;
+        for (; ia.hasNext() && ib.hasNext(); index++) {
+            AbstractInsnNode na = ia.next();
+            AbstractInsnNode nb = ib.next();
+            
+            if (na instanceof MethodInsnNode) {
+                MethodInsnNode ma = (MethodInsnNode)na;
+                MethodInsnNode mb = (MethodInsnNode)nb;
+                if (!ma.name.equals(mb.name)) {
+                    throw new SyntheticBridgeException(Problem.BAD_INVOKE_NAME, a.name, a.desc, index, na, nb);
+                } else if (!ma.desc.equals(mb.desc)) {
+                    throw new SyntheticBridgeException(Problem.BAD_INVOKE_DESC, a.name, a.desc, index, na, nb);
+                }
+            } else if (na.getOpcode() != nb.getOpcode()) {
+                throw new SyntheticBridgeException(Problem.BAD_INSN, a.name, a.desc, index, na, nb);
+            } else if (na instanceof VarInsnNode) {
+                VarInsnNode va = (VarInsnNode)na;
+                VarInsnNode vb = (VarInsnNode)nb;
+                if (va.var != vb.var) {
+                    throw new SyntheticBridgeException(Problem.BAD_LOAD, a.name, a.desc, index, na, nb);
+                }
+            } else if (na instanceof TypeInsnNode) {
+                TypeInsnNode ta = (TypeInsnNode)na;
+                TypeInsnNode tb = (TypeInsnNode)nb;
+                if (ta.getOpcode() == Opcodes.CHECKCAST && !ta.desc.equals(tb.desc)) {
+                    throw new SyntheticBridgeException(Problem.BAD_CAST, a.name, a.desc, index, na, nb);
+                }
+            }
+        }
+        
+        if (ia.hasNext()) {
+            throw new SyntheticBridgeException(Problem.BAD_LENGTH, a.name, a.desc, index, ia.next(), null);
+        }
+        if (ib.hasNext()) {
+            throw new SyntheticBridgeException(Problem.BAD_LENGTH, a.name, a.desc, index, null, ib.next());
+        }
+    }
+
+    private static boolean isRealInsn(AbstractInsnNode insn) {
+        return insn.getOpcode() != -1;
+    }
+
+    /**
+     * Perform a naïve merge of ClassNode members onto a target ClassNode 
+     * 
      * @param source Source ClassNode to merge from
      * @param dest Destination ClassNode to merge to
      */
@@ -1239,13 +1305,13 @@ public final class Bytecode {
         if (source == null) {
             return;
         }
-
+        
         if (dest == null) {
             throw new NullPointerException("Target ClassNode for merge must not be null");
         }
-
+        
         dest.version = Math.max(source.version, dest.version);
-
+        
         dest.interfaces = Bytecode.<String>merge(source.interfaces, dest.interfaces);
         dest.invisibleAnnotations = Bytecode.<AnnotationNode>merge(source.invisibleAnnotations, dest.invisibleAnnotations);
         dest.visibleAnnotations = Bytecode.<AnnotationNode>merge(source.visibleAnnotations, dest.visibleAnnotations);
@@ -1255,16 +1321,12 @@ public final class Bytecode {
         dest.innerClasses = Bytecode.<InnerClassNode>merge(source.innerClasses, dest.innerClasses);
         dest.fields = Bytecode.<FieldNode>merge(source.fields, dest.fields);
         dest.methods = Bytecode.<MethodNode>merge(source.methods, dest.methods);
-
+        
     }
-
-    private static boolean isRealInsn(AbstractInsnNode insn) {
-        return insn.getOpcode() != -1;
-    }
-
+    
     /**
-     * Replace all values in a target ClassNode with values from the Source
-     *
+     * Replace all values in a target ClassNode with values from the Source 
+     * 
      * @param source Source ClassNode to merge from
      * @param dest Destination ClassNode to merge to
      */
@@ -1272,11 +1334,11 @@ public final class Bytecode {
         if (source == null) {
             return;
         }
-
+        
         if (dest == null) {
             throw new NullPointerException("Target ClassNode for replace must not be null");
         }
-
+        
         dest.name = source.name;
         dest.signature = source.signature;
         dest.superName = source.superName;
@@ -1289,7 +1351,7 @@ public final class Bytecode {
         dest.outerClass = source.outerClass;
         dest.outerMethod = source.outerMethod;
         dest.outerMethodDesc = source.outerMethodDesc;
-
+        
         Bytecode.<String>clear(dest.interfaces);
         Bytecode.<AnnotationNode>clear(dest.visibleAnnotations);
         Bytecode.<AnnotationNode>clear(dest.invisibleAnnotations);
@@ -1303,7 +1365,7 @@ public final class Bytecode {
         if (ASM.API_VERSION >= Opcodes.ASM6) {
             dest.module = source.module;
         }
-
+        
         // TODO Java 10
 //        if (MixinEnvironment.getCompatibilityLevel().supports(LanguageFeatures.NESTING)) {
 //            ClassNodeAdapter.setNestHostClass(dest, ClassNodeAdapter.getNestHostClass(source));
@@ -1311,13 +1373,9 @@ public final class Bytecode {
 //            ClassNodeAdapter.setNestMembers(dest, Bytecode.<String>merge(ClassNodeAdapter.getNestMembers(source),
 //                    ClassNodeAdapter.getNestMembers(dest)));
 //        }
-
+        
         Bytecode.merge(source, dest);
-
-    }
-    
-    public static boolean isEnumValuesArray(FieldNode field, ClassNode enumClass) {
-        return Bytecode.hasFlag(field, Opcodes.ACC_STATIC | Opcodes.ACC_SYNTHETIC) && field.desc.equals("[L" + enumClass.name + ';');
+        
     }
     
     /**
@@ -1351,6 +1409,10 @@ public final class Bytecode {
         return destination;
     }
 
+    public static boolean isEnumValuesArray(FieldNode field, ClassNode enumClass) {
+        return Bytecode.hasFlag(field, Opcodes.ACC_STATIC | Opcodes.ACC_SYNTHETIC) && field.desc.equals("[L" + enumClass.name + ';');
+    }
+
     public static boolean isEnumConstant(FieldNode field, ClassNode enumClass) {
         return Bytecode.hasFlag(field, Opcodes.ACC_STATIC | Opcodes.ACC_ENUM) && field.desc.equals('L' + enumClass.name + ';');
     }
@@ -1365,68 +1427,6 @@ public final class Bytecode {
         } else {
             return new LdcInsnNode(intValue);
         }
-    }
-
-    /**
-     * Ordinal member visibility level. This is used to represent visibility of
-     * a member in a formal way from lowest to highest. The
-     * {@link Bytecode#getVisibility} methods can be used to convert access
-     * flags to this enum. The value returned from {@link #ordinal} can then be
-     * used to determine whether a visibility level is <i>higher</i> or <i>lower
-     * </i> than any other given visibility level.
-     */
-    public enum Visibility {
-
-        /**
-         * Members decorated with {@link Opcodes#ACC_PRIVATE}
-         */
-        PRIVATE(Opcodes.ACC_PRIVATE),
-
-        /**
-         * Members decorated with {@link Opcodes#ACC_PROTECTED}
-         */
-        PROTECTED(Opcodes.ACC_PROTECTED),
-
-        /**
-         * Members not decorated with any access flags
-         */
-        PACKAGE(0),
-
-        /**
-         * Members decorated with {@link Opcodes#ACC_PUBLIC}
-         */
-        PUBLIC(Opcodes.ACC_PUBLIC);
-
-        static final int MASK = Opcodes.ACC_PRIVATE | Opcodes.ACC_PROTECTED | Opcodes.ACC_PUBLIC;
-
-        final int access;
-
-        private Visibility(int access) {
-            this.access = access;
-        }
-
-        /**
-         * Get whether this visibility level represents a level which is the
-         * same or greater than the supplied level
-         *
-         * @param other level to compare to
-         * @return true if greater or equal
-         */
-        public boolean isAtLeast(Visibility other) {
-            return other == null || other.ordinal() <= this.ordinal();
-        }
-
-        /**
-         * Get whether this visibility level represents a level which less than
-         * the supplied level
-         *
-         * @param other level to compare to
-         * @return true if greater or equal
-         */
-        public boolean isLessThan(Visibility other) {
-            return other != null && this.ordinal() < other.ordinal();
-        }
-
     }
 
 }

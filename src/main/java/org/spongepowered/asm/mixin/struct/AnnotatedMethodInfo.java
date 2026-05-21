@@ -84,20 +84,12 @@ public class AnnotatedMethodInfo implements IInjectionPointContext {
     }
     
     /**
-     * Get info from a decorating {@link Dynamic} annotation. If the annotation
-     * is present, a descriptive string suitable for inclusion in an error
-     * message is returned. If the annotation is not present then an empty
-     * string is returned.
-     *
-     * @param method method to inspect
+     * Get a human-readable description of the annotation on the method for use
+     * in error messages
      */
-    public static final String getDynamicInfo(Object method) {
-        if (method instanceof MethodNode) {
-            return AnnotatedMethodInfo.getDynamicInfo((MethodNode)method);
-        } else if (method instanceof IAnnotatedElement) {
-            return AnnotatedMethodInfo.getDynamicInfo((IAnnotatedElement)method);
-        }
-        return "";
+    @Override
+    public final String getElementDescription() {
+        return String.format("%s annotation on %s", this.annotationType, this.methodName);
     }
 
     @Override
@@ -200,11 +192,16 @@ public class AnnotatedMethodInfo implements IInjectionPointContext {
      * is present, a descriptive string suitable for inclusion in an error
      * message is returned. If the annotation is not present then an empty
      * string is returned.
-     *
+     * 
      * @param method method to inspect
      */
-    public static final String getDynamicInfo(MethodNode method) {
-        return AnnotatedMethodInfo.getDynamicInfo(Annotations.handleOf(Annotations.getInvisible(method, Dynamic.class)));
+    public static final String getDynamicInfo(Object method) {
+        if (method instanceof MethodNode) {
+            return AnnotatedMethodInfo.getDynamicInfo((MethodNode)method);
+        } else if (method instanceof IAnnotatedElement) {
+            return AnnotatedMethodInfo.getDynamicInfo((IAnnotatedElement)method);
+        }
+        return "";
     }
     
     /**
@@ -212,20 +209,23 @@ public class AnnotatedMethodInfo implements IInjectionPointContext {
      * is present, a descriptive string suitable for inclusion in an error
      * message is returned. If the annotation is not present then an empty
      * string is returned.
-     *
+     * 
+     * @param method method to inspect
+     */
+    public static final String getDynamicInfo(MethodNode method) {
+        return AnnotatedMethodInfo.getDynamicInfo(Annotations.handleOf(Annotations.getInvisible(method, Dynamic.class)));
+    }
+
+    /**
+     * Get info from a decorating {@link Dynamic} annotation. If the annotation
+     * is present, a descriptive string suitable for inclusion in an error
+     * message is returned. If the annotation is not present then an empty
+     * string is returned.
+     * 
      * @param method method to inspect
      */
     public static final String getDynamicInfo(IAnnotatedElement method) {
         return AnnotatedMethodInfo.getDynamicInfo(method.getAnnotation(Dynamic.class));
-    }
-
-    /**
-     * Get a human-readable description of the annotation on the method for use
-     * in error messages
-     */
-    @Override
-    public final String getElementDescription() {
-        return String.format("%s annotation on %s", this.annotationType, this.methodName);
     }
 
     private static String getDynamicInfo(IAnnotationHandle annotation) {

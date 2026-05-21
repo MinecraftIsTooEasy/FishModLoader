@@ -45,13 +45,56 @@ import org.spongepowered.asm.util.Bytecode;
 public class Initialiser {
 
     /**
+     * Strategy for injecting initialiser insns
+     */
+    public enum InjectionMode {
+
+        /**
+         * Default mode, attempts to place initialisers after all other
+         * competing initialisers in the target ctor
+         */
+        DEFAULT,
+        
+        /**
+         * Safe mode, only injects initialiser directly after the super-ctor
+         * invocation 
+         */
+        SAFE;
+        
+        /**
+         * Get the injection mode based on the the environment
+         * 
+         * @param env Environment to query for the injection mode option
+         */
+        public static InjectionMode ofEnvironment(MixinEnvironment env) {
+            String strMode = env.getOptionValue(Option.INITIALISER_INJECTION_MODE);
+            if (strMode == null) {
+                return Initialiser.InjectionMode.DEFAULT;
+            }
+            try {
+                return Initialiser.InjectionMode.valueOf(strMode.toUpperCase(Locale.ROOT));
+            } catch (Exception ex) {
+                Initialiser.logger.warn("Could not parse unexpected value \"{}\" for mixin.initialiserInjectionMode, reverting to DEFAULT",
+                        strMode);
+                return Initialiser.InjectionMode.DEFAULT;
+            }
+        }
+
+    }
+
+    /**
+     * Logger
+     */
+    static final ILogger logger = MixinService.getService().getLogger("mixin");
+
+    /**
      * List of opcodes which must not appear in a class initialiser, mainly a
      * sanity check so that if any of the specified opcodes are found, we can
      * log it as an error condition and then people can bitch at me to fix it.
      * Essentially if it turns out that field initialisers can somehow make use
      * of local variables, then I need to write some code to ensure that said
      * locals are shifted so that they don't interfere with locals in the
-     * receiving constructor.
+     * receiving constructor. 
      */
     protected static final int[] OPCODE_BLACKLIST = {
             Opcodes.RETURN, Opcodes.ILOAD, Opcodes.LLOAD, Opcodes.FLOAD, Opcodes.DLOAD,
@@ -61,18 +104,28 @@ public class Initialiser {
             //        Opcodes.BALOAD, Opcodes.CALOAD, Opcodes.SALOAD, Opcodes.IASTORE, Opcodes.LASTORE,
             //        Opcodes.FASTORE, Opcodes.DASTORE, Opcodes.AASTORE, Opcodes.BASTORE, Opcodes.CASTORE, Opcodes.SASTORE
     };
+
+
     /**
-     * Logger
-     */
-    static final ILogger logger = MixinService.getService().getLogger("mixin");
-    /**
-     * Mixin context which contains the source constructor
+     * Mixin context which contains the source constructor 
      */
     private final MixinTargetContext mixin;
+    
     /**
-     * Source constructor
+     * Source constructor 
      */
     private final MethodNode ctor;
+    
+    /**
+     * Filtered instructions
+     */
+    private Deque<AbstractInsnNode> insns;
+    
+    public Initialiser(MixinTargetContext mixin, MethodNode ctor, InsnRange range) {
+        this.mixin = mixin;
+        this.ctor = ctor;
+        this.initInstructions(range);
+    }
     
     private void initInstructions(InsnRange range) {
         // Now we know where the constructor is, look for insns which lie OUTSIDE the method body
@@ -89,58 +142,14 @@ public class Initialiser {
                 }
             }
         }
-
-        // Check that the last insn is a PUTFIELD, if it's not then
+        
+        // Check that the last insn is a PUTFIELD, if it's not then 
         AbstractInsnNode last = this.insns.peekLast();
         if (last != null) {
             if (last.getOpcode() != Opcodes.PUTFIELD) {
                 throw new InvalidMixinException(this.mixin, "Could not parse initialiser, expected 0xB5, found 0x"
                         + Integer.toHexString(last.getOpcode()) + " in " + this);
             }
-        }
-    }
-    
-    /**
-     * Filtered instructions
-     */
-    private Deque<AbstractInsnNode> insns;
-    
-    public Initialiser(MixinTargetContext mixin, MethodNode ctor, InsnRange range) {
-        this.mixin = mixin;
-        this.ctor = ctor;
-        this.initInstructions(range);
-    }
-    
-    /**
-     * Inject initialiser code into the target constructor
-     *
-     * @param ctor Constructor to inject into
-     */
-    public void injectInto(Constructor ctor) {
-        AbstractInsnNode marker = ctor.findInitialiserInjectionPoint(Initialiser.InjectionMode.ofEnvironment(this.mixin.getEnvironment()));
-        if (marker == null) {
-            Initialiser.logger.warn("Failed to locate initialiser injection point in <init>{}, initialiser was not mixed in.", ctor.getDesc());
-            return;
-        }
-
-        Map<LabelNode, LabelNode> labels = Bytecode.cloneLabels(ctor.insns);
-        // Fabric: also clone labels from the initialiser as they will be merged.
-        for (AbstractInsnNode node : this.insns) {
-            if (node instanceof LabelNode) {
-                labels.put((LabelNode) node, new LabelNode());
-            }
-        }
-        for (AbstractInsnNode node : this.insns) {
-            if (node instanceof LabelNode) {
-                // Fabric: Merge cloned labels instead of skipping them.
-                // continue;
-            }
-            if (node instanceof JumpInsnNode) {
-                // Fabric: Jumps cause no issues if labels are cloned properly and should not be needlessly restricted.
-                // throw new InvalidMixinException(this.mixin, "Unsupported JUMP opcode in initialiser in " + this.mixin);
-            }
-
-            ctor.insertBefore(marker, node.clone(labels));
         }
     }
     
@@ -173,41 +182,36 @@ public class Initialiser {
     }
 
     /**
-     * Strategy for injecting initialiser insns
+     * Inject initialiser code into the target constructor
+     * 
+     * @param ctor Constructor to inject into
      */
-    public enum InjectionMode {
-
-        /**
-         * Default mode, attempts to place initialisers after all other
-         * competing initialisers in the target ctor
-         */
-        DEFAULT,
-
-        /**
-         * Safe mode, only injects initialiser directly after the super-ctor
-         * invocation
-         */
-        SAFE;
-
-        /**
-         * Get the injection mode based on the the environment
-         *
-         * @param env Environment to query for the injection mode option
-         */
-        public static InjectionMode ofEnvironment(MixinEnvironment env) {
-            String strMode = env.getOptionValue(Option.INITIALISER_INJECTION_MODE);
-            if (strMode == null) {
-                return Initialiser.InjectionMode.DEFAULT;
-            }
-            try {
-                return Initialiser.InjectionMode.valueOf(strMode.toUpperCase(Locale.ROOT));
-            } catch (Exception ex) {
-                Initialiser.logger.warn("Could not parse unexpected value \"{}\" for mixin.initialiserInjectionMode, reverting to DEFAULT",
-                        strMode);
-                return Initialiser.InjectionMode.DEFAULT;
-            }
+    public void injectInto(Constructor ctor) {
+        AbstractInsnNode marker = ctor.findInitialiserInjectionPoint(Initialiser.InjectionMode.ofEnvironment(this.mixin.getEnvironment()));
+        if (marker == null) {
+            Initialiser.logger.warn("Failed to locate initialiser injection point in <init>{}, initialiser was not mixed in.", ctor.getDesc());
+            return;
         }
 
+        Map<LabelNode, LabelNode> labels = Bytecode.cloneLabels(ctor.insns);
+        // Fabric: also clone labels from the initialiser as they will be merged.
+        for (AbstractInsnNode node : this.insns) {
+            if (node instanceof LabelNode) {
+                labels.put((LabelNode) node, new LabelNode());
+            }
+        }
+        for (AbstractInsnNode node : this.insns) {
+            if (node instanceof LabelNode) {
+                // Fabric: Merge cloned labels instead of skipping them.
+                // continue;
+            }
+            if (node instanceof JumpInsnNode) {
+                // Fabric: Jumps cause no issues if labels are cloned properly and should not be needlessly restricted.
+                // throw new InvalidMixinException(this.mixin, "Unsupported JUMP opcode in initialiser in " + this.mixin);
+            }
+            
+            ctor.insertBefore(marker, node.clone(labels));
+        }
     }
 
 }

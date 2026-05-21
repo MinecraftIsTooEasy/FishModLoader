@@ -125,25 +125,6 @@ class AnnotatedMixinElementHandlerShadow extends AnnotatedMixinElementHandler {
     }
     
     /**
-     * Register a {@link org.spongepowered.asm.mixin.Shadow} field or method
-     */
-    public void registerShadow(AnnotatedElementShadow<?, ?> elem) {
-        this.validateTarget(elem.getElement(), elem.getAnnotation(), elem.getName(), "@Shadow");
-
-        if (!elem.shouldRemap()) {
-            return;
-        }
-
-        for (TypeHandle target : this.mixin.getTargets()) {
-            this.registerShadowForTarget(elem, target);
-        }
-    }
-
-    AnnotatedMixinElementHandlerShadow(IMixinAnnotationProcessor ap, AnnotatedMixin mixin) {
-        super(ap, mixin);
-    }
-
-    /**
      * Shadow method element
      */
     class AnnotatedElementShadowMethod extends AnnotatedElementShadow<ExecutableElement, MappingMethod> {
@@ -161,12 +142,31 @@ class AnnotatedMixinElementHandlerShadow extends AnnotatedMixinElementHandler {
         public MappingMethod getMapping(TypeHandle owner, String name, String desc) {
             return owner.getMappingMethod(name, desc);
         }
-
+        
         @Override
         public void addMapping(ObfuscationType type, IMapping<?> remapped) {
             AnnotatedMixinElementHandlerShadow.this.addMethodMapping(type, this.setObfuscatedName(remapped), this.getDesc(), remapped.getDesc());
         }
 
+    }
+
+    AnnotatedMixinElementHandlerShadow(IMixinAnnotationProcessor ap, AnnotatedMixin mixin) {
+        super(ap, mixin);
+    }
+
+    /**
+     * Register a {@link org.spongepowered.asm.mixin.Shadow} field or method
+     */
+    public void registerShadow(AnnotatedElementShadow<?, ?> elem) {
+        this.validateTarget(elem.getElement(), elem.getAnnotation(), elem.getName(), "@Shadow");
+        
+        if (!elem.shouldRemap()) {
+            return;
+        }
+        
+        for (TypeHandle target : this.mixin.getTargets()) {
+            this.registerShadowForTarget(elem, target);
+        }
     }
 
     private void registerShadowForTarget(AnnotatedElementShadow<?, ?> elem, TypeHandle target) {

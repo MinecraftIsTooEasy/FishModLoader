@@ -30,6 +30,13 @@ package org.spongepowered.asm.service;
  */
 public interface IAdviceProvider {
     /**
+     * Advise the user on how to increase their compatibility version.
+     * @param requiredCompatibility the required compatibility version
+     * @param requiredCompatibilityString the required compatibility version as a string, in case it is useful in messages
+     */
+    public abstract String higherCompatibilityNeeded(int requiredCompatibility, String requiredCompatibilityString);
+
+    /**
      * Returns generic advice for all situations. You should prefer implementing specific advice for your service.
      */
     public static final IAdviceProvider GENERIC = new IAdviceProvider() {
@@ -38,11 +45,4 @@ public interface IAdviceProvider {
             return "Increase your compatibility version to at least " + requiredCompatibilityString;
         }
     };
-
-    /**
-     * Advise the user on how to increase their compatibility version.
-     * @param requiredCompatibility the required compatibility version
-     * @param requiredCompatibilityString the required compatibility version as a string, in case it is useful in messages
-     */
-    public abstract String higherCompatibilityNeeded(int requiredCompatibility, String requiredCompatibilityString);
 }

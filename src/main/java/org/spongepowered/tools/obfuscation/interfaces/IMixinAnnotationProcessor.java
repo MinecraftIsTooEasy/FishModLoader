@@ -34,48 +34,18 @@ import org.spongepowered.asm.util.ITokenProvider;
 public interface IMixinAnnotationProcessor extends IMessagerSuppressible, IOptionProvider {
 
     /**
-     * Get the detected compiler environment
-     */
-    public abstract CompilerEnvironment getCompilerEnvironment();
-    
-    /**
-     * Get the underlying processing environment
-     */
-    public abstract ProcessingEnvironment getProcessingEnvironment();
-
-    /**
-     * Get the obfuscation manager
-     */
-    public abstract IObfuscationManager getObfuscationManager();
-
-    /**
-     * Get the token provider
-     */
-    public abstract ITokenProvider getTokenProvider();
-    
-    /**
-     * Get the type handle provider
-     */
-    public abstract ITypeHandleProvider getTypeProvider();
-    
-    /**
-     * Get the javadoc provider
-     */
-    public abstract IJavadocProvider getJavadocProvider();
-
-    /**
      * Detected compiler argument, specifies the behaviour of some operations
      * for compatibility purposes.
      */
     public static enum CompilerEnvironment {
-
+        
         /**
          * Default environment
          */
         JAVAC(false, "Java Compiler"),
-
+        
         /**
-         * Eclipse
+         * Eclipse 
          */
         JDT(true, "Eclipse (JDT)") {
 
@@ -85,7 +55,7 @@ public interface IMixinAnnotationProcessor extends IMessagerSuppressible, IOptio
             }
 
         },
-
+        
         /**
          * IntelliJ IDEA
          */
@@ -112,7 +82,7 @@ public interface IMixinAnnotationProcessor extends IMessagerSuppressible, IOptio
          * True if this compiler environment is an IDE
          */
         private final boolean isDevelopmentEnvironment;
-
+        
         /**
          * Display name
          */
@@ -122,26 +92,38 @@ public interface IMixinAnnotationProcessor extends IMessagerSuppressible, IOptio
             this.isDevelopmentEnvironment = isDevelopmentEnvironment;
             this.friendlyName = friendlyName;
         }
-
+        
         /**
          * True if this compiler environment is not an IDE
          */
         public boolean isCompiler() {
             return !this.isDevelopmentEnvironment;
         }
-
+        
         /**
          * True if this compiler environment is an IDE
          */
         public boolean isDevelopmentEnvironment() {
             return this.isDevelopmentEnvironment;
         }
-
+        
         /**
          * Get the human-readable name of this environment
          */
         public String getFriendlyName() {
             return this.friendlyName;
+        }
+        
+        /**
+         * Stub for each compiler environment to implement heuristics to detect
+         * the presence of the environment
+         * 
+         * @param processingEnv Current processing environment to detect
+         *      compiler environment from
+         * @return true if this environment is detected
+         */
+        protected boolean isDetected(ProcessingEnvironment processingEnv) {
+            return false;
         }
 
         /**
@@ -149,7 +131,7 @@ public interface IMixinAnnotationProcessor extends IMessagerSuppressible, IOptio
          * time being, the only special environments we care about are IDEs)
          * using heuristic checks such as looking for specific class names or
          * system properties.
-         *
+         * 
          * @param processingEnv Current processing environment to detect
          *      compiler environment from
          * @return detected compiler environment, defaults to {@link #JAVAC} if
@@ -163,19 +145,37 @@ public interface IMixinAnnotationProcessor extends IMessagerSuppressible, IOptio
             }
             return CompilerEnvironment.JAVAC;
         }
-
-        /**
-         * Stub for each compiler environment to implement heuristics to detect
-         * the presence of the environment
-         *
-         * @param processingEnv Current processing environment to detect
-         *      compiler environment from
-         * @return true if this environment is detected
-         */
-        protected boolean isDetected(ProcessingEnvironment processingEnv) {
-            return false;
-        }
-
+        
     }
+    
+    /**
+     * Get the detected compiler environment
+     */
+    public abstract CompilerEnvironment getCompilerEnvironment();
+
+    /**
+     * Get the underlying processing environment
+     */
+    public abstract ProcessingEnvironment getProcessingEnvironment();
+
+    /**
+     * Get the obfuscation manager
+     */
+    public abstract IObfuscationManager getObfuscationManager();
+    
+    /**
+     * Get the token provider
+     */
+    public abstract ITokenProvider getTokenProvider();
+    
+    /**
+     * Get the type handle provider
+     */
+    public abstract ITypeHandleProvider getTypeProvider();
+
+    /**
+     * Get the javadoc provider
+     */
+    public abstract IJavadocProvider getJavadocProvider();
 
 }

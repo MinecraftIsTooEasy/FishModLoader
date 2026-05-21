@@ -81,13 +81,36 @@ import org.spongepowered.asm.service.MixinService;
 public class ConstructorHead extends MethodHead {
     
     /**
-     * Logger
+     * Location enforcement
+     */
+    static enum Enforce {
+        
+        /**
+         * Use default behaviour (POST_INIT)
+         */
+        DEFAULT,
+        
+        /**
+         * Enforce selection of post-delegate insn 
+         */
+        POST_DELEGATE,
+        
+        /**
+         * Enforce selection of post-initialiser insn 
+         */
+        POST_INIT,
+        
+        /**
+         * Enforce selection of the first body insn
+         */
+        PRE_BODY;
+        
+    }
+
+    /**
+     * Logger 
      */
     protected final ILogger logger = MixinService.getService().getLogger("mixin");
-    /**
-     * True to warn when enfored selection fails
-     */
-    private final boolean verbose;
 
     /**
      * Enforce behaviour parsed from At args
@@ -95,31 +118,9 @@ public class ConstructorHead extends MethodHead {
     private final Enforce enforce;
     
     /**
-     * Location enforcement
+     * True to warn when enfored selection fails 
      */
-    static enum Enforce {
-
-        /**
-         * Use default behaviour (POST_INIT)
-         */
-        DEFAULT,
-
-        /**
-         * Enforce selection of post-delegate insn
-         */
-        POST_DELEGATE,
-
-        /**
-         * Enforce selection of post-initialiser insn
-         */
-        POST_INIT,
-
-        /**
-         * Enforce selection of the first body insn
-         */
-        PRE_BODY;
-
-    }
+    private final boolean verbose;
 
     private final MethodNode method;
 

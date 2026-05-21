@@ -43,23 +43,27 @@ import com.google.common.base.Strings;
  */
 public class PrettyPrinter {
     
-    private void addLine(Object line) {
-        if (line == null) {
-            return;
-        }
-        this.lines.add(line);
-        this.recalcWidth |= line instanceof PrettyPrinter.IVariableWidthEntry;
+    /**
+     * Interface for object which supports printing to pretty printer
+     */
+    public interface IPrettyPrintable {
+        
+        /**
+         * Append this objec to specified pretty printer
+         * 
+         * @param printer printer to append to
+         */
+        public abstract void print(PrettyPrinter printer);
+        
     }
     
     /**
-     * Outputs this printer to stderr and to a logger decorated with specified
-     * name with level {@link Level#DEBUG}
-     *
-     * @param logger Logger name to write to
-     * @return fluent interface
+     * Interface for objects which need their width calculated prior to printing
      */
-    public PrettyPrinter trace(String logger) {
-        return this.trace(System.err, MixinService.getService().getLogger(logger));
+    interface IVariableWidthEntry {
+        
+        public abstract int getWidth();
+        
     }
     
     /**
@@ -70,26 +74,47 @@ public class PrettyPrinter {
     }
     
     /**
-     * Outputs this printer to stderr and to a logger decorated with specified
-     * name with the specified level
-     *
-     * @param logger Logger name to write to
-     * @param level Log level to write messages
-     * @return fluent interface
+     * A key/value pair for convenient printing
      */
-    public PrettyPrinter trace(String logger, Level level) {
-        return this.trace(System.err, MixinService.getService().getLogger(logger), level);
+    class KeyValue implements PrettyPrinter.IVariableWidthEntry {
+        
+        private final String key;
+        
+        private final Object value;
+        
+        public KeyValue(String key, Object value) {
+            this.key = key;
+            this.value = value;
+        }
+
+        @Override
+        public String toString() {
+            return String.format(PrettyPrinter.this.kvFormat, this.key, this.value);
+        }
+
+        @Override
+        public int getWidth() {
+            return this.toString().length();
+        }
+        
     }
     
     /**
-     * Outputs this printer to stderr and to the supplied logger with level
-     * {@link Level#DEBUG}
-     *
-     * @param logger Logger to write to
-     * @return fluent interface
+     * Horizontal rule
      */
-    public PrettyPrinter trace(ILogger logger) {
-        return this.trace(System.err, logger);
+    class HorizontalRule implements PrettyPrinter.ISpecialEntry {
+        
+        private final char[] hrChars;
+
+        public HorizontalRule(char... hrChars) {
+            this.hrChars = hrChars;
+        }
+        
+        @Override
+        public String toString() {
+            return Strings.repeat(new String(this.hrChars), PrettyPrinter.this.width + 2);
+        }
+        
     }
     
     /**
@@ -112,26 +137,110 @@ public class PrettyPrinter {
     }
     
     /**
-     * Outputs this printer to stderr and to the supplied logger with the
-     * specified level
-     *
-     * @param logger Logger to write to
-     * @param level Log level to write messages
-     * @return fluent interface
+     * Table column alignment
      */
-    public PrettyPrinter trace(ILogger logger, Level level) {
-        return this.trace(System.err, logger, level);
+    public static enum Alignment {
+        LEFT,
+        RIGHT
     }
     
     /**
-     * Outputs this printer to the specified stream and to a logger decorated
-     * with the calling class name with level {@link Level#DEBUG}
-     *
-     * @param stream Output stream to print to
-     * @return fluent interface
+     * Table information, added to output in order to print header
      */
-    public PrettyPrinter trace(PrintStream stream) {
-        return this.trace(stream, PrettyPrinter.getDefaultLoggerName());
+    static class Table implements PrettyPrinter.IVariableWidthEntry {
+        
+        final List<Column> columns = new ArrayList<Column>();
+        
+        final List<Row> rows = new ArrayList<Row>();
+        
+        String format = "%s";
+        
+        int colSpacing = 2;
+        
+        boolean addHeader = true;
+        
+        void headerAdded() {
+            this.addHeader = false;
+        }
+
+        void setColSpacing(int spacing) {
+            this.colSpacing = Math.max(0, spacing);
+            this.updateFormat();
+        }
+
+        Table grow(int size) {
+            while (this.columns.size() < size) {
+                this.columns.add(new Column(this));
+            }
+            this.updateFormat();
+            return this;
+        }
+        
+        Column add(Column column) {
+            this.columns.add(column);
+            return column;
+        }
+        
+        Row add(Row row) {
+            this.rows.add(row);
+            return row;
+        }
+        
+        Column addColumn(String title) {
+            return this.add(new Column(this, title));
+        }
+        
+        Column addColumn(Alignment align, int size, String title) {
+            return this.add(new Column(this, align, size, title));
+        }
+        
+        Row addRow(Object... args) {
+            return this.add(new Row(this, args));
+        }
+
+        void updateFormat() {
+            String spacing = Strings.repeat(" ", this.colSpacing);
+            StringBuilder format = new StringBuilder();
+            boolean addSpacing = false;
+            for (Column column : this.columns) {
+                if (addSpacing) {
+                    format.append(spacing);
+                }
+                addSpacing = true;
+                format.append(column.getFormat());
+            }
+            this.format = format.toString();
+        }
+        
+        String getFormat() {
+            return this.format;
+        }
+
+        Object[] getTitles() {
+            List<Object> titles = new ArrayList<Object>();
+            for (Column column : this.columns) {
+                titles.add(column.getTitle());
+            }
+            return titles.toArray();
+        }
+        
+        @Override
+        public String toString() {
+            boolean nonEmpty = false;
+            String[] titles = new String[this.columns.size()];
+            for (int col = 0; col < this.columns.size(); col++) {
+                titles[col] = this.columns.get(col).toString();
+                nonEmpty |= !titles[col].isEmpty();
+            }
+            return nonEmpty ? String.format(this.format, (Object[])titles) : null;
+        }
+        
+        @Override
+        public int getWidth() {
+            String str = this.toString();
+            return str != null ? str.length() : 0;
+        }
+        
     }
     
     /**
@@ -230,15 +339,43 @@ public class PrettyPrinter {
     }
     
     /**
-     * Outputs this printer to the specified stream and to a logger decorated
-     * with the calling class name with the specified level
-     *
-     * @param stream Output stream to print to
-     * @param level Log level to write messages
-     * @return fluent interface
+     * Table row, internal
      */
-    public PrettyPrinter trace(PrintStream stream, Level level) {
-        return this.trace(stream, PrettyPrinter.getDefaultLoggerName(), level);
+    static class Row implements PrettyPrinter.IVariableWidthEntry {
+        
+        final Table table;
+        
+        final String[] args;
+
+        public Row(Table table, Object... args) {
+            this.table = table.grow(args.length);
+            this.args = new String[args.length];
+            for (int i = 0; i < args.length; i++) {
+                this.args[i] = args[i].toString();
+                this.table.columns.get(i).setMinWidth(this.args[i].length());
+            }
+        }
+        
+        @Override
+        public String toString() {
+            Object[] args = new Object[this.table.columns.size()];
+            for (int col = 0; col < args.length; col++) {
+                Column column = this.table.columns.get(col);
+                if (col >= this.args.length) {
+                    args[col] = "";
+                } else {
+                    args[col] = (this.args[col].length() > column.getMaxWidth()) ? this.args[col].substring(0, column.getMaxWidth()) : this.args[col];
+                }
+            }
+            
+            return String.format(this.table.format, args);
+        }
+        
+        @Override
+        public int getWidth() {
+            return this.toString().length();
+        }
+        
     }
     
     /**
@@ -774,16 +911,12 @@ public class PrettyPrinter {
         return this;
     }
     
-    /**
-     * Outputs this printer to the specified stream and to a logger with the
-     * specified name with level {@link Level#DEBUG}
-     *
-     * @param stream Output stream to print to
-     * @param logger Logger name to write to
-     * @return fluent interface
-     */
-    public PrettyPrinter trace(PrintStream stream, String logger) {
-        return this.trace(stream, MixinService.getService().getLogger(logger));
+    private void addLine(Object line) {
+        if (line == null) {
+            return;
+        }
+        this.lines.add(line);
+        this.recalcWidth |= line instanceof PrettyPrinter.IVariableWidthEntry;
     }
     
     /**
@@ -808,9 +941,90 @@ public class PrettyPrinter {
     }
 
     /**
+     * Outputs this printer to stderr and to a logger decorated with specified
+     * name with level {@link Level#DEBUG}
+     * 
+     * @param logger Logger name to write to
+     * @return fluent interface
+     */
+    public PrettyPrinter trace(String logger) {
+        return this.trace(System.err, MixinService.getService().getLogger(logger));
+    }
+
+    /**
+     * Outputs this printer to stderr and to a logger decorated with specified
+     * name with the specified level
+     * 
+     * @param logger Logger name to write to
+     * @param level Log level to write messages
+     * @return fluent interface
+     */
+    public PrettyPrinter trace(String logger, Level level) {
+        return this.trace(System.err, MixinService.getService().getLogger(logger), level);
+    }
+
+    /**
+     * Outputs this printer to stderr and to the supplied logger with level
+     * {@link Level#DEBUG}
+     * 
+     * @param logger Logger to write to
+     * @return fluent interface
+     */
+    public PrettyPrinter trace(ILogger logger) {
+        return this.trace(System.err, logger);
+    }
+    
+    /**
+     * Outputs this printer to stderr and to the supplied logger with the
+     * specified level
+     * 
+     * @param logger Logger to write to
+     * @param level Log level to write messages
+     * @return fluent interface
+     */
+    public PrettyPrinter trace(ILogger logger, Level level) {
+        return this.trace(System.err, logger, level);
+    }
+    
+    /**
+     * Outputs this printer to the specified stream and to a logger decorated
+     * with the calling class name with level {@link Level#DEBUG}
+     * 
+     * @param stream Output stream to print to
+     * @return fluent interface
+     */
+    public PrettyPrinter trace(PrintStream stream) {
+        return this.trace(stream, PrettyPrinter.getDefaultLoggerName());
+    }
+
+    /**
+     * Outputs this printer to the specified stream and to a logger decorated
+     * with the calling class name with the specified level
+     * 
+     * @param stream Output stream to print to
+     * @param level Log level to write messages
+     * @return fluent interface
+     */
+    public PrettyPrinter trace(PrintStream stream, Level level) {
+        return this.trace(stream, PrettyPrinter.getDefaultLoggerName(), level);
+    }
+    
+    /**
+     * Outputs this printer to the specified stream and to a logger with the
+     * specified name with level {@link Level#DEBUG}
+     * 
+     * @param stream Output stream to print to
+     * @param logger Logger name to write to
+     * @return fluent interface
+     */
+    public PrettyPrinter trace(PrintStream stream, String logger) {
+        return this.trace(stream, MixinService.getService().getLogger(logger));
+    }
+    
+    /**
      * Outputs this printer to the specified stream and to a logger with the
      * specified name at the specified level
-     *
+     * 
      * @param stream Output stream to print to
      * @param logger Logger name to write to
      * @param level Log level to write messages
@@ -819,11 +1033,11 @@ public class PrettyPrinter {
     public PrettyPrinter trace(PrintStream stream, String logger, Level level) {
         return this.trace(stream, MixinService.getService().getLogger(logger), level);
     }
-
+    
     /**
      * Outputs this printer to the specified stream and to the supplied logger
      * with level {@link Level#DEBUG}
-     *
+     * 
      * @param stream Output stream to print to
      * @param logger Logger to write to
      * @return fluent interface
@@ -831,11 +1045,11 @@ public class PrettyPrinter {
     public PrettyPrinter trace(PrintStream stream, ILogger logger) {
         return this.trace(stream, logger, Level.DEBUG);
     }
-
+    
     /**
      * Outputs this printer to the specified stream and to the supplied logger
      * with at the specified level
-     *
+     * 
      * @param stream Output stream to print to
      * @param logger Logger to write to
      * @param level Log level to write messages
@@ -849,7 +1063,7 @@ public class PrettyPrinter {
     
     /**
      * Print this printer to stderr
-     *
+     * 
      * @return fluent interface
      */
     public PrettyPrinter print() {
@@ -858,7 +1072,7 @@ public class PrettyPrinter {
     
     /**
      * Print this printer to the specified output
-     *
+     * 
      * @param stream stream to print to
      * @return fluent interface
      */
@@ -876,9 +1090,19 @@ public class PrettyPrinter {
         return this;
     }
 
+    private void printSpecial(PrintStream stream, ISpecialEntry line) {
+        stream.printf("/*%s*/\n", line.toString());
+    }
+
+    private void printString(PrintStream stream, String string) {
+        if (string != null) {
+            stream.printf("/* %-" + this.width + "s */\n", string);
+        }
+    }
+
     /**
      * Write this printer to the specified logger at {@link Level#INFO}
-     *
+     * 
      * @param logger logger to log to
      * @return fluent interface
      */
@@ -888,7 +1112,7 @@ public class PrettyPrinter {
     
     /**
      * Write this printer to the specified logger at {@link Level#INFO}
-     *
+     * 
      * @param level log level
      * @return fluent interface
      */
@@ -898,7 +1122,7 @@ public class PrettyPrinter {
     
     /**
      * Write this printer to the specified logger
-     *
+     * 
      * @param logger logger to log to
      * @param level log level
      * @return fluent interface
@@ -915,230 +1139,6 @@ public class PrettyPrinter {
         }
         this.logSpecial(logger, level, this.horizontalRule);
         return this;
-    }
-    
-    /**
-     * Table column alignment
-     */
-    public static enum Alignment {
-        LEFT,
-        RIGHT
-    }
-    
-    /**
-     * Interface for object which supports printing to pretty printer
-     */
-    public interface IPrettyPrintable {
-
-        /**
-         * Append this objec to specified pretty printer
-         *
-         * @param printer printer to append to
-         */
-        public abstract void print(PrettyPrinter printer);
-
-    }
-    
-    /**
-     * Interface for objects which need their width calculated prior to printing
-     */
-    interface IVariableWidthEntry {
-
-        public abstract int getWidth();
-
-    }
-    
-    /**
-     * Table information, added to output in order to print header
-     */
-    static class Table implements PrettyPrinter.IVariableWidthEntry {
-
-        final List<Column> columns = new ArrayList<Column>();
-
-        final List<Row> rows = new ArrayList<Row>();
-
-        String format = "%s";
-
-        int colSpacing = 2;
-
-        boolean addHeader = true;
-
-        void headerAdded() {
-            this.addHeader = false;
-        }
-
-        void setColSpacing(int spacing) {
-            this.colSpacing = Math.max(0, spacing);
-            this.updateFormat();
-        }
-
-        Table grow(int size) {
-            while (this.columns.size() < size) {
-                this.columns.add(new Column(this));
-            }
-            this.updateFormat();
-            return this;
-        }
-
-        Column add(Column column) {
-            this.columns.add(column);
-            return column;
-        }
-
-        Row add(Row row) {
-            this.rows.add(row);
-            return row;
-        }
-
-        Column addColumn(String title) {
-            return this.add(new Column(this, title));
-        }
-
-        Column addColumn(Alignment align, int size, String title) {
-            return this.add(new Column(this, align, size, title));
-        }
-
-        Row addRow(Object... args) {
-            return this.add(new Row(this, args));
-        }
-
-        void updateFormat() {
-            String spacing = Strings.repeat(" ", this.colSpacing);
-            StringBuilder format = new StringBuilder();
-            boolean addSpacing = false;
-            for (Column column : this.columns) {
-                if (addSpacing) {
-                    format.append(spacing);
-                }
-                addSpacing = true;
-                format.append(column.getFormat());
-            }
-            this.format = format.toString();
-        }
-
-        String getFormat() {
-            return this.format;
-        }
-
-        Object[] getTitles() {
-            List<Object> titles = new ArrayList<Object>();
-            for (Column column : this.columns) {
-                titles.add(column.getTitle());
-            }
-            return titles.toArray();
-        }
-
-        @Override
-        public String toString() {
-            boolean nonEmpty = false;
-            String[] titles = new String[this.columns.size()];
-            for (int col = 0; col < this.columns.size(); col++) {
-                titles[col] = this.columns.get(col).toString();
-                nonEmpty |= !titles[col].isEmpty();
-            }
-            return nonEmpty ? String.format(this.format, (Object[])titles) : null;
-        }
-
-        @Override
-        public int getWidth() {
-            String str = this.toString();
-            return str != null ? str.length() : 0;
-        }
-
-    }
-
-    private void printSpecial(PrintStream stream, ISpecialEntry line) {
-        stream.printf("/*%s*/\n", line.toString());
-    }
-
-    private void printString(PrintStream stream, String string) {
-        if (string != null) {
-            stream.printf("/* %-" + this.width + "s */\n", string);
-        }
-    }
-
-    /**
-     * Table row, internal
-     */
-    static class Row implements PrettyPrinter.IVariableWidthEntry {
-
-        final Table table;
-
-        final String[] args;
-
-        public Row(Table table, Object... args) {
-            this.table = table.grow(args.length);
-            this.args = new String[args.length];
-            for (int i = 0; i < args.length; i++) {
-                this.args[i] = args[i].toString();
-                this.table.columns.get(i).setMinWidth(this.args[i].length());
-            }
-        }
-
-        @Override
-        public String toString() {
-            Object[] args = new Object[this.table.columns.size()];
-            for (int col = 0; col < args.length; col++) {
-                Column column = this.table.columns.get(col);
-                if (col >= this.args.length) {
-                    args[col] = "";
-                } else {
-                    args[col] = (this.args[col].length() > column.getMaxWidth()) ? this.args[col].substring(0, column.getMaxWidth()) : this.args[col];
-                }
-            }
-
-            return String.format(this.table.format, args);
-        }
-
-        @Override
-        public int getWidth() {
-            return this.toString().length();
-        }
-
-    }
-    
-    /**
-     * A key/value pair for convenient printing
-     */
-    class KeyValue implements PrettyPrinter.IVariableWidthEntry {
-
-        private final String key;
-
-        private final Object value;
-
-        public KeyValue(String key, Object value) {
-            this.key = key;
-            this.value = value;
-        }
-
-        @Override
-        public String toString() {
-            return String.format(PrettyPrinter.this.kvFormat, this.key, this.value);
-        }
-
-        @Override
-        public int getWidth() {
-            return this.toString().length();
-        }
-
-    }
-    
-    /**
-     * Horizontal rule
-     */
-    class HorizontalRule implements PrettyPrinter.ISpecialEntry {
-
-        private final char[] hrChars;
-
-        public HorizontalRule(char... hrChars) {
-            this.hrChars = hrChars;
-        }
-
-        @Override
-        public String toString() {
-            return Strings.repeat(new String(this.hrChars), PrettyPrinter.this.width + 2);
-        }
-
     }
 
     private void logSpecial(ILogger logger, Level level, ISpecialEntry line) {

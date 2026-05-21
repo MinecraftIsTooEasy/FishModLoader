@@ -34,6 +34,14 @@ import org.spongepowered.asm.mixin.transformer.throwables.InvalidMixinException;
  */
 public interface IFeatureValidator {
     /**
+     * Decides whether the given mixin can enum-extend the given target class.
+     * If not, should throw an {@link InvalidMixinException} with an informative error as to why this is not allowed.
+     * @param mixin the enum extension Mixin
+     * @param targetClass the target class the Mixin is trying to extend
+     */
+    public abstract void validateEnumExtension(IMixinInfo mixin, ClassInfo targetClass) throws InvalidMixinException;
+
+    /**
      * Allows all features.
      */
     public static final IFeatureValidator ALLOW_ALL = new IFeatureValidator() {
@@ -41,12 +49,4 @@ public interface IFeatureValidator {
         public void validateEnumExtension(IMixinInfo mixin, ClassInfo targetClass) throws InvalidMixinException {
         }
     };
-
-    /**
-     * Decides whether the given mixin can enum-extend the given target class.
-     * If not, should throw an {@link InvalidMixinException} with an informative error as to why this is not allowed.
-     * @param mixin the enum extension Mixin
-     * @param targetClass the target class the Mixin is trying to extend
-     */
-    public abstract void validateEnumExtension(IMixinInfo mixin, ClassInfo targetClass) throws InvalidMixinException;
 }

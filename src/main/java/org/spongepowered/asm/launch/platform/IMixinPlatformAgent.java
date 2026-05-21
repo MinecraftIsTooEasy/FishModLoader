@@ -39,41 +39,41 @@ import org.spongepowered.asm.launch.platform.container.IContainerHandle;
 public interface IMixinPlatformAgent {
     
     /**
+     * Result type returned from {@link IMixinPlatformAgent#accept}
+     */
+    public enum AcceptResult {
+        
+        /**
+         * The container was accepted
+         */
+        ACCEPTED,
+        
+        /**
+         * The container was rejected
+         */
+        REJECTED,
+        
+        /**
+         * The agent encountered an error and no further containers should be
+         * offered
+         */
+        INVALID;
+        
+    }
+    
+    /**
      * Accept and bind to a container handle. This method is called for agents
      * hosted by {@link MixinContainer} and the agent should react accordingly.
      * If the agent is <em>not</em> able to delegate for container handles of
      * the supplied type, this method should return <tt>false</tt> to indicate
      * that the agent should not be added for this container.
-     *
+     * 
      * @param manager platform manager instance
      * @param handle handle to container
      * @return AcceptResult representing this agent's acceptance of the supplied
      *      container
      */
     public abstract AcceptResult accept(MixinPlatformManager manager, IContainerHandle handle);
-    
-    /**
-     * Result type returned from {@link IMixinPlatformAgent#accept}
-     */
-    public enum AcceptResult {
-
-        /**
-         * The container was accepted
-         */
-        ACCEPTED,
-
-        /**
-         * The container was rejected
-         */
-        REJECTED,
-
-        /**
-         * The agent encountered an error and no further containers should be
-         * offered
-         */
-        INVALID;
-
-    }
 
     /**
      * Get the phase provider for this agent

@@ -76,14 +76,6 @@ final class EnumInfo implements Comparable<EnumInfo> {
         }
     }
 
-    private static boolean isStubEnumConstant(FieldNode field) {
-        return field.attrs != null && field.attrs.stream().anyMatch(attr -> attr.type.equals(STUB_ENUM_CONSTANT_ATTRIBUTE));
-    }
-
-    private static AssumptionViolatedException assumptionViolated(String template, Object... args) {
-        return new AssumptionViolatedException(String.format(template, args));
-    }
-
     /**
      * Returns the fields whose type is the type of the enum, excluding stub constants
      */
@@ -196,6 +188,14 @@ final class EnumInfo implements Comparable<EnumInfo> {
             }
         }
         return false;
+    }
+
+    private static boolean isStubEnumConstant(FieldNode field) {
+        return field.attrs != null && field.attrs.stream().anyMatch(attr -> attr.type.equals(STUB_ENUM_CONSTANT_ATTRIBUTE));
+    }
+
+    private static AssumptionViolatedException assumptionViolated(String template, Object... args) {
+        return new AssumptionViolatedException(String.format(template, args));
     }
 
     public static final class AssumptionViolatedException extends Exception {

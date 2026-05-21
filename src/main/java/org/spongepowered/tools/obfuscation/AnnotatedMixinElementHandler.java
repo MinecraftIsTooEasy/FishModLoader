@@ -64,9 +64,54 @@ import org.spongepowered.tools.obfuscation.mirror.TypeUtils;
 abstract class AnnotatedMixinElementHandler {
     
     /**
-     * Mixin
+     * An annotated element to be processed by this element handler
+     * 
+     * @param <E> type of inner element
      */
-    protected final AnnotatedMixin mixin;
+    abstract static class AnnotatedElement<E extends Element> implements IAnnotatedElement {
+        
+        protected final E element;
+        
+        protected final AnnotationHandle annotation;
+
+        private final String desc;
+
+        public AnnotatedElement(E element, AnnotationHandle annotation) {
+            this.element = element;
+            this.annotation = annotation;
+            this.desc = TypeUtils.getDescriptor(element);
+        }
+
+        public E getElement() {
+            return this.element;
+        }
+        
+        public AnnotationHandle getAnnotation() {
+            return this.annotation;
+        }
+        
+        public String getSimpleName() {
+            return this.getElement().getSimpleName().toString();
+        }
+        
+        public String getDesc() {
+            return this.desc;
+        }
+        
+        public final void printMessage(IMessagerEx messager, MessageType type, CharSequence msg) {
+            messager.printMessage(type, msg, this.element, this.annotation.asMirror());
+        }
+
+        public final void printMessage(IMessagerSuppressible messager, MessageType type, CharSequence msg, SuppressedBy suppressedBy) {
+            messager.printMessage(type, msg, this.element, this.annotation.asMirror(), suppressedBy);
+        }
+        
+        @Override
+        public IAnnotationHandle getAnnotation(Class<? extends Annotation> annotationClass) {
+            return AnnotationHandle.of(this.element, annotationClass);
+        }
+        
+    }
     
     abstract static class AnnotatedElementExecutable extends AnnotatedElement<ExecutableElement> implements ISelectorContext {
         
@@ -131,12 +176,204 @@ abstract class AnnotatedMixinElementHandler {
         }
         
     }
+
+    /**
+     * A name of an element which may have aliases
+     */
+    static class AliasedElementName {
+        
+        /**
+         * The original name including any original prefix (the "actual" name) 
+         */
+        protected final String originalName;
+        
+        /**
+         * Aliases declared by the annotation (if any), never null 
+         */
+        private final List<String> aliases;
+        
+        private boolean caseSensitive;
+        
+        public AliasedElementName(Element element, AnnotationHandle annotation) {
+            this.originalName = element.getSimpleName().toString();
+            this.aliases = annotation.<String>getList("aliases");
+        }
+        
+        public AliasedElementName(MethodHandle method, AnnotationHandle annotation) {
+            this.originalName = method.getName();
+            this.aliases = annotation.<String>getList("aliases");
+        }
+        
+        public AliasedElementName setCaseSensitive(boolean caseSensitive) {
+            this.caseSensitive = caseSensitive;
+            return this;
+        }
+        
+        public boolean isCaseSensitive() {
+            return this.caseSensitive;
+        }
+        
+        /**
+         * Get whether this member has any aliases defined
+         */
+        public boolean hasAliases() {
+            return this.aliases.size() > 0;
+        }
+        
+        /**
+         * Get this member's aliases
+         */
+        public List<String> getAliases() {
+            return this.aliases;
+        }
+        
+        /**
+         * Gets the original name of the member (including prefix)
+         */
+        public String elementName() {
+            return this.originalName;
+        }
+
+        public String baseName() {
+            return this.originalName;
+        }
+
+        public boolean hasPrefix() {
+            return false;
+        }
+
+    }
+    
+    /**
+     * Convenience class to store information about an
+     * {@link org.spongepowered.asm.mixin.Shadow}ed member's names
+     */
+    static class ShadowElementName extends AliasedElementName {
+        
+        /**
+         * True if the real element is prefixed
+         */
+        private final boolean hasPrefix;
+        
+        /**
+         * Expected prefix read from the annotation, this is set even if
+         * {@link #hasPrefix} is false
+         */
+        private final String prefix;
+        
+        /**
+         * The base name without the prefix
+         */
+        private final String baseName;
+        
+        /**
+         * Obfuscated name (once determined) 
+         */
+        private String obfuscated;
+        
+        ShadowElementName(Element element, AnnotationHandle shadow) {
+            super(element, shadow);
+            
+            this.prefix = shadow.<String>getValue("prefix", "shadow$");
+            
+            boolean hasPrefix = false;
+            String name = this.originalName;
+            if (name.startsWith(this.prefix)) {
+                hasPrefix = true;
+                name = name.substring(this.prefix.length());
+            }
+            
+            this.hasPrefix = hasPrefix;
+            this.obfuscated = this.baseName = name;
+        }
+        
+        /* (non-Javadoc)
+         * @see java.lang.Object#toString()
+         */
+        @Override
+        public String toString() {
+            return this.baseName;
+        }
+        
+        @Override
+        public String baseName() {
+            return this.baseName;
+        }
+        
+        /**
+         * Sets the obfuscated name for this element
+         * 
+         * @param name Mapping containing new name
+         * @return fluent interface
+         */
+        public ShadowElementName setObfuscatedName(IMapping<?> name) {
+            this.obfuscated = name.getName();
+            return this;
+        }
+
+        /**
+         * Sets the obfuscated name for this element
+         * 
+         * @param name New name
+         * @return fluent interface
+         */
+        public ShadowElementName setObfuscatedName(String name) {
+            this.obfuscated = name;
+            return this;
+        }
+        
+        @Override
+        public boolean hasPrefix() {
+            return this.hasPrefix;
+        }
+
+        /**
+         * Get the prefix (if set), does not return the expected prefix
+         */
+        public String prefix() {
+            return this.hasPrefix ? this.prefix : "";
+        }
+        
+        /**
+         * Get the base name
+         */
+        public String name() {
+            return this.prefix(this.baseName);
+        }
+        
+        /**
+         * Gets the obfuscated name (including prefix where appropriate
+         */
+        public String obfuscated() {
+            return this.prefix(this.obfuscated);
+        }
+        
+        /**
+         * Apply the prefix (if any) to the specified string
+         * 
+         * @param name String to prefix
+         * @return Prefixed string or original string if no prefix
+         */
+        public String prefix(String name) {
+            return this.hasPrefix ? this.prefix + name : name;
+        }
+        
+    }
+    
+    /**
+     * Mixin
+     */
+    protected final AnnotatedMixin mixin;
+
     protected final String classRef;
+
     /**
      * Annotation processor
      */
     protected final IMixinAnnotationProcessor ap;
+    
     protected final IObfuscationManager obf;
+    
     private IMappingConsumer mappings;
 
     AnnotatedMixinElementHandler(IMixinAnnotationProcessor ap, AnnotatedMixin mixin) {
@@ -157,7 +394,7 @@ abstract class AnnotatedMixinElementHandler {
         }
         return this.mappings;
     }
-    
+
     protected final void addFieldMappings(String mcpName, String mcpSignature, ObfuscationData<MappingField> obfData) {
         for (ObfuscationType type : obfData) {
             MappingField obfField = obfData.get(type);
@@ -171,7 +408,7 @@ abstract class AnnotatedMixinElementHandler {
     protected final void addFieldMapping(ObfuscationType type, ShadowElementName name, String mcpSignature, String obfSignature) {
         this.addFieldMapping(type, name.name(), name.obfuscated(), mcpSignature, obfSignature);
     }
-    
+
     /**
      * Add a field mapping to the local table
      */
@@ -207,7 +444,7 @@ abstract class AnnotatedMixinElementHandler {
     /**
      * Check constraints for the specified annotation based on token values in
      * the current environment
-     *
+     * 
      * @param method Annotated method
      * @param annotation Annotation to check constraints
      */
@@ -223,7 +460,7 @@ abstract class AnnotatedMixinElementHandler {
             this.ap.printMessage(MessageType.INVALID_CONSTRAINT, ex.getMessage(), method, annotation.asMirror(), SuppressedBy.CONSTRAINTS);
         }
     }
-
+    
     protected final void validateTarget(Element element, AnnotationHandle annotation, AliasedElementName name, String type) {
         if (element instanceof ExecutableElement) {
             this.validateTargetMethod((ExecutableElement)element, annotation, name, type, false, false);
@@ -231,7 +468,7 @@ abstract class AnnotatedMixinElementHandler {
             this.validateTargetField((VariableElement)element, annotation, name, type);
         }
     }
-
+    
     /**
      * Checks whether the specified method exists in all targets and raises
      * warnings where appropriate
@@ -244,15 +481,15 @@ abstract class AnnotatedMixinElementHandler {
             if (target.isImaginary()) {
                 continue;
             }
-
+            
             // Find method as-is
             MethodHandle targetMethod = target.findMethod(method);
-
+            
             // Find method without prefix
             if (targetMethod == null && name.hasPrefix()) {
                 targetMethod = target.findMethod(name.baseName(), signature);
             }
-
+            
             // Check aliases
             if (targetMethod == null && name.hasAliases()) {
                 for (String alias : name.getAliases()) {
@@ -261,7 +498,7 @@ abstract class AnnotatedMixinElementHandler {
                     }
                 }
             }
-
+            
             if (targetMethod != null) {
                 if (overwrite) {
                     this.validateMethodVisibility(method, annotation, type, target, targetMethod);
@@ -279,7 +516,7 @@ abstract class AnnotatedMixinElementHandler {
         if (visTarget == null) {
             return;
         }
-
+        
         Visibility visMethod = TypeUtils.getVisibility(method);
         String visibility = "visibility of " + visTarget + " method in " + target;
         if (visTarget.ordinal() > visMethod.ordinal()) {
@@ -290,7 +527,7 @@ abstract class AnnotatedMixinElementHandler {
                     SuppressedBy.VISIBILITY);
         }
     }
-    
+
     /**
      * Checks whether the specified field exists in all targets and raises
      * warnings where appropriate
@@ -302,13 +539,13 @@ abstract class AnnotatedMixinElementHandler {
             if (target.isImaginary()) {
                 continue;
             }
-
+            
             // Search for field
             FieldHandle targetField = target.findField(field);
             if (targetField != null) {
                 continue;
             }
-
+            
             // Try search by alias
             List<String> aliases = name.getAliases();
             for (String alias : aliases) {
@@ -316,14 +553,14 @@ abstract class AnnotatedMixinElementHandler {
                     break;
                 }
             }
-
+            
             if (targetField == null) {
                 this.ap.printMessage(MessageType.TARGET_ELEMENT_NOT_FOUND, "Cannot find target for " + type + " field in " + target,
                         field, annotation.asMirror(), SuppressedBy.TARGET);
             }
         }
     }
-    
+
     /**
      * Checks whether the referenced method exists in all targets and raises
      * warnings where appropriate
@@ -332,22 +569,22 @@ abstract class AnnotatedMixinElementHandler {
         if (!(targetSelector instanceof ITargetSelectorByName)) {
             return;
         }
-
+        
         ITargetSelectorByName nameRef = (ITargetSelectorByName)targetSelector;
         String signature = nameRef.toDescriptor();
-
+        
         for (TypeHandle target : this.mixin.getTargets()) {
             if (target.isImaginary()) {
                 continue;
             }
-
+            
             MethodHandle targetMethod = target.findMethod(nameRef.getName(), signature);
             if (targetMethod == null) {
                 this.ap.printMessage(MessageType.TARGET_ELEMENT_NOT_FOUND, "Cannot find target method \"" + nameRef.getName()
                         + nameRef.getDesc() + "\" for " + subject + " in " + target, elem.getElement(), elem.getAnnotation().asMirror(),
                         SuppressedBy.TARGET);
             }
-        }
+        }            
     }
 
     private void printMessage(MessageType type, String msg, Element e, AnnotationHandle annotation, SuppressedBy suppressedBy) {
@@ -356,239 +593,6 @@ abstract class AnnotatedMixinElementHandler {
         } else {
             this.ap.printMessage(type, msg, e, annotation.asMirror(), suppressedBy);
         }
-    }
-
-    /**
-     * An annotated element to be processed by this element handler
-     *
-     * @param <E> type of inner element
-     */
-    abstract static class AnnotatedElement<E extends Element> implements IAnnotatedElement {
-
-        protected final E element;
-
-        protected final AnnotationHandle annotation;
-
-        private final String desc;
-
-        public AnnotatedElement(E element, AnnotationHandle annotation) {
-            this.element = element;
-            this.annotation = annotation;
-            this.desc = TypeUtils.getDescriptor(element);
-        }
-
-        public E getElement() {
-            return this.element;
-        }
-
-        public AnnotationHandle getAnnotation() {
-            return this.annotation;
-        }
-
-        public String getSimpleName() {
-            return this.getElement().getSimpleName().toString();
-        }
-
-        public String getDesc() {
-            return this.desc;
-        }
-
-        public final void printMessage(IMessagerEx messager, MessageType type, CharSequence msg) {
-            messager.printMessage(type, msg, this.element, this.annotation.asMirror());
-        }
-
-        public final void printMessage(IMessagerSuppressible messager, MessageType type, CharSequence msg, SuppressedBy suppressedBy) {
-            messager.printMessage(type, msg, this.element, this.annotation.asMirror(), suppressedBy);
-        }
-
-        @Override
-        public IAnnotationHandle getAnnotation(Class<? extends Annotation> annotationClass) {
-            return AnnotationHandle.of(this.element, annotationClass);
-        }
-
-    }
-
-    /**
-     * A name of an element which may have aliases
-     */
-    static class AliasedElementName {
-
-        /**
-         * The original name including any original prefix (the "actual" name)
-         */
-        protected final String originalName;
-
-        /**
-         * Aliases declared by the annotation (if any), never null
-         */
-        private final List<String> aliases;
-
-        private boolean caseSensitive;
-
-        public AliasedElementName(Element element, AnnotationHandle annotation) {
-            this.originalName = element.getSimpleName().toString();
-            this.aliases = annotation.<String>getList("aliases");
-        }
-
-        public AliasedElementName(MethodHandle method, AnnotationHandle annotation) {
-            this.originalName = method.getName();
-            this.aliases = annotation.<String>getList("aliases");
-        }
-
-        public AliasedElementName setCaseSensitive(boolean caseSensitive) {
-            this.caseSensitive = caseSensitive;
-            return this;
-        }
-
-        public boolean isCaseSensitive() {
-            return this.caseSensitive;
-        }
-
-        /**
-         * Get whether this member has any aliases defined
-         */
-        public boolean hasAliases() {
-            return this.aliases.size() > 0;
-        }
-
-        /**
-         * Get this member's aliases
-         */
-        public List<String> getAliases() {
-            return this.aliases;
-        }
-
-        /**
-         * Gets the original name of the member (including prefix)
-         */
-        public String elementName() {
-            return this.originalName;
-        }
-
-        public String baseName() {
-            return this.originalName;
-        }
-
-        public boolean hasPrefix() {
-            return false;
-        }
-
-    }
-
-    /**
-     * Convenience class to store information about an
-     * {@link org.spongepowered.asm.mixin.Shadow}ed member's names
-     */
-    static class ShadowElementName extends AliasedElementName {
-
-        /**
-         * True if the real element is prefixed
-         */
-        private final boolean hasPrefix;
-
-        /**
-         * Expected prefix read from the annotation, this is set even if
-         * {@link #hasPrefix} is false
-         */
-        private final String prefix;
-
-        /**
-         * The base name without the prefix
-         */
-        private final String baseName;
-
-        /**
-         * Obfuscated name (once determined)
-         */
-        private String obfuscated;
-
-        ShadowElementName(Element element, AnnotationHandle shadow) {
-            super(element, shadow);
-
-            this.prefix = shadow.<String>getValue("prefix", "shadow$");
-
-            boolean hasPrefix = false;
-            String name = this.originalName;
-            if (name.startsWith(this.prefix)) {
-                hasPrefix = true;
-                name = name.substring(this.prefix.length());
-            }
-
-            this.hasPrefix = hasPrefix;
-            this.obfuscated = this.baseName = name;
-        }
-
-        /* (non-Javadoc)
-         * @see java.lang.Object#toString()
-         */
-        @Override
-        public String toString() {
-            return this.baseName;
-        }
-
-        @Override
-        public String baseName() {
-            return this.baseName;
-        }
-
-        /**
-         * Sets the obfuscated name for this element
-         *
-         * @param name Mapping containing new name
-         * @return fluent interface
-         */
-        public ShadowElementName setObfuscatedName(IMapping<?> name) {
-            this.obfuscated = name.getName();
-            return this;
-        }
-
-        /**
-         * Sets the obfuscated name for this element
-         *
-         * @param name New name
-         * @return fluent interface
-         */
-        public ShadowElementName setObfuscatedName(String name) {
-            this.obfuscated = name;
-            return this;
-        }
-
-        @Override
-        public boolean hasPrefix() {
-            return this.hasPrefix;
-        }
-
-        /**
-         * Get the prefix (if set), does not return the expected prefix
-         */
-        public String prefix() {
-            return this.hasPrefix ? this.prefix : "";
-        }
-
-        /**
-         * Get the base name
-         */
-        public String name() {
-            return this.prefix(this.baseName);
-        }
-
-        /**
-         * Gets the obfuscated name (including prefix where appropriate
-         */
-        public String obfuscated() {
-            return this.prefix(this.obfuscated);
-        }
-
-        /**
-         * Apply the prefix (if any) to the specified string
-         *
-         * @param name String to prefix
-         * @return Prefixed string or original string if no prefix
-         */
-        public String prefix(String name) {
-            return this.hasPrefix ? this.prefix + name : name;
-        }
-
     }
 
     protected static <T extends IMapping<T>> ObfuscationData<T> stripOwnerData(ObfuscationData<T> data) {

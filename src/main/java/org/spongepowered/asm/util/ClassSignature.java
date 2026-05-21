@@ -1257,20 +1257,66 @@ public class ClassSignature {
     }
     
     /**
+     * Converts this signature into a string representation compatible with the
+     * signature attribute of a Java class
+     * 
+     * @see java.lang.Object#toString()
+     */
+    @Override
+    public String toString() {
+        while (this.rawInterfaces.size() > 0) {
+            this.addRawInterface(this.rawInterfaces.remove());
+        }
+        
+        StringBuilder sb = new StringBuilder();
+        
+        if (this.types.size() > 0) {
+            boolean valid = false;
+            StringBuilder types = new StringBuilder();
+            for (Entry<TypeVar, TokenHandle> type : this.types.entrySet()) {
+                String bound = type.getValue().asBound();
+                if (!bound.isEmpty()) {
+                    types.append(type.getKey()).append(':').append(bound);
+                    valid = true;
+                }
+            }
+            
+            if (valid) {
+                sb.append('<').append(types).append('>');
+            }
+        }
+        
+        sb.append(this.superClass.asType());
+        
+        for (Token iface : this.interfaces) {
+            sb.append(iface.asType());
+        }
+        
+        return sb.toString();
+    }
+
+    /**
+     * Wake up this signature if it is lazy-loaded
+     */
+    public ClassSignature wake() {
+        return this;
+    }
+    
+    /**
      * Parse a generic class signature from the supplied string
-     *
+     * 
      * @param signature signature string to parse
      * @return parsed signature object
      */
     public static ClassSignature of(String signature) {
         return new ClassSignature().read(signature);
     }
-
+    
     /**
      * Parse a generic class signature from the supplied class node, uses the
      * declared signature if present, else falls back to generating a raw
      * signature from the class itself
-     *
+     * 
      * @param classNode class node to parse
      * @return parsed signature
      */
@@ -1286,8 +1332,8 @@ public class ClassSignature {
      * Returns a lazy-evaluated signature object. For classes with a signature
      * present this saves having to do the parse until we actually need it. For
      * classes with no signature we just go ahead and generate it from the
-     * supplied ClassNode while we have it
-     *
+     * supplied ClassNode while we have it 
+     * 
      * @param classNode class node to parse
      * @return parsed signature or lazy-load handle
      */
@@ -1297,52 +1343,6 @@ public class ClassSignature {
         }
 
         return ClassSignature.generate(classNode);
-    }
-    
-    /**
-     * Converts this signature into a string representation compatible with the
-     * signature attribute of a Java class
-     *
-     * @see java.lang.Object#toString()
-     */
-    @Override
-    public String toString() {
-        while (this.rawInterfaces.size() > 0) {
-            this.addRawInterface(this.rawInterfaces.remove());
-        }
-
-        StringBuilder sb = new StringBuilder();
-
-        if (this.types.size() > 0) {
-            boolean valid = false;
-            StringBuilder types = new StringBuilder();
-            for (Entry<TypeVar, TokenHandle> type : this.types.entrySet()) {
-                String bound = type.getValue().asBound();
-                if (!bound.isEmpty()) {
-                    types.append(type.getKey()).append(':').append(bound);
-                    valid = true;
-                }
-            }
-
-            if (valid) {
-                sb.append('<').append(types).append('>');
-            }
-        }
-
-        sb.append(this.superClass.asType());
-
-        for (Token iface : this.interfaces) {
-            sb.append(iface.asType());
-        }
-
-        return sb.toString();
-    }
-    
-    /**
-     * Wake up this signature if it is lazy-loaded
-     */
-    public ClassSignature wake() {
-        return this;
     }
 
     /**

@@ -26,43 +26,12 @@ package org.spongepowered.asm.mixin.extensibility;
 
 public interface IActivityContext {
     
-    /**
-     * Convert this activity stack to a string representation using the
-     * specified glue string
-     *
-     * @param glue glue string
-     * @return string representation of this activity stack
-     */
-    public abstract String toString(String glue);
-
-    /**
-     * Begin a new activity (push it onto this activity stack)
-     *
-     * @param descriptionFormat Activity description format
-     * @param args format args
-     * @return new activity handle
-     */
-    public abstract IActivity begin(String descriptionFormat, Object... args);
-
-    /**
-     * Begin a new activity (push it onto this activity stack)
-     *
-     * @param description Activity description
-     * @return new activity handle
-     */
-    public abstract IActivity begin(String description);
-
-    /**
-     * Clear the activity stack
-     */
-    public abstract void clear();
-
     public interface IActivity {
 
         /**
          * End this activity (and any descendants) and begin the next activity
          * using the same activity handle
-         *
+         * 
          * @param descriptionFormat New activity description format
          * @param args New activity description args
          */
@@ -71,7 +40,7 @@ public interface IActivityContext {
         /**
          * End this activity (and any descendants) and begin the next activity
          * using the same activity handle
-         *
+         * 
          * @param description New activity description
          */
         void next(String description);
@@ -83,7 +52,7 @@ public interface IActivityContext {
 
         /**
          * Append text to the activity description
-         *
+         * 
          * @param textFormat Format for text to append
          * @param args Format args
          */
@@ -91,11 +60,42 @@ public interface IActivityContext {
 
         /**
          * Append text to the activity description
-         *
+         * 
          * @param text Text to append
          */
         void append(String text);
-
+        
     }
+
+    /**
+     * Convert this activity stack to a string representation using the
+     * specified glue string
+     * 
+     * @param glue glue string
+     * @return string representation of this activity stack
+     */
+    public abstract String toString(String glue);
+
+    /**
+     * Begin a new activity (push it onto this activity stack)
+     * 
+     * @param descriptionFormat Activity description format
+     * @param args format args
+     * @return new activity handle
+     */
+    public abstract IActivity begin(String descriptionFormat, Object... args);
+
+    /**
+     * Begin a new activity (push it onto this activity stack)
+     * 
+     * @param description Activity description
+     * @return new activity handle
+     */
+    public abstract IActivity begin(String description);
+
+    /**
+     * Clear the activity stack
+     */
+    public abstract void clear();
 
 }

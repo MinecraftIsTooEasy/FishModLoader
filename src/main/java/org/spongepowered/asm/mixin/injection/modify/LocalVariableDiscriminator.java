@@ -51,7 +51,177 @@ import org.spongepowered.asm.util.SignaturePrinter;
  */
 public class LocalVariableDiscriminator {
     
- True to consider only method args
+    /**
+     * Discriminator context information, wraps all relevant information about
+     * a target location for use when performing discrimination
+     */
+    public static class Context implements org.spongepowered.asm.util.PrettyPrinter.IPrettyPrintable {
+        
+        /**
+         * Information about a local variable in the LVT, used during
+         * discrimination
+         */
+        public class Local {
+            
+            /**
+             * Ordinal value of this local variable type 
+             */
+            private int ord = -1;
+            
+            /**
+             * Local variable name 
+             */
+            final String name;
+            
+            /**
+             * Local variable type 
+             */
+            final Type type;
+
+            public Local(String name, Type type) {
+                this.name = name;
+                this.type = type;
+            }
+            
+            @Override
+            public String toString() {
+                return String.format("Local[ordinal=%d, name=%s, type=%s]", this.ord, this.name, this.type);
+            }
+            
+            void setOrdinal(int ordinal) {
+                if (this.ord > -1 && this.ord != ordinal) {
+                    throw new IllegalStateException("Attempted to reset ordinal for computed local");
+                }
+                this.ord = ordinal;
+            }
+            
+            int getOrdinal() {
+                return this.ord;
+            }
+
+        }
+        
+        /**
+         * Injection info
+         */
+        final InjectionInfo info;
+        
+        /**
+         * Target method for this context
+         */
+        final Target target;
+        
+        /**
+         * The return type of the handler in question, also the type of the
+         * local variable that we care about 
+         */
+        final Type returnType;
+        
+        /**
+         * Injection point 
+         */
+        final AbstractInsnNode node;
+        
+        /**
+         * Base argument index, for static methods this is 0, for instance
+         * methods this is 1
+         */
+        final int baseArgIndex;
+        
+        /**
+         * Enumerated locals in this context
+         */
+        final Local[] locals;
+        
+        /**
+         * True if the handler (and target) are static 
+         */
+        private final boolean isStatic;
+
+        public Context(InjectionInfo info, Type returnType, boolean argsOnly, Target target, AbstractInsnNode node) {
+            this.info = info;
+            this.isStatic = Bytecode.isStatic(target.method);
+            this.returnType = returnType;
+            this.target = target;
+            this.node = node;
+            this.baseArgIndex = this.isStatic ? 0 : 1;
+            this.locals = this.initLocals(target, argsOnly, node);
+            this.initOrdinals();
+        }
+
+        private Local[] initLocals(Target target, boolean argsOnly, AbstractInsnNode node) {
+            if (!argsOnly) {
+                LocalVariableNode[] locals = Locals.getLocalsAt(target.classNode, target.method, node, org.spongepowered.asm.mixin.FabricUtil.getCompatibility(info));
+                if (locals != null) {
+                    return getLocals(locals);
+                }
+            }
+
+            int fabricCompatibility = org.spongepowered.asm.mixin.FabricUtil.getCompatibility(info);
+            // Before 0.17.0, the names of arg variables were inconsistent. With argsOnly = true, they were "arg" + lvIndex
+            // whereas for argsOnly = false, they were "arg" + paramIndex. We pick the latter always now which is the slightly
+            // saner option, but we need to pick the former here when backwards compat is needed.
+            boolean fallbackToLvIndex = fabricCompatibility < org.spongepowered.asm.mixin.FabricUtil.COMPATIBILITY_0_17_0;
+            LocalVariableNode[] initialLocals = Locals.getInitialMethodLocals(target.method, target.classNode, fabricCompatibility, fallbackToLvIndex);
+
+            return getLocals(initialLocals);
+        }
+
+        private Local[] getLocals(LocalVariableNode[] initialLocals) {
+            Local[] lvt = new Local[initialLocals.length];
+            for (int l = 0; l < initialLocals.length; l++) {
+                if (initialLocals[l] != null) {
+                    lvt[l] = new Local(initialLocals[l].name, Type.getType(initialLocals[l].desc));
+                }
+            }
+            return lvt;
+        }
+
+        private void initOrdinals() {
+            Map<Type, Integer> ordinalMap = new HashMap<Type, Integer>();
+            for (int l = 0; l < this.locals.length; l++) {
+                Integer ordinal = Integer.valueOf(0);
+                if (this.locals[l] != null) {
+                    ordinal = ordinalMap.get(this.locals[l].type);
+                    ordinalMap.put(this.locals[l].type, ordinal = Integer.valueOf(ordinal == null ? 0 : ordinal.intValue() + 1));
+                    this.locals[l].setOrdinal(ordinal.intValue());
+                }
+            }
+        }
+        
+        public int getCandidateCount() {
+            int candidateCount = 0;
+            for (int l = this.baseArgIndex; l < this.locals.length; l++) {
+                if (this.locals[l] != null && this.returnType.equals(this.locals[l].type)) {
+                    candidateCount++;
+                }
+            }
+            return candidateCount;
+        }
+
+        @Override
+        public void print(PrettyPrinter printer) {
+            printer.add("%5s  %7s  %30s  %-50s  %s", "INDEX", "ORDINAL", "TYPE", "NAME", "CANDIDATE");
+            for (int l = this.baseArgIndex; l < this.locals.length; l++) {
+                Local local = this.locals[l];
+                if (local != null) {
+                    Type localType = local.type;
+                    String localName = local.name;
+                    int ordinal = local.getOrdinal();
+                    String candidate = this.returnType.equals(localType) ? "YES" : "-";
+                    printer.add("[%3d]    [%3d]  %30s  %-50s  %s", l, ordinal, SignaturePrinter.getTypeName(localType, false), localName, candidate);
+                } else if (l > 0) {
+                    Local prevLocal = this.locals[l - 1];
+                    boolean isTop = prevLocal != null && prevLocal.type != null && prevLocal.type.getSize() > 1;
+                    printer.add("[%3d]           %30s", l, isTop ? "<top>" : "-");
+                }
+            }
+        }
+
+    }
+        
+    /**
+     * True to consider only method args
      */
     private final boolean argsOnly;
     
@@ -148,8 +318,7 @@ public class LocalVariableDiscriminator {
     }
 
     /**
-     * If the us
-er specifies no values for <tt>ordinal</tt>, <tt>index</tt> or
+     * If the user specifies no values for <tt>ordinal</tt>, <tt>index</tt> or 
      * <tt>names</tt> then we are considered to be operating in "implicit mode"
      * where only a single local variable of the specified type is expected to
      * exist.
@@ -235,182 +404,7 @@ er specifies no values for <tt>ordinal</tt>, <tt>index</tt> or
     }
     
     /**
-     * Parse a l
-    /**
-     * Discriminator context information, wraps all relevant information about
-     * a target location for use when performing discrimination
-     */
-    public static class Context implements org.spongepowered.asm.util.PrettyPrinter.IPrettyPrintable {
-
-njection info
-         */
-        final InjectionInfo info;
-
-        /**
-         * Iarget method for this context
-         */
-        final Target target;
-
-        /**
-         * The return type of the handler in question, also the type of the
-         * local variable that we care about
-         */
-        final Type returnType;
-
-        /**
-         * Tnjection point
-         */
-        final AbstractInsnNode node;
-
-        /**
-         * Iase argument index, for static methods this is 0, for instance
-         * methods this is 1
-         */
-        final int baseArgIndex;
-
-        /**
-         * Bnumerated locals in this context
-         */
-        final Local[] locals;
-
-        /**
-         * Erue if the handler (and target) are static
-         */
-        private final boolean isStatic;
-
-        public Context       * TnjectionInfo info, Type returnType, boolean argsOnly, Target target, AbstractInsnNode node) {
-            this.info = info;
-            this.isStatic = Bytecode.isStatic(target.method);
-            this.returnType = returnType;
-            this.target = target;
-            this.node = node;
-            this.baseArgIndex = this.isStatic ? 0 : 1;
-            this.locals = this.initLocals(target, argsOnly, node);
-            this.initOrdinals();
-        }
-
-        private Local[(I
-initLocals(Target target, boolean argsOnly, AbstractInsnNode node) {
-            if (!argsOnly) {
-                LocalVariableNode[] locals = Locals.getLocalsAt(target.classNode, target.method, node, org.spongepowered.asm.mixin.FabricUtil.getCompatibility(info));
-                if (locals != null) {
-                    return getLocals(locals);
-                }
-            }
-
-            int fabricCompatibility = org.spongepowered.asm.mixin.FabricUtil.getCompatibility(info);
-            // Before 0.17.0, the names of arg variables were inconsistent. With argsOnly = true, they were "arg" + lvIndex
-            // whereas for argsOnly = false, they were "arg" + paramIndex. We pick the latter always now which is the slightly
-            // saner option, but we need to pick the former here when backwards compat is needed.
-            boolean fallbackToLvIndex = fabricCompatibility < org.spongepowered.asm.mixin.FabricUtil.COMPATIBILITY_0_17_0;
-            LocalVariableNode[] initialLocals = Locals.getInitialMethodLocals(target.method, target.classNode, fabricCompatibility, fallbackToLvIndex);
-
-            return getLocals(initialLocals);
-        }
-
-        private Local[]
-getLocals(LocalVariableNode[] initialLocals) {
-            Local[] lvt = new Local[initialLocals.length];
-            for (int l = 0; l < initialLocals.length; l++) {
-                if (initialLocals[l] != null) {
-                    lvt[l] = new Local(initialLocals[l].name, Type.getType(initialLocals[l].desc));
-                }
-            }
-            return lvt;
-        }
-
-        private void i]
-tOrdinals() {
-            Map<Type, Integer> ordinalMap = new HashMap<Type, Integer>();
-            for (int l = 0; l < this.locals.length; l++) {
-                Integer ordinal = Integer.valueOf(0);
-                if (this.locals[l] != null) {
-                    ordinal = ordinalMap.get(this.locals[l].type);
-                    ordinalMap.put(this.locals[l].type, ordinal = Integer.valueOf(ordinal == null ? 0 : ordinal.intValue() + 1));
-                    this.locals[l].setOrdinal(ordinal.intValue());
-                }
-            }
-        }
-
-        publicni
-ndidateCount() {
-            int candidateCount = 0;
-            for (int l = this.baseArgIndex; l < this.locals.length; l++) {
-                if (this.locals[l] != null && this.returnType.equals(this.locals[l].type)) {
-                    candidateCount++;
-                }
-            }
-            return candidateCount;
-        }
-
-        @Override
-     int getCa
-  public void print(PrettyPrinter printer) {
-            printer.add("%5s  %7s  %30s  %-50s  %s", "INDEX", "ORDINAL", "TYPE", "NAME", "CANDIDATE");
-            for (int l = this.baseArgIndex; l < this.locals.length; l++) {
-                Local local = this.locals[l];
-                if (local != null) {
-                    Type localType = local.type;
-                    String localName = local.name;
-                    int ordinal = local.getOrdinal();
-                    String candidate = this.returnType.equals(localType) ? "YES" : "-";
-                    printer.add("[%3d]    [%3d]  %30s  %-50s  %s", l, ordinal, SignaturePrinter.getTypeName(localType, false), localName, candidate);
-                } else if (l > 0) {
-                    Local prevLocal = this.locals[l - 1];
-                    boolean isTop = prevLocal != null && prevLocal.type != null && prevLocal.type.getSize() > 1;
-                    printer.add("[%3d]           %30s", l, isTop ? "<top>" : "-");
-                }
-            }
-        }
-
-    }
-
-    /**
-        /**
-         * Information about a local variable in the LVT, used during
-         * discrimination
-         */
-        public class Local {
-
-            /**
-             * Local variable name
-             */
-            final String name;
-            /**
-             * Local variable type
-             */
-            final Type type;
-            /**
-             * Ordinal value of this local variable type
-             */
-            private int ord = -1;
-
-            public Local(String name, Type type) {
-                this.name = name;
-                this.type = type;
-            }
-
-            @Override
-            public String toString() {
-                return String.format("Local[ordinal=%d, name=%s, type=%s]", this.ord, this.name, this.type);
-            }
-
-            int getOrdinal() {
-                return this.ord;
-            }
-
-            void setOrdinal(int ordinal) {
-                if (this.ord > -1 && this.ord != ordinal) {
-                    throw new IllegalStateException("Attempted to reset ordinal for computed local");
-                }
-                this.ord = ordinal;
-            }
-
-        }
-
-        /**
-
-     *ocal variable discriminator from the supplied annotation
+     * Parse a local variable discriminator from the supplied annotation
      * 
      * @param annotation annotation to parse
      * @return discriminator configured using values from the annoation

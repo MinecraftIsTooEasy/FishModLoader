@@ -42,28 +42,40 @@ import org.objectweb.asm.Type;
 public class ArgOffsets implements IChainedDecoration<ArgOffsets> {
     
     /**
-     * Decoration key for this decoration type
+     * No-op arg offsets to be used when we just want unaltered arg offsets
      */
-    public static final String KEY = "argOffsets";
+    private static class Default extends ArgOffsets {
+
+        public Default() {
+            super(0, 255);
+        }
+        
+        @Override
+        public int getArgIndex(int index) {
+            return index;
+        }
+        
+        @Override   
+        public Type[] apply(Type[] args) {
+            return args;
+        }
+
+    }
+    
     /**
      * Null offsets
      */
     public static ArgOffsets DEFAULT = new ArgOffsets.Default();
+    
+    /**
+     * Decoration key for this decoration type 
+     */
+    public static final String KEY = "argOffsets";
+    
     /**
      * The offset for the start of the (original) args within the new args
      */
     private final int offset;
-    
-    /**
-     * Create contiguous offsets starting from start and continuing for length
-     *
-     * @param offset start index
-     * @param length length
-     */
-    public ArgOffsets(int offset, int length) {
-        this.offset = offset;
-        this.length = length;
-    }
     
     /**
      * The total number of (original) args
@@ -76,21 +88,23 @@ public class ArgOffsets implements IChainedDecoration<ArgOffsets> {
      */
     private ArgOffsets next;
     
+    /**
+     * Create contiguous offsets starting from start and continuing for length
+     * 
+     * @param offset start index
+     * @param length length
+     */
+    public ArgOffsets(int offset, int length) {
+        this.offset = offset;
+        this.length = length;
+    }
+    
     /* (non-Javadoc)
      * @see java.lang.Object#toString()
      */
     @Override
     public String toString() {
         return String.format("ArgOffsets[start=%d(%d),length=%d]", this.offset, this.getStartIndex(), this.length);
-    }
-    
-    /**
-     * Compute the argument index for the start of the window (offet 0)
-     *
-     * @return the offset index for the start of the window (inclusive)
-     */
-    public int getStartIndex() {
-        return this.getArgIndex(0);
     }
 
     /* (non-Javadoc)
@@ -118,8 +132,17 @@ public class ArgOffsets implements IChainedDecoration<ArgOffsets> {
     }
     
     /**
+     * Compute the argument index for the start of the window (offet 0)
+     * 
+     * @return the offset index for the start of the window (inclusive)
+     */
+    public int getStartIndex() {
+        return this.getArgIndex(0);
+    }
+    
+    /**
      * Compute the argument index for the end of the window (offset length)
-     *
+     * 
      * @return the offset index for the end of the window (inclusive)
      */
     public int getEndIndex() {
@@ -128,17 +151,17 @@ public class ArgOffsets implements IChainedDecoration<ArgOffsets> {
     
     /**
      * Compute the argument index for the specified new index
-     *
+     * 
      * @param index The new index to compute
      * @return The original index based on this mapping
      */
     public int getArgIndex(int index) {
         return this.getArgIndex(index, false);
     }
-    
+        
     /**
      * Compute the argument index for the specified new index
-     *
+     * 
      * @param index The new index to compute
      * @param mustBeInWindow Throw an exception if the requested index exceeds
      *      the length of the defined window
@@ -151,10 +174,10 @@ public class ArgOffsets implements IChainedDecoration<ArgOffsets> {
         int offsetIndex = index + this.offset;
         return this.next != null ? this.next.getArgIndex(offsetIndex) : offsetIndex;
     }
-        
+
     /**
      * Apply this offset collection to the supplied argument array
-     *
+     * 
      * @param args New arguments
      * @return Unmapped arguments
      */
@@ -167,27 +190,6 @@ public class ArgOffsets implements IChainedDecoration<ArgOffsets> {
             }
         }
         return transformed;
-    }
-
-    /**
-     * No-op arg offsets to be used when we just want unaltered arg offsets
-     */
-    private static class Default extends ArgOffsets {
-
-        public Default() {
-            super(0, 255);
-        }
-
-        @Override
-        public int getArgIndex(int index) {
-            return index;
-        }
-
-        @Override
-        public Type[] apply(Type[] args) {
-            return args;
-        }
-
     }
 
 }

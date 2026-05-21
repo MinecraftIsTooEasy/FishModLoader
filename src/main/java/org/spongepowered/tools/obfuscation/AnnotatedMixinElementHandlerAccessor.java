@@ -54,8 +54,82 @@ import com.google.common.base.Strings;
  */
 class AnnotatedMixinElementHandlerAccessor extends AnnotatedMixinElementHandler {
 
-    public AnnotatedMixinElementHandlerAccessor(IMixinAnnotationProcessor ap, AnnotatedMixin mixin) {
-        super(ap, mixin);
+    /**
+     * Accessor element
+     */
+    static class AnnotatedElementAccessor extends AnnotatedElementExecutable {
+
+        protected final boolean shouldRemap;
+        
+        protected final TypeMirror returnType;
+
+        protected String targetName;
+
+        public AnnotatedElementAccessor(ExecutableElement element, AnnotationHandle annotation, IMixinContext context, boolean shouldRemap) {
+            super(element, annotation, context, "value");
+            this.shouldRemap = shouldRemap;
+            this.returnType = this.getElement().getReturnType();
+        }
+
+        public void attach(TypeHandle target) {
+        }
+
+        public boolean shouldRemap() {
+            return this.shouldRemap;
+        }
+
+        public String getAnnotationValue() {
+            return this.getAnnotation().<String>getValue();
+        }
+
+        public TypeMirror getTargetType() {
+            switch (this.getAccessorType()) {
+                case FIELD_GETTER:
+                    return this.returnType;
+                case FIELD_SETTER:
+                    return this.getElement().getParameters().get(0).asType();
+                default:
+                    return null;
+            }
+        }
+
+        public String getTargetTypeName() {
+            return TypeUtils.getTypeName(this.getTargetType());
+        }
+
+        public String getTargetDesc() {
+            return TypeUtils.getInternalName(this.getTargetType());
+        }
+
+        public ITargetSelectorRemappable getContext() {
+            return new MemberInfo(this.getTargetName(), null, this.getTargetDesc());
+        }
+
+        public AccessorType getAccessorType() {
+            return this.returnType.getKind() == TypeKind.VOID ? AccessorType.FIELD_SETTER : AccessorType.FIELD_GETTER;
+        }
+
+        public void setTargetName(String targetName) {
+            this.targetName = targetName;
+        }
+
+        public String getTargetName() {
+            return this.targetName;
+        }
+        
+        public TypeMirror getReturnType() {
+            return this.returnType;
+        }
+        
+        public boolean isStatic() {
+            return this.element.getModifiers().contains(Modifier.STATIC);
+        }
+
+        @Override
+        public String toString() {
+            return this.targetName != null ? this.targetName : "<invalid>";
+        }
+    
     }
 
     /**
@@ -128,6 +202,10 @@ class AnnotatedMixinElementHandlerAccessor extends AnnotatedMixinElementHandler 
 
     }
     
+    public AnnotatedMixinElementHandlerAccessor(IMixinAnnotationProcessor ap, AnnotatedMixin mixin) {
+        super(ap, mixin);
+    }
+
     /**
      * Register a new accessor
      *
@@ -171,7 +249,7 @@ class AnnotatedMixinElementHandlerAccessor extends AnnotatedMixinElementHandler 
                         "Could not locate @Accessor target " + elem + " in target " + target);
                 return;
             }
-
+            
             targetField = new FieldHandle(target.getName(), elem.getTargetName(), elem.getTargetDesc());
         }
 
@@ -205,7 +283,7 @@ class AnnotatedMixinElementHandlerAccessor extends AnnotatedMixinElementHandler 
                         "Could not locate @Invoker target " + elem + " in target " + target);
                 return;
             }
-
+            
             targetMethod = new MethodHandle(target, elem.getTargetName(), elem.getTargetDesc());
         }
 
@@ -261,84 +339,6 @@ class AnnotatedMixinElementHandlerAccessor extends AnnotatedMixinElementHandler 
 
     private String inflectAccessorTarget(AnnotatedElementAccessor elem) {
         return AccessorInfo.inflectTarget(elem.getSimpleName(), elem.getAccessorType(), "", elem, false);
-    }
-
-    /**
-     * Accessor element
-     */
-    static class AnnotatedElementAccessor extends AnnotatedElementExecutable {
-
-        protected final boolean shouldRemap;
-
-        protected final TypeMirror returnType;
-
-        protected String targetName;
-
-        public AnnotatedElementAccessor(ExecutableElement element, AnnotationHandle annotation, IMixinContext context, boolean shouldRemap) {
-            super(element, annotation, context, "value");
-            this.shouldRemap = shouldRemap;
-            this.returnType = this.getElement().getReturnType();
-        }
-
-        public void attach(TypeHandle target) {
-        }
-
-        public boolean shouldRemap() {
-            return this.shouldRemap;
-        }
-
-        public String getAnnotationValue() {
-            return this.getAnnotation().<String>getValue();
-        }
-
-        public TypeMirror getTargetType() {
-            switch (this.getAccessorType()) {
-                case FIELD_GETTER:
-                    return this.returnType;
-                case FIELD_SETTER:
-                    return this.getElement().getParameters().get(0).asType();
-                default:
-                    return null;
-            }
-        }
-
-        public String getTargetTypeName() {
-            return TypeUtils.getTypeName(this.getTargetType());
-        }
-
-        public String getTargetDesc() {
-            return TypeUtils.getInternalName(this.getTargetType());
-        }
-
-        public ITargetSelectorRemappable getContext() {
-            return new MemberInfo(this.getTargetName(), null, this.getTargetDesc());
-        }
-
-        public AccessorType getAccessorType() {
-            return this.returnType.getKind() == TypeKind.VOID ? AccessorType.FIELD_SETTER : AccessorType.FIELD_GETTER;
-        }
-
-        public void setTargetName(String targetName) {
-            this.targetName = targetName;
-        }
-
-        public String getTargetName() {
-            return this.targetName;
-        }
-
-        public TypeMirror getReturnType() {
-            return this.returnType;
-        }
-
-        public boolean isStatic() {
-            return this.element.getModifiers().contains(Modifier.STATIC);
-        }
-
-        @Override
-        public String toString() {
-            return this.targetName != null ? this.targetName : "<invalid>";
-        }
-
     }
 
 }

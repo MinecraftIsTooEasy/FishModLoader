@@ -67,28 +67,31 @@ public final class MainAttributes {
     }
 
     /**
-     * Create a MainAttributes instance for the supplied jar file
-     *
-     * @param jar jar file
-     * @return MainAttributes instance
+     * Retrieve the value of attribute with the specified name, or null if not
+     * present
+     * 
+     * @param name attribute name
+     * @return attribute value or null if not present
      */
-    public static MainAttributes of(File jar) {
-        return MainAttributes.of(jar.toURI());
+    public final String get(String name) {
+        if (this.attributes != null) {
+            return this.attributes.getValue(name);
+        }
+        return null;
     }
     
     /**
-     * Create a MainAttributes instance for the supplied jar file
-     *
-     * @param uri jar file location
-     * @return MainAttributes instance
+     * Retrieve the value of attribute with the specified name, or null if not
+     * present
+     * 
+     * @param name attribute name
+     * @return attribute value or null if not present
      */
-    public static MainAttributes of(URI uri) {
-        MainAttributes attributes = MainAttributes.instances.get(uri);
-        if (attributes == null) {
-            attributes = new MainAttributes(uri);
-            MainAttributes.instances.put(uri, attributes);
+    public final String get(Name name) {
+        if (this.attributes != null) {
+            return this.attributes.getValue(name);
         }
-        return attributes;
+        return null;
     }
     
     private static Attributes getAttributes(URI codeSource) {
@@ -198,30 +201,27 @@ public final class MainAttributes {
     }
 
     /**
-     * Retrieve the value of attribute with the specified name, or null if not
-     * present
-     *
-     * @param name attribute name
-     * @return attribute value or null if not present
+     * Create a MainAttributes instance for the supplied jar file
+     * 
+     * @param jar jar file
+     * @return MainAttributes instance
      */
-    public final String get(String name) {
-        if (this.attributes != null) {
-            return this.attributes.getValue(name);
-        }
-        return null;
+    public static MainAttributes of(File jar) {
+        return MainAttributes.of(jar.toURI());
     }
 
     /**
-     * Retrieve the value of attribute with the specified name, or null if not
-     * present
-     *
-     * @param name attribute name
-     * @return attribute value or null if not present
+     * Create a MainAttributes instance for the supplied jar file
+     * 
+     * @param uri jar file location
+     * @return MainAttributes instance
      */
-    public final String get(Name name) {
-        if (this.attributes != null) {
-            return this.attributes.getValue(name);
+    public static MainAttributes of(URI uri) {
+        MainAttributes attributes = MainAttributes.instances.get(uri);
+        if (attributes == null) {
+            attributes = new MainAttributes(uri);
+            MainAttributes.instances.put(uri, attributes);
         }
-        return null;
+        return attributes;
     }
 }
