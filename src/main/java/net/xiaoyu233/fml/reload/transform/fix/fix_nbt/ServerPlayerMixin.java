@@ -1,13 +1,19 @@
 package net.xiaoyu233.fml.reload.transform.fix.fix_nbt;
 
-import net.minecraft.*;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.nbt.NBTBase;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.stats.StatBase;
+import net.minecraft.stats.StatList;
+import net.minecraft.world.World;
 import net.xiaoyu233.fml.FishModLoader;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 
 import java.util.Collection;
 
-@Mixin(value = ServerPlayer.class, priority = 999)
+@Mixin(value = EntityPlayerMP.class, priority = 999)
 public abstract class ServerPlayerMixin extends EntityPlayer {
     public ServerPlayerMixin(World par1World, String par2Str) {
         super(par1World, par2Str);

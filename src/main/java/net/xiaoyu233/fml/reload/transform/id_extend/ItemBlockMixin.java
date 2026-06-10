@@ -1,6 +1,6 @@
 package net.xiaoyu233.fml.reload.transform.id_extend;
 
-import net.minecraft.ItemBlock;
+import net.minecraft.item.ItemBlock;
 import org.spongepowered.asm.mixin.Mixin;
 
 @Mixin(ItemBlock.class)

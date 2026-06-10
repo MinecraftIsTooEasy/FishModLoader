@@ -1,10 +1,10 @@
 package net.xiaoyu233.fml.reload.transform.fix.fix_creative_inv;
 
-import net.minecraft.Container;
-import net.minecraft.EntityPlayer;
+import net.minecraft.inventory.Container;
+import net.minecraft.entity.player.EntityPlayer;
 import org.spongepowered.asm.mixin.Mixin;
 
-@Mixin(targets = "net.minecraft.ContainerCreative")
+@Mixin(targets = "net.minecraft.client.gui.inventory.ContainerCreative")
 public abstract class ContainerCreativeMixin extends Container {
 
     public ContainerCreativeMixin(EntityPlayer player) {

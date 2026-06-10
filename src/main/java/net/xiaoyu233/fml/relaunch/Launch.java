@@ -73,6 +73,10 @@ public class Launch {
             FishModLoader.invokeEntrypoints("preLaunch", PreLaunchEntrypoint.class, PreLaunchEntrypoint::onPreLaunch);
             EnumExtends.buildEnumExtending();
             asmTransformer.buildAndInitializeTransformer(knotInterface::addUrl);
+            // Construct Forge @Mod instances now that the mixin transformer is wired up.
+            // Doing this earlier (e.g. inside FishModLoader.freeze) caused vanilla classes
+            // referenced by Forge mods to be loaded before mixins could attach to them.
+            FishModLoader.constructForgeMods();
          } catch (RuntimeException e) {
             throw FormattedException.ofLocalized("exception.initializerFailure", e);
          }

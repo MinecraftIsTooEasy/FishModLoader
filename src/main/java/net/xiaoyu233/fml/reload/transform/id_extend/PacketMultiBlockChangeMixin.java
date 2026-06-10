@@ -1,36 +1,37 @@
 package net.xiaoyu233.fml.reload.transform.id_extend;
 
-import net.minecraft.Chunk;
-import net.minecraft.Packet97MultiBlockChange;
-import net.minecraft.PacketComponentBytes;
-import net.minecraft.World;
+import net.minecraft.world.chunk.Chunk;
+import net.minecraft.network.packet.Packet97MultiBlockChange;
+import net.minecraft.network.PacketComponentBytes;
+import net.minecraft.world.World;
 import net.xiaoyu233.fml.util.ReflectHelper;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Packet97MultiBlockChange.class)
 public class PacketMultiBlockChangeMixin {
     @Shadow private PacketComponentBytes bytes;
 
-//    @ModifyConstant(method = "<init>(II[SILnet/minecraft/World;)V", constant = @Constant(intValue = 5))
+//    @ModifyConstant(method = "<init>(II[SILnet/minecraft/world/World;)V", constant = @Constant(intValue = 5))
 //    private int modifyBlockInterval(int org){
 //        return 6;
 //    }
 //
-//    @ModifyConstant(method = "<init>(II[SILnet/minecraft/World;)V", constant = @Constant(intValue = 4))
+//    @ModifyConstant(method = "<init>(II[SILnet/minecraft/world/World;)V", constant = @Constant(intValue = 4))
 //    private int modifyMetadataOffset(int org){
 //        return 5;
 //    }
 //
-//    @Redirect(method = "<init>(II[SILnet/minecraft/World;)V", at = @At(value = "INVOKE", target = "Lnet/minecraft/Chunk;getBlockID(III)I"))
+//    @Redirect(method = "<init>(II[SILnet/minecraft/world/World;)V", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/chunk/Chunk;getBlockID(III)I"))
 //    private int modifyBlockIdShift(Chunk chunk, int x, int y, int z){
 //        return chunk.getBlockID(x, y, z) >> 8;
 //    }
 
-    @Inject(method = "<init>(II[SILnet/minecraft/World;)V", at = @At("RETURN"))
-    public void injectHead(int chunk_x, int chunk_z, short[] local_coords, int num_blocks, World world) {
+    @Inject(method = "<init>(II[SILnet/minecraft/world/World;)V", at = @At("RETURN"))
+    public void injectHead(int chunk_x, int chunk_z, short[] local_coords, int num_blocks, World world, CallbackInfo callbackInfo) {
         Chunk chunk = world.getChunkFromChunkCoords(chunk_x, chunk_z);
         byte[] bytes = new byte[num_blocks * 6];
         for (int i = 0; i < num_blocks; ++i)

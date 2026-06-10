@@ -1,6 +1,6 @@
 package net.xiaoyu233.fml.reload.transform.util;
 
-import net.minecraft.Entity;
+import net.minecraft.entity.Entity;
 import net.xiaoyu233.fml.api.entity.IEntity;
 import net.xiaoyu233.fml.reload.utils.EntityUtil;
 import net.xiaoyu233.fml.util.ReflectHelper;

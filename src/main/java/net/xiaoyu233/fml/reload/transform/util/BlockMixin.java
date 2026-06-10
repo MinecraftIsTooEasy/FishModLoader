@@ -1,8 +1,8 @@
 package net.xiaoyu233.fml.reload.transform.util;
 
-import net.minecraft.Block;
-import net.minecraft.CreativeTabs;
-import net.minecraft.StepSound;
+import net.minecraft.block.Block;
+import net.minecraft.block.StepSound;
+import net.minecraft.creativetab.CreativeTabs;
 import net.xiaoyu233.fml.api.block.IBlock;
 import net.xiaoyu233.fml.util.WriteLockField;
 import org.spongepowered.asm.mixin.Mixin;

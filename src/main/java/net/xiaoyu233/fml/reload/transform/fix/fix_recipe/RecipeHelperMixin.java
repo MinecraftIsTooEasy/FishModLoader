@@ -1,9 +1,9 @@
 package net.xiaoyu233.fml.reload.transform.fix.fix_recipe;
 
-import net.minecraft.IRecipe;
-import net.minecraft.Item;
-import net.minecraft.ItemStack;
-import net.minecraft.RecipeHelper;
+import net.minecraft.item.crafting.IRecipe;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.crafting.RecipeHelper;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;

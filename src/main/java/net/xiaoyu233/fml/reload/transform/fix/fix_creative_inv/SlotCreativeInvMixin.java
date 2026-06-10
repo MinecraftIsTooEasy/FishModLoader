@@ -1,10 +1,10 @@
 package net.xiaoyu233.fml.reload.transform.fix.fix_creative_inv;
 
-import net.minecraft.IInventory;
-import net.minecraft.Slot;
+import net.minecraft.inventory.IInventory;
+import net.minecraft.inventory.Slot;
 import org.spongepowered.asm.mixin.Mixin;
 
-@Mixin(targets = "net.minecraft.SlotCreativeInventory")
+@Mixin(targets = "net.minecraft.client.gui.inventory.SlotCreativeInventory")
 public class SlotCreativeInvMixin extends Slot {
 
     public SlotCreativeInvMixin(IInventory inventory, int slot_index, int display_x, int display_y) {

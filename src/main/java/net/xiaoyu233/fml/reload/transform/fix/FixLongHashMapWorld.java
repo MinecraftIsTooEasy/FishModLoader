@@ -1,6 +1,12 @@
 package net.xiaoyu233.fml.reload.transform.fix;
 
-import net.minecraft.*;
+import net.minecraft.client.multiplayer.ChunkProviderClient;
+import net.minecraft.world.gen.ChunkProviderServer;
+import net.minecraft.world.IBlockAccess;
+import net.minecraft.world.chunk.IChunkProvider;
+import net.minecraft.util.LongHashMap;
+import net.minecraft.util.LongHashMapEntry;
+import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;

@@ -1,8 +1,8 @@
 package net.xiaoyu233.fml.reload.transform.util;
 
-import net.minecraft.DebugAttack;
-import net.minecraft.Minecraft;
+import net.minecraft.client.Minecraft;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.util.DebugAttack;
 import net.xiaoyu233.fml.config.Configs;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -12,7 +12,7 @@ import java.io.PrintStream;
 
 @Mixin(DebugAttack.class)
 public class DebugAttackTrans {
-    @Redirect(method = "start", at = @At(value = "INVOKE", target = "Lnet/minecraft/Minecraft;inDevMode()Z"))
+    @Redirect(method = "start", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Minecraft;inDevMode()Z"))
     private static boolean redirectShouldPrintDamageInfo() {
         return Configs.Debug.PRINT_ENTITY_DAMAGE_INFO.get() || Minecraft.inDevMode();
     }

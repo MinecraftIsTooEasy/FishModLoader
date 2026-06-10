@@ -1,6 +1,6 @@
 package net.xiaoyu233.fml.reload.transform.fix;
 
-import net.minecraft.TexturedQuad;
+import net.minecraft.client.model.TexturedQuad;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 

@@ -1,8 +1,8 @@
 package net.xiaoyu233.fml.reload.transform.id_extend;
 
-import net.minecraft.Chunk;
-import net.minecraft.ExtendedBlockStorage;
-import net.minecraft.World;
+import net.minecraft.world.chunk.Chunk;
+import net.minecraft.world.chunk.storage.ExtendedBlockStorage;
+import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 
 @Mixin(World.class)
 public class WorldMixin {
-    @Inject(locals = LocalCapture.CAPTURE_FAILHARD, method = "getBlockId", at = @At(value = "FIELD", target = "Lnet/minecraft/Chunk;storageArrays:[Lnet/minecraft/ExtendedBlockStorage;", shift = At.Shift.AFTER), cancellable = true)
+    @Inject(locals = LocalCapture.CAPTURE_FAILHARD, method = "getBlockId", at = @At(value = "FIELD", target = "Lnet/minecraft/world/chunk/Chunk;storageArrays:[Lnet/minecraft/world/chunk/storage/ExtendedBlockStorage;", shift = At.Shift.AFTER), cancellable = true)
     private void injectGetBlockId(int par1, int par2, int par3, CallbackInfoReturnable<Integer> cir, Chunk var4) {
         ExtendedBlockStorage extended_block_storage = var4.storageArrays[par2 >> 4];
         if (extended_block_storage == null) {

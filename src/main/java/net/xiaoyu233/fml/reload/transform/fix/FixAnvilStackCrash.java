@@ -1,6 +1,13 @@
 package net.xiaoyu233.fml.reload.transform.fix;
 
-import net.minecraft.*;
+import net.minecraft.block.Block;
+import net.minecraft.block.BlockAnvil;
+import net.minecraft.block.BlockConstants;
+import net.minecraft.block.BlockFalling;
+import net.minecraft.block.BlockLadder;
+import net.minecraft.entity.item.EntityFallingSand;
+import net.minecraft.block.material.Material;
+import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
 
 import static net.xiaoyu233.fml.util.ReflectHelper.dyCast;

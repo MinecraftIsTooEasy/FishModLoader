@@ -1,7 +1,7 @@
 package net.xiaoyu233.fml.reload.transform.util;
 
-import net.minecraft.Item;
-import net.minecraft.ItemStack;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
 import net.xiaoyu233.fml.api.block.IBlock;
 import net.xiaoyu233.fml.api.item.IItem;
 import net.xiaoyu233.fml.api.item.IItemStack;

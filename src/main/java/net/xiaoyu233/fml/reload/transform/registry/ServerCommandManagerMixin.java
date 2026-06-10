@@ -1,7 +1,7 @@
 package net.xiaoyu233.fml.reload.transform.registry;
 
-import net.minecraft.CommandHandler;
-import net.minecraft.ServerCommandManager;
+import net.minecraft.command.CommandHandler;
+import net.minecraft.command.ServerCommandManager;
 import net.xiaoyu233.fml.reload.event.CommandRegisterEvent;
 import net.xiaoyu233.fml.reload.event.MITEEvents;
 import org.spongepowered.asm.mixin.Mixin;

@@ -1,6 +1,6 @@
 package net.xiaoyu233.fml.reload.transform.fix;
 
-import net.minecraft.Packet;
+import net.minecraft.network.packet.Packet;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 

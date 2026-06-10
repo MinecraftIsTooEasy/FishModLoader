@@ -1,7 +1,7 @@
 package net.xiaoyu233.fml.reload.transform.util;
 
-import net.minecraft.Block;
-import net.minecraft.StepSound;
+import net.minecraft.block.Block;
+import net.minecraft.block.StepSound;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Invoker;
 

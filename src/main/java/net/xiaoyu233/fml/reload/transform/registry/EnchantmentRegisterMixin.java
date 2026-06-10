@@ -1,6 +1,6 @@
 package net.xiaoyu233.fml.reload.transform.registry;
 
-import net.minecraft.Enchantment;
+import net.minecraft.enchantment.Enchantment;
 import net.xiaoyu233.fml.reload.event.EnchantmentRegistryEvent;
 import net.xiaoyu233.fml.reload.event.MITEEvents;
 import org.spongepowered.asm.mixin.Final;
@@ -14,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import java.util.ArrayList;
 import java.util.List;
 
-import static net.minecraft.Enchantment.enchantmentsList;
+import static net.minecraft.enchantment.Enchantment.enchantmentsList;
 
 @Mixin(Enchantment.class)
 public class EnchantmentRegisterMixin {

@@ -1,6 +1,6 @@
 package net.xiaoyu233.fml.reload.transform.util;
 
-import net.minecraft.Item;
+import net.minecraft.item.Item;
 import net.xiaoyu233.fml.api.item.IItem;
 import net.xiaoyu233.fml.util.WriteLockField;
 import org.spongepowered.asm.mixin.Mixin;

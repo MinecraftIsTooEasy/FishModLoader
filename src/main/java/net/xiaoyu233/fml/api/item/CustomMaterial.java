@@ -1,8 +1,8 @@
 package net.xiaoyu233.fml.api.item;
 
-import net.minecraft.EnumEquipmentMaterial;
-import net.minecraft.MapColor;
-import net.minecraft.Material;
+import net.minecraft.block.material.MapColor;
+import net.minecraft.block.material.Material;
+import net.minecraft.util.EnumEquipmentMaterial;
 
 public class CustomMaterial extends Material {
     private final float toolEffective;

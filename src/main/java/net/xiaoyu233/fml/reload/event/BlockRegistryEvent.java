@@ -1,6 +1,6 @@
 package net.xiaoyu233.fml.reload.event;
 
-import net.minecraft.Block;
+import net.minecraft.block.Block;
 import net.xiaoyu233.fml.api.block.IBlock;
 
 public class BlockRegistryEvent {

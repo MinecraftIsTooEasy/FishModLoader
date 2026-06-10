@@ -1,7 +1,7 @@
 package net.xiaoyu233.fml.api.block;
 
-import net.minecraft.CreativeTabs;
-import net.minecraft.StepSound;
+import net.minecraft.block.StepSound;
+import net.minecraft.creativetab.CreativeTabs;
 import net.xiaoyu233.fml.api.INamespaced;
 
 public interface IBlock extends INamespaced {

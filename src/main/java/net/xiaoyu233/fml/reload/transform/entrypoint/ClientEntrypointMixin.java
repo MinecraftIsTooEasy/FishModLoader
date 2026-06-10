@@ -11,8 +11,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Main.class)
 public class ClientEntrypointMixin {
-    @Inject(method = "main", at = @At(value = "NEW", target = "(Lnet/minecraft/Session;IIZZLjava/io/File;Ljava/io/File;Ljava/io/File;Ljava/net/Proxy;Ljava/lang/String;)Lnet/minecraft/Minecraft;", shift = At.Shift.BEFORE))
+    @Inject(method = "main", at = @At(value = "NEW", target = "(Lnet/minecraft/util/Session;IIZZLjava/io/File;Ljava/io/File;Ljava/io/File;Ljava/net/Proxy;Ljava/lang/String;)Lnet/minecraft/client/Minecraft;", shift = At.Shift.BEFORE))
     private static void injectMain(CallbackInfo callbackInfo){
+        // Forge mod PreInit fires before Minecraft is instantiated, matching
+        // upstream Forge 1.6.4 where PreInit runs early during FMLLoadingPlugin
+        // loadModContainer.
+        FishModLoader.fireForgePreInit();
+
         FishModLoader.invokeEntrypoints("main", ModInitializer.class, modInitializer -> {
             modInitializer.createConfig().ifPresent(configRegistry -> {
                 FishModLoader.addConfigRegistry(configRegistry);
@@ -21,5 +26,11 @@ public class ClientEntrypointMixin {
             modInitializer.onInitialize();
         });
         FishModLoader.invokeEntrypoints("client", ClientModInitializer.class, ClientModInitializer::onInitializeClient);
+
+        // Init / PostInit follow once Fabric entrypoints are done. Forge's
+        // contract: every mod is constructed before any of them receives
+        // PostInit.
+        FishModLoader.fireForgeInit();
+        FishModLoader.fireForgePostInit();
     }
 }

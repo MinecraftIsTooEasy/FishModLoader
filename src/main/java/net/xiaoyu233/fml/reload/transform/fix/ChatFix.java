@@ -1,7 +1,7 @@
 package net.xiaoyu233.fml.reload.transform.fix;
 
-import net.minecraft.Gui;
-import net.minecraft.GuiScreen;
+import net.minecraft.client.gui.Gui;
+import net.minecraft.client.gui.GuiScreen;
 import org.lwjgl.input.Keyboard;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;

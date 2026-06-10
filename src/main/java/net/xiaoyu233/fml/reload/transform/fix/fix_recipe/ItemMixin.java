@@ -1,6 +1,6 @@
 package net.xiaoyu233.fml.reload.transform.fix.fix_recipe;
 
-import net.minecraft.Item;
+import net.minecraft.item.Item;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.Constant;
 import org.spongepowered.asm.mixin.injection.ModifyConstant;

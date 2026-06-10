@@ -1,6 +1,6 @@
 package net.xiaoyu233.fml.reload.event;
 
-import net.minecraft.Enchantment;
+import net.minecraft.enchantment.Enchantment;
 
 import java.util.ArrayList;
 import java.util.Arrays;

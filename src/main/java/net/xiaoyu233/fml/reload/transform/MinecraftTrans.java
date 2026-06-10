@@ -1,7 +1,7 @@
 package net.xiaoyu233.fml.reload.transform;
 
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
-import net.minecraft.Minecraft;
+import net.minecraft.client.Minecraft;
 import net.xiaoyu233.fml.FishModLoader;
 import net.xiaoyu233.fml.config.Configs;
 import org.spongepowered.asm.mixin.Mixin;

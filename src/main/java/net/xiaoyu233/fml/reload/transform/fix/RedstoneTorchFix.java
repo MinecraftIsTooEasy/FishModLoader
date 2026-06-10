@@ -1,9 +1,9 @@
 package net.xiaoyu233.fml.reload.transform.fix;
 
-import net.minecraft.Block;
-import net.minecraft.BlockRailBase;
-import net.minecraft.BlockRedstoneTorch;
-import net.minecraft.BlockTorch;
+import net.minecraft.block.Block;
+import net.minecraft.block.BlockRailBase;
+import net.minecraft.block.BlockRedstoneTorch;
+import net.minecraft.block.BlockTorch;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;

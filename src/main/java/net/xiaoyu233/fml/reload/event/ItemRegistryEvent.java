@@ -1,6 +1,11 @@
 package net.xiaoyu233.fml.reload.event;
 
-import net.minecraft.*;
+import net.minecraft.block.Block;
+import net.minecraft.block.BlockAnvil;
+import net.minecraft.creativetab.CreativeTabs;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemAnvilBlock;
+import net.minecraft.item.ItemBlock;
 import net.xiaoyu233.fml.api.block.IBlock;
 import net.xiaoyu233.fml.api.item.IItem;
 

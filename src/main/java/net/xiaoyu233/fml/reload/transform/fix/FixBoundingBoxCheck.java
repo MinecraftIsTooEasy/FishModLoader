@@ -1,6 +1,6 @@
 package net.xiaoyu233.fml.reload.transform.fix;
 
-import net.minecraft.EntityPlayer;
+import net.minecraft.entity.player.EntityPlayer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 

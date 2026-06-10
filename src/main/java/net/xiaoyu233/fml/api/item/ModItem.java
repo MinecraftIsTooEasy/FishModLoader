@@ -1,8 +1,8 @@
 package net.xiaoyu233.fml.api.item;
 
-import net.minecraft.Material;
+import net.minecraft.block.material.Material;
 
-public class ModItem extends net.minecraft.Item {
+public class ModItem extends net.minecraft.item.Item {
     public ModItem(){
         super();
     }

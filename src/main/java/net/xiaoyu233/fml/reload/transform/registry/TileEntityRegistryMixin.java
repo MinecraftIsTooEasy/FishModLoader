@@ -1,6 +1,6 @@
 package net.xiaoyu233.fml.reload.transform.registry;
 
-import net.minecraft.TileEntity;
+import net.minecraft.tileentity.TileEntity;
 import net.xiaoyu233.fml.reload.event.MITEEvents;
 import net.xiaoyu233.fml.reload.event.TileEntityRegisterEvent;
 import org.spongepowered.asm.mixin.Mixin;

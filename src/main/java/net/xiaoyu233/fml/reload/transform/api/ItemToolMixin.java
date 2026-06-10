@@ -1,7 +1,7 @@
 package net.xiaoyu233.fml.reload.transform.api;
 
-import net.minecraft.ItemTool;
-import net.minecraft.Material;
+import net.minecraft.item.ItemTool;
+import net.minecraft.block.material.Material;
 import net.xiaoyu233.fml.api.item.CustomMaterial;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -13,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class ItemToolMixin {
     @Shadow private Material effective_material;
 
-    @Inject(method = "getMaterialHarvestEfficiency", cancellable = true, at = @At(value = "INVOKE", target = "Lnet/minecraft/Minecraft;setErrorMessage(Ljava/lang/String;)V", shift = At.Shift.BEFORE))
+    @Inject(method = "getMaterialHarvestEfficiency", cancellable = true, at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Minecraft;setErrorMessage(Ljava/lang/String;)V", shift = At.Shift.BEFORE))
     private void injectToolCustomMaterialEffective(CallbackInfoReturnable<Float> callbackInfoReturnable){
         if (this.effective_material instanceof CustomMaterial customMaterial){
             callbackInfoReturnable.setReturnValue(customMaterial.getToolEffective());

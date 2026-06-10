@@ -1,6 +1,6 @@
 package net.xiaoyu233.fml.reload.event;
 
-import net.minecraft.TileEntity;
+import net.minecraft.tileentity.TileEntity;
 
 public class TileEntityRegisterEvent {
     private final TileEntityRegisterer registerer;

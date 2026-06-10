@@ -1,9 +1,9 @@
 package net.xiaoyu233.fml.reload.transform.id_extend;
 
 import com.llamalad7.mixinextras.sugar.Local;
-import net.minecraft.Item;
-import net.minecraft.ItemBlock;
-import net.minecraft.StatList;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemBlock;
+import net.minecraft.stats.StatList;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.Constant;
 import org.spongepowered.asm.mixin.injection.ModifyConstant;

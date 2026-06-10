@@ -1,6 +1,6 @@
 package net.xiaoyu233.fml.reload.transform.id_extend;
 
-import net.minecraft.ReferenceFileWriter;
+import net.minecraft.util.ReferenceFileWriter;
 import org.spongepowered.asm.mixin.Mixin;
 
 @Mixin(ReferenceFileWriter.class)

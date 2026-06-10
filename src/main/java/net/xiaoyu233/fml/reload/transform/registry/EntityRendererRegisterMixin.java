@@ -1,8 +1,8 @@
 package net.xiaoyu233.fml.reload.transform.registry;
 
-import net.minecraft.Entity;
-import net.minecraft.Render;
-import net.minecraft.RenderManager;
+import net.minecraft.client.renderer.entity.Render;
+import net.minecraft.client.renderer.entity.RenderManager;
+import net.minecraft.entity.Entity;
 import net.xiaoyu233.fml.reload.event.EntityRendererRegistryEvent;
 import net.xiaoyu233.fml.reload.event.MITEEvents;
 import net.xiaoyu233.fml.util.ReflectHelper;

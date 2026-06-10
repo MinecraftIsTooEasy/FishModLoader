@@ -13,20 +13,9 @@ import net.fabricmc.loader.api.entrypoint.EntrypointContainer;
 import net.fabricmc.loader.api.metadata.ModDependency;
 import net.fabricmc.loader.api.metadata.ModEnvironment;
 import net.fabricmc.loader.impl.ModContainerImpl;
-import net.fabricmc.loader.impl.discovery.ArgumentModCandidateFinder;
-import net.fabricmc.loader.impl.discovery.ClasspathModCandidateFinder;
-import net.fabricmc.loader.impl.discovery.DirectoryModCandidateFinder;
-import net.fabricmc.loader.impl.discovery.ModCandidate;
-import net.fabricmc.loader.impl.discovery.ModDiscoverer;
-import net.fabricmc.loader.impl.discovery.ModResolutionException;
-import net.fabricmc.loader.impl.discovery.ModResolver;
+import net.fabricmc.loader.impl.discovery.*;
 import net.fabricmc.loader.impl.entrypoint.EntrypointStorage;
-import net.fabricmc.loader.impl.metadata.BuiltinModMetadata;
-import net.fabricmc.loader.impl.metadata.DependencyOverrides;
-import net.fabricmc.loader.impl.metadata.EntrypointMetadata;
-import net.fabricmc.loader.impl.metadata.LoaderModMetadata;
-import net.fabricmc.loader.impl.metadata.ModDependencyImpl;
-import net.fabricmc.loader.impl.metadata.VersionOverrides;
+import net.fabricmc.loader.impl.metadata.*;
 import net.fabricmc.loader.impl.util.DefaultLanguageAdapter;
 import net.fabricmc.loader.impl.util.ExceptionUtil;
 import net.fabricmc.loader.impl.util.SystemProperties;
@@ -35,6 +24,7 @@ import net.fabricmc.loader.impl.util.log.LogCategory;
 import net.xiaoyu233.fml.config.ConfigRegistry;
 import net.xiaoyu233.fml.config.Configs;
 import net.xiaoyu233.fml.config.InjectionConfig;
+import net.xiaoyu233.fml.forge.event.MixinPackage;
 import net.xiaoyu233.fml.relaunch.Launch;
 import net.xiaoyu233.fml.reload.transform.MinecraftServerTrans;
 import net.xiaoyu233.fml.util.Constants;
@@ -56,16 +46,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -95,6 +76,10 @@ public class FishModLoader {
       }
    }
    private static Path gameJarPath;
+
+   public static Path getGameJarPath() {
+      return gameJarPath;
+   }
 
    public static void addConfigRegistry(ConfigRegistry configRegistry){
       if (!ALL_REGISTRIES.contains(configRegistry)){
@@ -142,8 +127,43 @@ public class FishModLoader {
          }
       }
 
+      // Forge mod discovery: scan mods/ for jars with mcmod.info / @Mod / forge_at.cfg.
+      // Adds them to the class loader, applies their AT to FML's AccessWidener,
+      // and queues their @Mod classes for the lifecycle dispatcher (stage 4).
+      try {
+         net.xiaoyu233.fml.modfixer.ForgeModDiscoverer.discoverIn(MOD_DIR.toPath());
+      } catch (Throwable t) {
+         LOGGER.warn("Forge mod discovery threw", t);
+      }
+
+      // NOTE: Forge mod CONSTRUCTION (LegacyModLifecycle.constructAll) is intentionally
+      // deferred until after the mixin platform has been injected — see Launch.java.
+      // Constructing a Forge @Mod via Class.forName(initialize=true) triggers linkage
+      // of its superclass / field types / method signature types, which often pull in
+      // vanilla classes (EntityPlayer, World, Entity, …). If that happens before mixins
+      // are wired up, those classes load "too early" and critical fix mixins
+      // (FixBoundingBoxCheck, id_extend.WorldMixin, EntityHumanTrans, …) cannot apply.
+      // Without FixBoundingBoxCheck the server keeps yanking the player back into the
+      // last "valid" position every tick, which looks exactly like the player is stuck.
+
       setupLanguageAdapters();
       setupMods();
+   }
+
+   /**
+    * Construct discovered Forge mod instances and emit FMLConstructionEvent.
+    * MUST be called AFTER the mixin platform has been initialized and injected,
+    * otherwise classes referenced by Forge @Mod classes will be loaded before
+    * mixins can attach to them. The classic 3-phase init (PreInit/Init/PostInit)
+    * is fired separately by {@link #fireForgePreInit()} etc. once Minecraft itself
+    * reaches each phase.
+    */
+   public static void constructForgeMods() {
+      try {
+         net.xiaoyu233.fml.modfixer.LegacyModLifecycle.constructAll();
+      } catch (Throwable t) {
+         LOGGER.warn("Forge mod construction threw", t);
+      }
    }
 
    private static void setupMods() {
@@ -376,7 +396,24 @@ public class FishModLoader {
 
    public static void registerModloaderMixin(ClassLoader classLoader){
       Mixins.registerConfiguration((InjectionConfig.Builder.of(MOD_ID, MinecraftServerTrans.class.getPackage(), MixinEnvironment.Phase.DEFAULT).build().toConfig(classLoader, MixinService.getService(),MixinEnvironment.getCurrentEnvironment())));
+      // Forge event-bus mixins. Each class in net.xiaoyu233.fml.forge.event
+      // injects @ForgeEvent triggers into the matching vanilla / MITE class.
+      Mixins.registerConfiguration((InjectionConfig.Builder.of(
+              MOD_ID + "-forge-events",
+              MixinPackage.class.getPackage(),
+              MixinEnvironment.Phase.DEFAULT
+      ).build().toConfig(classLoader, MixinService.getService(), MixinEnvironment.getCurrentEnvironment())));
    }
+
+   /** Forge mod lifecycle: classic 3-phase init. Called by Minecraft startup hooks (stage 5). */
+   public static void fireForgePreInit()  { net.xiaoyu233.fml.modfixer.LegacyModLifecycle.firePreInit(); }
+   public static void fireForgeInit()     { net.xiaoyu233.fml.modfixer.LegacyModLifecycle.fireInit(); }
+   public static void fireForgePostInit() { net.xiaoyu233.fml.modfixer.LegacyModLifecycle.firePostInit(); }
+   public static void fireForgeServerAboutToStart(Object server) { net.xiaoyu233.fml.modfixer.LegacyModLifecycle.fireServerAboutToStart(server); }
+   public static void fireForgeServerStarting(Object server) { net.xiaoyu233.fml.modfixer.LegacyModLifecycle.fireServerStarting(server); }
+   public static void fireForgeServerStarted()  { net.xiaoyu233.fml.modfixer.LegacyModLifecycle.fireServerStarted(); }
+   public static void fireForgeServerStopping() { net.xiaoyu233.fml.modfixer.LegacyModLifecycle.fireServerStopping(); }
+   public static void fireForgeServerStopped()  { net.xiaoyu233.fml.modfixer.LegacyModLifecycle.fireServerStopped(); }
 
    public static MixinEnvironment.Side getSide(){
       return isServer ? MixinEnvironment.Side.SERVER : MixinEnvironment.Side.CLIENT;

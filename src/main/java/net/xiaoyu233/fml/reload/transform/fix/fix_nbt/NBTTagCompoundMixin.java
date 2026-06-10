@@ -1,6 +1,11 @@
 package net.xiaoyu233.fml.reload.transform.fix.fix_nbt;
 
-import net.minecraft.*;
+import net.minecraft.crash.CrashReport;
+import net.minecraft.nbt.NBTTagByte;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.nbt.NBTTagInt;
+import net.minecraft.nbt.NBTTagLong;
+import net.minecraft.util.ReportedException;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;

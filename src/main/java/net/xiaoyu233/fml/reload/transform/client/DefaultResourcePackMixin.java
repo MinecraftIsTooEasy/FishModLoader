@@ -2,8 +2,8 @@ package net.xiaoyu233.fml.reload.transform.client;
 
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
-import net.minecraft.DefaultResourcePack;
-import net.minecraft.ResourceLocation;
+import net.minecraft.client.resources.DefaultResourcePack;
+import net.minecraft.util.ResourceLocation;
 import net.xiaoyu233.fml.ModResourceManager;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -34,7 +34,7 @@ public abstract class DefaultResourcePackMixin {
     @Final
     private Map mapResourceFiles;
 
-//    @Redirect(method = "getInputStream", at = @At(value = "INVOKE", target = "Lnet/minecraft/DefaultResourcePack;getResourceStream(Lnet/minecraft/ResourceLocation;)Ljava/io/InputStream;"))
+//    @Redirect(method = "getInputStream", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/resources/DefaultResourcePack;getResourceStream(Lnet/minecraft/util/ResourceLocation;)Ljava/io/InputStream;"))
 //    private InputStream redirectFixLanguageLoad(DefaultResourcePack t, ResourceLocation resourceLocation) {
 //        String resourcePath = resourceLocation.getResourcePath();
 //        if (this.fileAssets.toString().contains("\\legacy") && resourcePath.contains(".lang") && !resourcePath.contains("en_US.lang")) {
@@ -48,7 +48,7 @@ public abstract class DefaultResourcePackMixin {
             method = "getInputStream",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/DefaultResourcePack;getResourceStream(Lnet/minecraft/ResourceLocation;)Ljava/io/InputStream;"
+                    target = "Lnet/minecraft/client/resources/DefaultResourcePack;getResourceStream(Lnet/minecraft/util/ResourceLocation;)Ljava/io/InputStream;"
             )
     )
     private InputStream wrapFixLanguageLoad(DefaultResourcePack instance, ResourceLocation resourceLocation, Operation<InputStream> original) {

@@ -1,6 +1,6 @@
 package net.xiaoyu233.fml.reload.utils;
 
-import net.minecraft.Entity;
+import net.minecraft.entity.Entity;
 import net.xiaoyu233.fml.util.WriteLockField;
 
 import javax.annotation.Nonnull;

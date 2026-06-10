@@ -1,6 +1,6 @@
 package net.xiaoyu233.fml.reload.transform.util;
 
-import net.minecraft.LogAgent;
+import net.minecraft.logging.LogAgent;
 import net.xiaoyu233.fml.util.LogProxy;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;

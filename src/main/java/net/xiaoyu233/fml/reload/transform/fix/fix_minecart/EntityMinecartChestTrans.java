@@ -1,6 +1,11 @@
 package net.xiaoyu233.fml.reload.transform.fix.fix_minecart;
 
-import net.minecraft.*;
+import net.minecraft.entity.item.EntityMinecartChest;
+import net.minecraft.entity.item.EntityMinecartContainer;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;

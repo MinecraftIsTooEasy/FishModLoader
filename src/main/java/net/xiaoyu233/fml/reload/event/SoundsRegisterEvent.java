@@ -1,7 +1,7 @@
 package net.xiaoyu233.fml.reload.event;
 
-import net.minecraft.ResourceLocation;
-import net.minecraft.SoundManager;
+import net.minecraft.util.ResourceLocation;
+import net.minecraft.client.audio.SoundManager;
 
 public class SoundsRegisterEvent {
     private final SoundManager soundManager;

@@ -1,0 +1,13 @@
+accessWidener v2 named
+accessible method net/minecraft/block/Block setTextureName (Ljava/lang/String;)Lnet/minecraft/block/Block;
+accessible method net/minecraft/item/crafting/CraftingManager addShapelessRecipe (Lnet/minecraft/item/ItemStack;Z[Ljava/lang/Object;)Lnet/minecraft/item/crafting/ShapelessRecipes;
+accessible method net/minecraft/item/crafting/CraftingManager addShapelessRecipe (Lnet/minecraft/item/ItemStack;[Ljava/lang/Object;)Lnet/minecraft/item/crafting/ShapelessRecipes;
+accessible method net/minecraft/item/crafting/CraftingManager addRecipe (Lnet/minecraft/item/ItemStack;Z[Ljava/lang/Object;)Lnet/minecraft/item/crafting/ShapedRecipes;
+accessible class net/minecraft/util/LongHashMapEntry
+extendable class net/minecraft/client/entity/EntityClientPlayerMP
+accessible field net/minecraft/item/crafting/ShapedRecipes recipeWidth I
+accessible field net/minecraft/item/crafting/ShapedRecipes recipeHeight I
+accessible field net/minecraft/item/crafting/ShapedRecipes recipeItems [Lnet/minecraft/item/ItemStack;
+accessible field net/minecraft/item/crafting/ShapelessRecipes recipeItems Ljava/util/List;
+accessible method net/minecraft/world/storage/SaveHandler getWorldDirectory ()Ljava/io/File;
+accessible field net/minecraft/util/WeightedRandomChestContent theItemId Lnet/minecraft/item/ItemStack;

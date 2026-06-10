@@ -1,6 +1,11 @@
 package net.xiaoyu233.fml.reload.transform.client;
 
-import net.minecraft.*;
+import net.minecraft.client.entity.EntityClientPlayerMP;
+import net.minecraft.client.multiplayer.NetClientHandler;
+import net.minecraft.util.EnumChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.util.Session;
+import net.minecraft.world.World;
 import net.xiaoyu233.fml.FishModLoader;
 import net.xiaoyu233.fml.config.editor.ConfigEditor;
 import org.spongepowered.asm.mixin.Mixin;
@@ -10,9 +15,9 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(EntityClientPlayerMP.class)
-public abstract class ClientPlayerMixin extends ClientPlayer{
+public abstract class ClientPlayerMixin extends EntityClientPlayerMP{
 
-    public ClientPlayerMixin(Minecraft par1Minecraft, World par2World, Session par3Session, int par4) {
+    public ClientPlayerMixin(Minecraft par1Minecraft, World par2World, Session par3Session, NetClientHandler par4) {
         super(par1Minecraft, par2World, par3Session, par4);
     }
 

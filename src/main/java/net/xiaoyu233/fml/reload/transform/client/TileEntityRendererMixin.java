@@ -1,8 +1,8 @@
 package net.xiaoyu233.fml.reload.transform.client;
 
-import net.minecraft.TileEntity;
-import net.minecraft.TileEntityRenderer;
-import net.minecraft.TileEntitySpecialRenderer;
+import net.minecraft.tileentity.TileEntity;
+import net.minecraft.client.renderer.tileentity.TileEntityRenderer;
+import net.minecraft.client.renderer.tileentity.TileEntitySpecialRenderer;
 import net.xiaoyu233.fml.reload.event.MITEEvents;
 import net.xiaoyu233.fml.reload.event.TileEntityRendererRegisterEvent;
 import org.spongepowered.asm.mixin.Mixin;

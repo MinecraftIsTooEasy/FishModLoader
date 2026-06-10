@@ -2,7 +2,7 @@ package net.xiaoyu233.fml.reload.transform.network;
 
 import com.llamalad7.mixinextras.sugar.Local;
 import com.llamalad7.mixinextras.sugar.ref.LocalIntRef;
-import net.minecraft.Packet;
+import net.minecraft.network.packet.Packet;
 import net.xiaoyu233.fml.reload.event.MITEEvents;
 import net.xiaoyu233.fml.reload.event.PacketRegisterEvent;
 import org.spongepowered.asm.mixin.Mixin;

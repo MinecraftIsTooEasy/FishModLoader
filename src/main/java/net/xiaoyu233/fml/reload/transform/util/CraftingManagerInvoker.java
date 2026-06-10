@@ -1,9 +1,9 @@
 package net.xiaoyu233.fml.reload.transform.util;
 
-import net.minecraft.CraftingManager;
-import net.minecraft.ItemStack;
-import net.minecraft.ShapedRecipes;
-import net.minecraft.ShapelessRecipes;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.crafting.CraftingManager;
+import net.minecraft.item.crafting.ShapedRecipes;
+import net.minecraft.item.crafting.ShapelessRecipes;
 import org.spongepowered.asm.mixin.Intrinsic;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Invoker;

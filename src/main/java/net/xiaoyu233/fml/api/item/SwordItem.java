@@ -1,7 +1,7 @@
 package net.xiaoyu233.fml.api.item;
 
-import net.minecraft.ItemSword;
-import net.minecraft.Material;
+import net.minecraft.block.material.Material;
+import net.minecraft.item.ItemSword;
 
 public class SwordItem extends ItemSword {
     public SwordItem(int par1, Material material) {

@@ -1,9 +1,9 @@
 package net.xiaoyu233.fml.reload.utils;
 
-import net.minecraft.BiomeGenBase;
-import net.minecraft.Curse;
-import net.minecraft.Potion;
-import net.minecraft.Skill;
+import net.minecraft.mite.Skill;
+import net.minecraft.potion.Potion;
+import net.minecraft.util.Curse;
+import net.minecraft.world.biome.BiomeGenBase;
 import net.xiaoyu233.fml.util.RangedIncrementNumber;
 
 public class IdUtil {

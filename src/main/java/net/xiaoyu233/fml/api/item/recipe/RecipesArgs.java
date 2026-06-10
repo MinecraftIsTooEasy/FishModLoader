@@ -1,6 +1,6 @@
 package net.xiaoyu233.fml.api.item.recipe;
 
-import net.minecraft.ItemStack;
+import net.minecraft.item.ItemStack;
 
 import java.util.Optional;
 

@@ -89,18 +89,29 @@ public class PackageLoader {
                     String className = name.substring(0, name.length() - 6).replace('/', '.');
                     // 添加到classes
                     if (targetAnnotation != null){
-                        ClassReader reader = new ClassReader(jar.getInputStream(entry));
-                        ClassNode classNode = new ClassNode();
-                        reader.accept(classNode,0);
-                        classNode.accept(new ClassVisitor(Opcodes.ASM9){});
-                        List<AnnotationNode> visibleAnnotations = classNode.invisibleAnnotations;
-                        if (visibleAnnotations != null && !visibleAnnotations.isEmpty()){
-                            for (AnnotationNode visibleAnnotation : visibleAnnotations) {
-                                if (visibleAnnotation.desc.equals(Type.getDescriptor(targetAnnotation))) {
-                                    classes.add(className);
-                                    break;
+                        try {
+                            ClassReader reader = new ClassReader(jar.getInputStream(entry));
+                            ClassNode classNode = new ClassNode();
+                            reader.accept(classNode,0);
+                            classNode.accept(new ClassVisitor(Opcodes.ASM9){});
+                            List<AnnotationNode> visibleAnnotations = classNode.invisibleAnnotations;
+                            if (visibleAnnotations != null && !visibleAnnotations.isEmpty()){
+                                for (AnnotationNode visibleAnnotation : visibleAnnotations) {
+                                    if (visibleAnnotation.desc.equals(Type.getDescriptor(targetAnnotation))) {
+                                        classes.add(className);
+                                        break;
+                                    }
                                 }
                             }
+                        } catch (IllegalArgumentException ex) {
+                            // ASM rejects unsupported class file major versions
+                            // (Java 25+ when ASM hasn't been bumped yet). Skip
+                            // such classes — they're not annotated entry points
+                            // we care about, just JDK runtime artefacts.
+                            if (ex.getMessage() != null && ex.getMessage().contains("Unsupported class file major version")) {
+                                continue;
+                            }
+                            throw ex;
                         }
                     }
                 }

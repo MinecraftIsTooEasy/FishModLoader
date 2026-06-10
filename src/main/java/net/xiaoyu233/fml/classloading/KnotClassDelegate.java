@@ -21,12 +21,8 @@ import com.google.common.collect.Sets;
 import net.fabricmc.loader.impl.util.SystemProperties;
 import net.xiaoyu233.fml.classloading.dump.DumpClassExtension;
 import net.xiaoyu233.fml.mixin.service.MixinService;
-import net.xiaoyu233.fml.util.FileSystemUtil;
-import net.xiaoyu233.fml.util.LoaderUtil;
-import net.xiaoyu233.fml.util.Log;
-import net.xiaoyu233.fml.util.ManifestUtil;
-import net.xiaoyu233.fml.util.UrlConversionException;
-import net.xiaoyu233.fml.util.UrlUtil;
+import net.xiaoyu233.fml.modfixer.ForgeSrgModRemapper;
+import net.xiaoyu233.fml.util.*;
 import org.spongepowered.asm.mixin.transformer.IMixinTransformer;
 import org.spongepowered.asm.mixin.transformer.ext.Extensions;
 
@@ -43,12 +39,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.CodeSource;
 import java.security.cert.Certificate;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.Manifest;
 
@@ -509,6 +500,7 @@ public final class KnotClassDelegate<T extends ClassLoader & KnotClassDelegate.C
 	private byte[] getRawClassByteArray(String name, boolean allowFromParent) throws IOException {
 		name = LoaderUtil.getClassFileName(name);
 		URL url = classLoader.findResourceFwd(name);
+		boolean localSource = url != null;
 
 		if (url == null) {
 			if (!allowFromParent) return null;
@@ -532,7 +524,13 @@ public final class KnotClassDelegate<T extends ClassLoader & KnotClassDelegate.C
 				outputStream.write(buffer, 0, len);
 			}
 
-			return outputStream.toByteArray();
+			byte[] bytes = outputStream.toByteArray();
+			if (!localSource || !hasRegularCodeSource(url)) {
+				return bytes;
+			}
+
+			String className = name.substring(0, name.length() - ".class".length()).replace('/', '.');
+			return ForgeSrgModRemapper.remapClass(className, getCodeSource(url, name), bytes);
 		}
 	}
 

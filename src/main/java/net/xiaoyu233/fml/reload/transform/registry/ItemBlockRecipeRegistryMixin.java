@@ -1,6 +1,7 @@
 package net.xiaoyu233.fml.reload.transform.registry;
 
-import net.minecraft.*;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.crafting.*;
 import net.xiaoyu233.fml.api.item.recipe.RecipesArgs;
 import net.xiaoyu233.fml.reload.event.*;
 import net.xiaoyu233.fml.reload.event.recipe.RecipeModifier;
@@ -21,7 +22,7 @@ public abstract class ItemBlockRecipeRegistryMixin {
     @Shadow public abstract ShapedRecipes addRecipe(ItemStack par1ItemStack, boolean include_in_lowest_crafting_difficulty_determination, Object... par2ArrayOfObj);
 
     @Redirect(method = "<init>",
-            at = @At(value = "INVOKE",target = "Lnet/minecraft/RecipesMITE;addCraftingRecipes(Lnet/minecraft/CraftingManager;)V"))
+            at = @At(value = "INVOKE",target = "Lnet/minecraft/item/crafting/RecipesMITE;addCraftingRecipes(Lnet/minecraft/item/crafting/CraftingManager;)V"))
     private void injectRegisterRecipes(CraftingManager crafters) {
         MITEEvents.MITE_EVENT_BUS.post(new ItemRegistryEvent());
         MITEEvents.MITE_EVENT_BUS.post(new BlockRegistryEvent());

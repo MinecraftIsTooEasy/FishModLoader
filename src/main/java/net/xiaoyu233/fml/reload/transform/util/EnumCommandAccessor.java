@@ -1,6 +1,6 @@
 package net.xiaoyu233.fml.reload.transform.util;
 
-import net.minecraft.EnumCommand;
+import net.minecraft.util.EnumCommand;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Invoker;
 

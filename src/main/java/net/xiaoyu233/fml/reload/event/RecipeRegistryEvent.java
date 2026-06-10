@@ -1,6 +1,6 @@
 package net.xiaoyu233.fml.reload.event;
 
-import net.minecraft.ItemStack;
+import net.minecraft.item.ItemStack;
 import net.xiaoyu233.fml.api.item.recipe.RecipesArgs;
 
 import java.util.ArrayList;

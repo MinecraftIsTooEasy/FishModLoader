@@ -1,6 +1,6 @@
 package net.xiaoyu233.fml.reload.transform.util;
 
-import net.minecraft.EntityLivestock;
+import net.minecraft.entity.EntityLivestock;
 import org.spongepowered.asm.mixin.Intrinsic;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Invoker;

@@ -1,22 +1,51 @@
 package net.xiaoyu233.fml.reload.transform;
 
-import net.minecraft.*;
+import net.minecraft.client.Minecraft;
+import net.minecraft.command.CommandHandler;
+import net.minecraft.command.ICommand;
+import net.minecraft.command.ICommandSender;
+import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.integrated.IntegratedServer;
+import net.minecraft.util.ChatMessageComponent;
+import net.minecraft.util.EnumChatFormatting;
+import net.minecraft.util.EnumCommand;
+import net.minecraft.world.WorldServer;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.CommandEvent;
 import net.xiaoyu233.fml.FishModLoader;
 import net.xiaoyu233.fml.config.editor.ConfigEditor;
 import net.xiaoyu233.fml.reload.event.HandleChatCommandEvent;
 import net.xiaoyu233.fml.reload.event.MITEEvents;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 
+import java.util.Arrays;
+import java.util.Map;
+
 @Mixin(CommandHandler.class)
 public class CommandHandlerTrans {
+    @Shadow @Final private Map commandMap;
 
-    @Inject(locals = LocalCapture.CAPTURE_FAILHARD ,method = "executeCommand",at = @At(value = "INVOKE_ASSIGN",shift = At.Shift.AFTER,target = "Lnet/minecraft/EnumCommand;get(Ljava/lang/String;)Lnet/minecraft/EnumCommand;"),cancellable = true)
-    public void onCommandExecuted(ICommandSender par1ICommandSender, String par2Str,boolean permission_override, CallbackInfoReturnable<Integer> callbackInfo,MinecraftServer mc_server,WorldServer world, ServerPlayer player,EnumCommand command){
+    @Inject(locals = LocalCapture.CAPTURE_FAILHARD ,method = "executeCommand",at = @At(value = "INVOKE_ASSIGN",shift = At.Shift.AFTER,target = "Lnet/minecraft/util/EnumCommand;get(Ljava/lang/String;)Lnet/minecraft/util/EnumCommand;"),cancellable = true)
+    public void onCommandExecuted(ICommandSender par1ICommandSender, String par2Str,boolean permission_override, CallbackInfoReturnable<Integer> callbackInfo,MinecraftServer mc_server,WorldServer world, EntityPlayerMP player,EnumCommand command){
+        String[] split = par2Str.split(" ");
+        if (split.length > 0 && split[0].length() > 0) {
+            ICommand registeredCommand = (ICommand) this.commandMap.get(split[0]);
+            if (registeredCommand != null && (permission_override || registeredCommand.canCommandSenderUseCommand(par1ICommandSender))) {
+                CommandEvent forgeEvent = new CommandEvent(registeredCommand, par1ICommandSender, Arrays.copyOfRange(split, 1, split.length));
+                if (MinecraftForge.EVENT_BUS.post(forgeEvent)) {
+                    callbackInfo.setReturnValue(1);
+                    return;
+                }
+            }
+        }
+
         HandleChatCommandEvent commandEvent = new HandleChatCommandEvent(par1ICommandSender,par2Str,player,world);
         MITEEvents.MITE_EVENT_BUS.post(commandEvent);
         if (commandEvent.isExecuteSuccess()){
@@ -66,4 +95,3 @@ public class CommandHandlerTrans {
 
 //    public int executeCommand(ICommandListener par1ICommandSender, String par2Str, boolean permission_override) {}
 }
-

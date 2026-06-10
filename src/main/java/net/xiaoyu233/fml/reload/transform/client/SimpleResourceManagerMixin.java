@@ -2,7 +2,11 @@ package net.xiaoyu233.fml.reload.transform.client;
 
 import net.fabricmc.loader.impl.ModContainerImpl;
 import net.fabricmc.loader.impl.util.UrlUtil;
-import net.minecraft.*;
+import net.minecraft.client.resources.data.MetadataSerializer;
+import net.minecraft.util.ResourceLocation;
+import net.minecraft.client.resources.ResourceManager;
+import net.minecraft.client.resources.SimpleReloadableResourceManager;
+import net.minecraft.client.resources.SimpleResource;
 import net.xiaoyu233.fml.FishModLoader;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -14,7 +18,7 @@ import java.util.List;
 
 @Mixin(SimpleReloadableResourceManager.class)
 public class SimpleResourceManagerMixin {
-    @Redirect(method = "getAllResources", at = @At(value = "INVOKE", target = "Lnet/minecraft/ResourceManager;getAllResources(Lnet/minecraft/ResourceLocation;)Ljava/util/List;"))
+    @Redirect(method = "getAllResources", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/resources/ResourceManager;getAllResources(Lnet/minecraft/util/ResourceLocation;)Ljava/util/List;"))
     private List enhanceGetAllResources(ResourceManager obj, ResourceLocation location){
         List allResources = obj.getAllResources(location);
         for (ModContainerImpl value : FishModLoader.getModsMap().values()) {

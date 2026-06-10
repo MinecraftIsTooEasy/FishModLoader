@@ -1,8 +1,8 @@
 package net.xiaoyu233.fml.reload.transform.registry;
 
-import net.minecraft.GameSettings;
-import net.minecraft.ResourceManager;
-import net.minecraft.SoundManager;
+import net.minecraft.client.audio.SoundManager;
+import net.minecraft.client.resources.ResourceManager;
+import net.minecraft.client.settings.GameSettings;
 import net.xiaoyu233.fml.reload.event.MITEEvents;
 import net.xiaoyu233.fml.reload.event.SoundsRegisterEvent;
 import org.spongepowered.asm.mixin.Mixin;

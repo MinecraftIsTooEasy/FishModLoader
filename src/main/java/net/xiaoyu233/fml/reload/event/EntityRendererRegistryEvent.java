@@ -1,7 +1,7 @@
 package net.xiaoyu233.fml.reload.event;
 
-import net.minecraft.Entity;
-import net.minecraft.Render;
+import net.minecraft.entity.Entity;
+import net.minecraft.client.renderer.entity.Render;
 
 import java.util.HashMap;
 import java.util.Map;

@@ -1,7 +1,7 @@
 package net.xiaoyu233.fml.reload.event;
 
-import net.minecraft.Item;
-import net.minecraft.ItemStack;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
 import net.xiaoyu233.fml.reload.event.recipe.RecipeModifier;
 
 import java.util.HashMap;

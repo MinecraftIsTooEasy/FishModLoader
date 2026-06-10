@@ -1,7 +1,7 @@
 package net.xiaoyu233.fml.reload.transform.fix.skin;
 
-import net.minecraft.IImageBuffer;
-import net.minecraft.ThreadDownloadImageData;
+import net.minecraft.client.renderer.IImageBuffer;
+import net.minecraft.client.renderer.ThreadDownloadImageData;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 

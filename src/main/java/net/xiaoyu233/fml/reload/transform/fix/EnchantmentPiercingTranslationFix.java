@@ -1,6 +1,12 @@
 package net.xiaoyu233.fml.reload.transform.fix;
 
-import net.minecraft.*;
+import net.minecraft.creativetab.CreativeTabs;
+import net.minecraft.enchantment.Enchantment;
+import net.minecraft.enchantment.EnchantmentPiercing;
+import net.minecraft.item.EnumRarity;
+import net.minecraft.client.resources.I18n;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemAxe;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;

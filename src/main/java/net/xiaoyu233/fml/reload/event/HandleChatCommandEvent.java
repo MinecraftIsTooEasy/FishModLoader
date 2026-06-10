@@ -1,8 +1,8 @@
 package net.xiaoyu233.fml.reload.event;
 
-import net.minecraft.EntityPlayer;
-import net.minecraft.ICommandSender;
-import net.minecraft.World;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.command.ICommandSender;
+import net.minecraft.world.World;
 
 public class HandleChatCommandEvent {
    private final String command;

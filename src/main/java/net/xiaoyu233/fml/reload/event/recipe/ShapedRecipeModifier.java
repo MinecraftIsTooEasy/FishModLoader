@@ -1,7 +1,7 @@
 package net.xiaoyu233.fml.reload.event.recipe;
 
-import net.minecraft.Item;
-import net.minecraft.ItemStack;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
 
 import java.util.*;
 

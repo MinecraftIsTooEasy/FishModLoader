@@ -1,8 +1,8 @@
 package net.xiaoyu233.fml.reload.transform.registry;
 
 import com.google.common.collect.ImmutableMap;
-import net.minecraft.Entity;
-import net.minecraft.EntityList;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityList;
 import net.xiaoyu233.fml.reload.event.EntityRegisterEvent;
 import net.xiaoyu233.fml.reload.event.MITEEvents;
 import net.xiaoyu233.fml.reload.utils.EntityUtil;

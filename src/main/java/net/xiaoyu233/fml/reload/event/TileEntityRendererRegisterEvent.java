@@ -1,7 +1,7 @@
 package net.xiaoyu233.fml.reload.event;
 
-import net.minecraft.TileEntity;
-import net.minecraft.TileEntitySpecialRenderer;
+import net.minecraft.tileentity.TileEntity;
+import net.minecraft.client.renderer.tileentity.TileEntitySpecialRenderer;
 
 import java.util.function.BiConsumer;
 

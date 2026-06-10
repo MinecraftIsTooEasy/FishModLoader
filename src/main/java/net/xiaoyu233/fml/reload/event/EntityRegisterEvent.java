@@ -1,6 +1,6 @@
 package net.xiaoyu233.fml.reload.event;
 
-import net.minecraft.Entity;
+import net.minecraft.entity.Entity;
 
 public class EntityRegisterEvent {
     private final EntityRegisterer registerer;

@@ -1,8 +1,8 @@
 package net.xiaoyu233.fml.reload.transform.fix;
 
-import net.minecraft.Entity;
-import net.minecraft.EntityItem;
-import net.minecraft.World;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.item.EntityItem;
+import net.minecraft.world.World;
 import net.xiaoyu233.fml.config.Configs;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -22,12 +22,12 @@ public abstract class FixTNT extends Entity {
     @Shadow public abstract void tryRemoveFromWorldUniques();
 
     @Inject(
-            method = "handleExplosion(Lnet/minecraft/Explosion;)Z",
+            method = "handleExplosion(Lnet/minecraft/world/Explosion;)Z",
             cancellable = true,
             at = @At(
                     value = "INVOKE",
                     shift = At.Shift.AFTER,
-                    target = "Lnet/minecraft/EntityItem;calcExplosionForce(FD)F"
+                    target = "Lnet/minecraft/entity/item/EntityItem;calcExplosionForce(FD)F"
             )
     )
     private void injectCancelExplosionCopy(CallbackInfoReturnable<Boolean> callback) {
@@ -39,10 +39,10 @@ public abstract class FixTNT extends Entity {
     }
 
     @Redirect(
-            method = "handleExplosion(Lnet/minecraft/Explosion;)Z",
+            method = "handleExplosion(Lnet/minecraft/world/Explosion;)Z",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/EntityItem;tryRemoveFromWorldUniques()V"
+                    target = "Lnet/minecraft/entity/item/EntityItem;tryRemoveFromWorldUniques()V"
             ),
             require = 0
     )

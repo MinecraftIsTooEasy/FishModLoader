@@ -1,15 +1,11 @@
 package net.xiaoyu233.fml.reload.transform;
 
-import com.google.gson.JsonElement;
-import com.google.gson.JsonIOException;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import com.google.gson.JsonSyntaxException;
-import net.minecraft.Locale;
-import net.minecraft.Resource;
-import net.minecraft.ResourceLocation;
-import net.minecraft.ResourceManager;
-import net.minecraft.StatCollector;
+import com.google.gson.*;
+import net.minecraft.client.resources.Locale;
+import net.minecraft.client.resources.Resource;
+import net.minecraft.client.resources.ResourceManager;
+import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.StatCollector;
 import net.xiaoyu233.fml.FishModLoader;
 import net.xiaoyu233.fml.ModResourceManager;
 import net.xiaoyu233.fml.Translations;
@@ -52,7 +48,7 @@ public class LanguageLoaderTrans {
         }
     }
 
-    @Inject(method = "loadLocaleDataFiles", at = @At(value = "INVOKE", target = "Lnet/minecraft/Locale;checkUnicode()V"))
+    @Inject(method = "loadLocaleDataFiles", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/resources/Locale;checkUnicode()V"))
     private void readJsonFile(ResourceManager resourceManager, List<String> langList, CallbackInfo ci) {
         for (String localeName : langList) {
             String filePath = String.format("lang/%s.json", localeName);

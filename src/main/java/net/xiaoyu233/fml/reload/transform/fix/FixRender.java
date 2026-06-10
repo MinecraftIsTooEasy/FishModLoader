@@ -1,6 +1,6 @@
 package net.xiaoyu233.fml.reload.transform.fix;
 
-import net.minecraft.OpenGlHelper;
+import net.minecraft.client.renderer.OpenGlHelper;
 import org.lwjgl.opengl.ARBMultitexture;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;

@@ -24,7 +24,18 @@ public class CachedMappedJar {
         TinyRemapper.Builder builder = TinyRemapper.newRemapper()
                 .withMappings(provider)
                 .ignoreConflicts(true)
-                .checkPackageAccess(true);
+                // The MITE 1.6.4 namespace splits classes that were originally
+                // in the same package across multiple subpackages (Block →
+                // net/minecraft/block, Material → net/minecraft/block/material,
+                // etc.). MITE bytecode contains many cross-package accesses to
+                // protected/package-private members that JVMs reject. Those
+                // are widened at runtime via fishmodloader.accesswidener, but
+                // TinyRemapper's checkPackageAccess pass runs before the AW is
+                // applied, so it would refuse to map the jar. Disable the
+                // check — incorrect mappings would still surface later as
+                // IllegalAccessError at load time, which is exactly what AW
+                // already covers.
+                .checkPackageAccess(false);
         this.remapper = builder.build();
         this.cacheDir = minecraftDir.toPath().resolve(".fml").resolve("remappedJars");
         Files.createDirectories(cacheDir);

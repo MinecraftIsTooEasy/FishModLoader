@@ -1,6 +1,6 @@
 package net.xiaoyu233.fml.api.item;
 
-import net.minecraft.Item;
+import net.minecraft.item.Item;
 import net.xiaoyu233.fml.api.INamespaced;
 
 public interface IItem extends INamespaced {

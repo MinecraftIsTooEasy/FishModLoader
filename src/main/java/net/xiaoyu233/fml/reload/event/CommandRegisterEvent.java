@@ -1,6 +1,6 @@
 package net.xiaoyu233.fml.reload.event;
 
-import net.minecraft.ICommand;
+import net.minecraft.command.ICommand;
 
 import java.util.function.Consumer;
 
