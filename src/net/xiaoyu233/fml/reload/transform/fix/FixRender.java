@@ -14,13 +14,21 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class FixRender {
     @Redirect(method = "setActiveTexture", at = @At(value = "INVOKE", target = "Lorg/lwjgl/opengl/ARBMultitexture;glActiveTextureARB(I)V"))
     private static void injectSetClientTextureARB(int textureId) {
-        if (GL11.glGetString(GL11.GL_VENDOR).toLowerCase().contains("intel"))
+        String vendor = GL11.glGetString(GL11.GL_VENDOR);
+        if (vendor != null && vendor.toLowerCase().contains("intel")) {
             ARBMultitexture.glClientActiveTextureARB(textureId);
+        } else {
+            ARBMultitexture.glActiveTextureARB(textureId);
+        }
     }
 
     @Inject(method = "setActiveTexture", at = @At(value = "INVOKE", target = "Lorg/lwjgl/opengl/GL13;glActiveTexture(I)V", shift = At.Shift.BEFORE))
     private static void injectSetClientTexture(int textureId, CallbackInfo callbackInfo) {
-        if (GL11.glGetString(GL11.GL_VENDOR).toLowerCase().contains("intel"))
+        String vendor = GL11.glGetString(GL11.GL_VENDOR);
+        if (vendor != null && vendor.toLowerCase().contains("intel")) {
             GL13.glClientActiveTexture(textureId);
+        } else {
+            GL13.glActiveTexture(textureId);
+        }
     }
 }

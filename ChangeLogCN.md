@@ -1,5 +1,11 @@
 # FishModLoader
 
+### v3.4.3
+* 修复了某些情况下GL11.glGetString(GL11.GL_VENDOR)为null导致的崩溃问题
+* 修复了寻找不存在的json语言文件时输出的大量错误日志的问题
+
+---
+
 ### v3.4.2
 * 现在只有英特尔GPU才能激活渲染修复
 * 加入了ItemStack的Namespace
