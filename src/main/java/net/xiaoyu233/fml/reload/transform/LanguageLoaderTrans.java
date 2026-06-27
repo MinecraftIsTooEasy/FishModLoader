@@ -31,7 +31,7 @@ import java.util.Map;
 public class LanguageLoaderTrans {
     @Shadow Map field_135032_a;
 
-    @Inject(method = "loadLocaleDataFiles", at = @At(value = "INVOKE_ASSIGN", target = "Ljava/lang/String;format(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;", shift = At.Shift.AFTER), locals = LocalCapture.CAPTURE_FAILHARD)
+    @Inject(method = "loadLocaleDataFiles", at = @At(value = "INVOKE_ASSIGN", target = "Ljava/lang/String;format(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;", shift = At.Shift.AFTER), locals = LocalCapture.CAPTURE_FAILSOFT)
     public synchronized void loadLocaleDataFiles(ResourceManager var1, List var2, CallbackInfo callbackInfo, Iterator<?> iterator, String var4, String var5) {
         MITEEvents.MITE_EVENT_BUS.post(new LanguageResourceReloadEvent(this.field_135032_a, var4));
         Translations.addTranslationsFor(this.field_135032_a, var4);
@@ -68,10 +68,10 @@ public class LanguageLoaderTrans {
     private void loadJsonFile(ResourceManager resourceManager, String fileName) {
         for (String namespace : ModResourceManager.getJsonNamespaces()) {
             try {
-                this.loadJsonData(resourceManager.getAllResources(new ResourceLocation(namespace, fileName)), fileName);
-            } catch (Exception exception) {
-                FishModLoader.LOGGER.warn(exception.getMessage());
-                exception.printStackTrace();
+                List<Resource> files = resourceManager.getAllResources(new ResourceLocation((String) namespace, fileName));
+                if (files.isEmpty()) return;
+                this.loadJsonData(files, fileName);
+            } catch (Exception ignored) {
             }
         }
     }
@@ -85,14 +85,13 @@ public class LanguageLoaderTrans {
 
     @Unique
     private void loadJsonData(InputStream stream, String fileName) {
-        InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8);
-        try {
+        try (InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
             JsonElement parse = new JsonParser().parse(reader);
             if (parse.isJsonObject()) {
                 JsonObject jsonObject = parse.getAsJsonObject();
                 jsonObject.entrySet().forEach(x -> this.field_135032_a.put(x.getKey(), (x.getValue()).getAsString()));
             }
-        } catch (JsonIOException | JsonSyntaxException e) {
+        } catch (Exception e) {
             FishModLoader.LOGGER.error("Exception when reading lang file: '{}'", fileName);
             e.printStackTrace();
         }
