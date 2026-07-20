@@ -27,7 +27,7 @@ public class LazyMappingResolver implements MappingResolver {
 
 	private MappingResolver delegate = null;
 
-	LazyMappingResolver(Supplier<MappingResolver> delegateSupplier, String currentRuntimeNamespace) {
+	public LazyMappingResolver(Supplier<MappingResolver> delegateSupplier, String currentRuntimeNamespace) {
 		this.delegateSupplier = delegateSupplier;
 		this.currentRuntimeNamespace = currentRuntimeNamespace;
 	}

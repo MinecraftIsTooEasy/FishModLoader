@@ -10,6 +10,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(GuiMainMenu.class)
 public abstract class MainMenuMixin extends GuiScreen {
+
     @Inject(method = "drawScreen", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Minecraft;getVersionDescriptor(Z)Ljava/lang/String;", shift = At.Shift.BEFORE))
     private void injectRenderFMLVersion(CallbackInfo callbackInfo){
         this.drawString(this.fontRenderer, "FishModLoader Version: " + Constants.VERSION, 2, this.height - 20, 0xFFFFFF);

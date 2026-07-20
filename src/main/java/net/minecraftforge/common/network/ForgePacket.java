@@ -13,10 +13,10 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.network.INetworkManager;
 import net.minecraft.network.packet.Packet250CustomPayload;
 import net.minecraftforge.common.network.packet.DimensionRegisterPacket;
-import org.apache.logging.log4j.Level;
 
 import java.util.Arrays;
 import java.util.concurrent.ConcurrentMap;
+import java.util.logging.Level;
 
 public abstract class ForgePacket
 {
@@ -139,7 +139,7 @@ public abstract class ForgePacket
             catch (Exception e)
             {
                 Throwables.propagateIfPossible(e);
-                FMLLog.log(Level.ERROR, e, "A bizarre critical error occured during packet encoding");
+                FMLLog.log(Level.SEVERE, e, "A bizarre critical error occured during packet encoding");
                 throw new FMLNetworkException(e);
             }
         }

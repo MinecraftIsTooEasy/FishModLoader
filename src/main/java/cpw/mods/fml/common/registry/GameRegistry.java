@@ -1,7 +1,36 @@
+/*
+ * Forge Mod Loader
+ * Copyright (c) 2012-2013 cpw.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the GNU Lesser Public License v2.1
+ * which accompanies this distribution, and is available at
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ *
+ * Contributors:
+ *     cpw - implementation
+ */
+
 package cpw.mods.fml.common.registry;
 
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
+import cpw.mods.fml.common.FMLLog;
+import cpw.mods.fml.common.ICraftingHandler;
+import cpw.mods.fml.common.IFuelHandler;
+import cpw.mods.fml.common.IPickupNotifier;
+import cpw.mods.fml.common.IPlayerTracker;
 import cpw.mods.fml.common.IWorldGenerator;
-import net.minecraft.block.Block;
+import cpw.mods.fml.common.Loader;
+import cpw.mods.fml.common.LoaderException;
+import cpw.mods.fml.common.LoaderState;
+import cpw.mods.fml.common.Mod.Block;
+import cpw.mods.fml.common.ModContainer;
+import cpw.mods.fml.common.ObfuscationReflectionHelper;
+import net.minecraft.entity.item.EntityItem;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.inventory.IInventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
@@ -10,146 +39,458 @@ import net.minecraft.item.crafting.FurnaceRecipes;
 import net.minecraft.item.crafting.IRecipe;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
+import net.minecraft.world.WorldType;
+import net.xiaoyu233.fml.reload.transform.forge_compat.api.IMixinWorldType;
+import net.minecraft.world.biome.BiomeGenBase;
 import net.minecraft.world.chunk.IChunkProvider;
-import net.xiaoyu233.fml.FishModLoader;
 
-import java.util.HashMap;
+import java.lang.reflect.Constructor;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
+import java.util.logging.Level;
 
-/**
- * Forge 1.6.4 GameRegistry compatibility surface.
- *
- * <p>Routes registrations to the underlying Minecraft / MITE registries.
- * Methods that map directly to MITE APIs are wired up here; methods that
- * need cross-cutting infrastructure (e.g. world-gen weighting) are kept
- * minimal and will be deepened during stage 5/6.
- */
-public class GameRegistry {
+public class GameRegistry
+{
+    private static Multimap<ModContainer, BlockProxy> blockRegistry = ArrayListMultimap.create();
+    private static Set<IWorldGenerator> worldGenerators = Sets.newHashSet();
+    private static List<IFuelHandler> fuelHandlers = Lists.newArrayList();
+    private static List<ICraftingHandler> craftingHandlers = Lists.newArrayList();
+    private static List<IPickupNotifier> pickupHandlers = Lists.newArrayList();
+    private static List<IPlayerTracker> playerTrackers = Lists.newArrayList();
 
-    /** Cache of TileEntity ids registered via {@link #registerTileEntity}. */
-    private static final Map<String, Class<? extends TileEntity>> tileEntityRegistry = new HashMap<>();
-
-    /** Mod-supplied world generators, keyed by the mod-supplied weight. */
-    private static final Map<Integer, IWorldGenerator> worldGenerators = new HashMap<>();
-
-    private GameRegistry() {}
-
-    // -------------------------------------------------------------- Block / Item
-
-    public static void registerBlock(Block block, String name) {
-        registerBlock(block, ItemBlock.class, name);
-    }
-
-    public static void registerBlock(Block block, Class<? extends ItemBlock> itemClass, String name) {
-        registerBlock(block, itemClass, name, "");
-    }
-
-    public static void registerBlock(Block block, Class<? extends ItemBlock> itemClass, String name, String modId) {
-        // Block construction in 1.6.4 already inserts into Block.blocksList[id].
-        // We just need to set the unlocalized name and (optionally) instantiate
-        // the ItemBlock so it's registered as a placeable item.
-        try {
-            block.setUnlocalizedName(name);
-            if (itemClass != null) {
-                ItemBlock itemBlock = itemClass.getConstructor(int.class).newInstance(block.blockID - 256);
-                itemBlock.setUnlocalizedName(name);
-            }
-        } catch (Throwable thrown) {
-            FishModLoader.LOGGER.error("registerBlock failed for {}", name, thrown);
-        }
-    }
-
-    public static void registerItem(Item item, String name) {
-        registerItem(item, name, "");
-    }
-
-    public static void registerItem(Item item, String name, String modId) {
-        item.setUnlocalizedName(name);
-    }
-
-    // -------------------------------------------------------------- TileEntity
-
-    public static void registerTileEntity(Class<? extends TileEntity> tileEntityClass, String id) {
-        tileEntityRegistry.put(id, tileEntityClass);
-        try {
-            // 1.6.4 has TileEntity.addMapping(class, id). Call via reflection so the
-            // shim still loads on a MITE build that renamed the method.
-            TileEntity.class
-                    .getDeclaredMethod("addMapping", Class.class, String.class)
-                    .invoke(null, tileEntityClass, id);
-        } catch (Throwable thrown) {
-            FishModLoader.LOGGER.warn("TileEntity.addMapping unavailable; cached only: {}", id, thrown);
-        }
-    }
-
-    public static void registerTileEntityWithAlternatives(Class<? extends TileEntity> tileEntityClass,
-                                                          String id,
-                                                          String... alternatives) {
-        registerTileEntity(tileEntityClass, id);
-    }
-
-    // -------------------------------------------------------------- Recipes
-
-    public static void addRecipe(ItemStack output, Object... params) {
-        // 1.6.4 MITE: public addRecipe takes (output, boolean, params).
-        // Pass false (= regular crafting, not preserved) to match upstream Forge.
-        CraftingManager.getInstance().addRecipe(output, false, params);
-    }
-
-    public static void addRecipe(IRecipe recipe) {
-        CraftingManager.getInstance().getRecipeList().add(recipe);
-    }
-
-    public static void addShapelessRecipe(ItemStack output, Object... params) {
-        CraftingManager.getInstance().addShapelessRecipe(output, params);
-    }
-
-    public static void addSmelting(ItemStack input, ItemStack output, float experience) {
-        // MITE simplified addSmelting to (id, ItemStack); experience is dropped
-        // for now. Stage 6 will add a hook for XP-on-smelt that mods rely on.
-        FurnaceRecipes.smelting().addSmelting(input.itemID, output);
-    }
-
-    public static void addSmelting(int itemId, ItemStack output, float experience) {
-        FurnaceRecipes.smelting().addSmelting(itemId, output);
-    }
-
-    // -------------------------------------------------------------- World gen
-
-    public static void registerWorldGenerator(IWorldGenerator generator) {
-        registerWorldGenerator(generator, 0);
-    }
-
-    public static void registerWorldGenerator(IWorldGenerator generator, int weight) {
-        worldGenerators.put(weight, generator);
+    /**
+     * Register a world generator - something that inserts new block types into the world
+     *
+     * @param generator
+     */
+    public static void registerWorldGenerator(IWorldGenerator generator)
+    {
+        worldGenerators.add(generator);
     }
 
     /**
-     * Run all registered world generators against the given chunk. Called
-     * from a chunk-populate hook in stage 5/6 — for now this is mainly here
-     * so mods that invoke it directly don't crash.
+     * Callback hook for world gen - if your mod wishes to add extra mod related generation to the world
+     * call this
+     *
+     * @param chunkX
+     * @param chunkZ
+     * @param world
+     * @param chunkGenerator
+     * @param chunkProvider
      */
-    public static void generateWorld(int chunkX, int chunkZ, World world,
-                                     IChunkProvider chunkGenerator,
-                                     IChunkProvider chunkProvider) {
-        Random random = new Random(world.getSeed());
-        long xSeedFactor = (random.nextLong() >> 2) + 1L;
-        long zSeedFactor = (random.nextLong() >> 2) + 1L;
-        long chunkSeed = (xSeedFactor * chunkX + zSeedFactor * chunkZ) ^ world.getSeed();
-        for (IWorldGenerator generator : worldGenerators.values()) {
-            random.setSeed(chunkSeed);
-            generator.generate(random, chunkX, chunkZ, world, chunkGenerator, chunkProvider);
+    public static void generateWorld(int chunkX, int chunkZ, World world, IChunkProvider chunkGenerator, IChunkProvider chunkProvider)
+    {
+        long worldSeed = world.getSeed();
+        Random fmlRandom = new Random(worldSeed);
+        long xSeed = fmlRandom.nextLong() >> 2 + 1L;
+        long zSeed = fmlRandom.nextLong() >> 2 + 1L;
+        long chunkSeed = (xSeed * chunkX + zSeed * chunkZ) ^ worldSeed;
+
+        for (IWorldGenerator generator : worldGenerators)
+        {
+            fmlRandom.setSeed(chunkSeed);
+            generator.generate(fmlRandom, chunkX, chunkZ, world, chunkGenerator, chunkProvider);
         }
     }
 
-    // -------------------------------------------------------------- Lookups
-
-    public static String findUniqueIdentifierFor(Block block) {
-        return block != null ? block.getUnlocalizedName() : null;
+    /**
+     * Internal method for creating an @Block instance
+     * @param container
+     * @param type
+     * @param annotation
+     * @throws Exception
+     */
+    public static Object buildBlock(ModContainer container, Class<?> type, Block annotation) throws Exception
+    {
+        Object o = type.getConstructor(int.class).newInstance(findSpareBlockId());
+        registerBlock((net.minecraft.block.Block) o);
+        return o;
     }
 
-    public static String findUniqueIdentifierFor(Item item) {
-        return item != null ? item.getUnlocalizedName() : null;
+    /**
+     * Private and not yet working properly
+     *
+     * @return a block id
+     */
+    private static int findSpareBlockId()
+    {
+        return BlockTracker.nextBlockId();
+    }
+
+    /**
+     * Register an item with the item registry with a custom name : this allows for easier huix.mixins.server->client resolution
+     *
+     * @param item The item to register
+     * @param name The mod-unique name of the item
+     */
+    public static void registerItem(Item item, String name)
+    {
+        registerItem(item, name, null);
+    }
+
+    /**
+     * Register the specified Item with a mod specific name : overrides the standard type based name
+     * @param item The item to register
+     * @param name The mod-unique name to register it as - null will remove a custom name
+     * @param modId An optional modId that will "own" this block - generally used by multi-mod systems
+     * where one mod should "own" all the blocks of all the mods, null defaults to the active mod
+     */
+    public static void registerItem(Item item, String name, String modId)
+    {
+        GameData.setName(item, name, modId);
+    }
+
+    /**
+     * Register a block with the world
+     *
+     */
+    @Deprecated
+    public static void registerBlock(net.minecraft.block.Block block)
+    {
+        registerBlock(block, ItemBlock.class);
+    }
+
+
+    /**
+     * Register a block with the specified mod specific name : overrides the standard type based name
+     * @param block The block to register
+     * @param name The mod-unique name to register it as
+     */
+    public static void registerBlock(net.minecraft.block.Block block, String name)
+    {
+        registerBlock(block, ItemBlock.class, name);
+    }
+
+    /**
+     * Register a block with the world, with the specified item class
+     *
+     * Deprecated in favour of named versions
+     *
+     * @param block The block to register
+     * @param itemclass The item type to register with it
+     */
+    @Deprecated
+    public static void registerBlock(net.minecraft.block.Block block, Class<? extends ItemBlock> itemclass)
+    {
+        registerBlock(block, itemclass, null);
+    }
+    /**
+     * Register a block with the world, with the specified item class and block name
+     * @param block The block to register
+     * @param itemclass The item type to register with it
+     * @param name The mod-unique name to register it with
+     */
+    public static void registerBlock(net.minecraft.block.Block block, Class<? extends ItemBlock> itemclass, String name)
+    {
+        registerBlock(block, itemclass, name, null);
+    }
+    /**
+     * Register a block with the world, with the specified item class, block name and owning modId
+     * @param block The block to register
+     * @param itemclass The iterm type to register with it
+     * @param name The mod-unique name to register it with
+     * @param modId The modId that will own the block name. null defaults to the active modId
+     */
+    public static void registerBlock(net.minecraft.block.Block block, Class<? extends ItemBlock> itemclass, String name, String modId)
+    {
+        if (Loader.instance().isInState(LoaderState.CONSTRUCTING))
+        {
+            FMLLog.warning("The mod %s is attempting to register a block whilst it it being constructed. This is bad modding practice - please use a proper mod lifecycle event.", Loader.instance().activeModContainer());
+        }
+        try
+        {
+            assert block != null : "registerBlock: block cannot be null";
+            assert itemclass != null : "registerBlock: itemclass cannot be null";
+            int blockItemId = block.blockID - 256;
+            Constructor<? extends ItemBlock> itemCtor;
+            Item i;
+            try
+            {
+                itemCtor = itemclass.getConstructor(int.class);
+                i = itemCtor.newInstance(blockItemId);
+            }
+            catch (NoSuchMethodException e)
+            {
+                itemCtor = itemclass.getConstructor(int.class, net.minecraft.block.Block.class);
+                i = itemCtor.newInstance(blockItemId, block);
+            }
+            GameRegistry.registerItem(i,name, modId);
+        }
+        catch (Exception e)
+        {
+            FMLLog.log(Level.SEVERE, e, "Caught an exception during block registration");
+            throw new LoaderException(e);
+        }
+        blockRegistry.put(Loader.instance().activeModContainer(), (BlockProxy) block);
+    }
+
+    public static void addRecipe(ItemStack output, Object... params)
+    {
+        addShapedRecipe(output, params);
+    }
+
+    public static IRecipe addShapedRecipe(ItemStack output, Object... params)
+    {
+        return CraftingManager.getInstance().addRecipe(output, true, params);
+    }
+
+    public static void addShapelessRecipe(ItemStack output, Object... params)
+    {
+        CraftingManager.getInstance().addShapelessRecipe(output, params);
+    }
+
+    public static void addRecipe(IRecipe recipe)
+    {
+        CraftingManager.getInstance().getRecipeList().add(recipe);
+    }
+
+    public static void addSmelting(int input, ItemStack output)
+    {
+        FurnaceRecipes.smelting().getSmeltingList().put(input, output);
+    }
+
+    public static void registerTileEntity(Class<? extends TileEntity> tileEntityClass, String id)
+    {
+        TileEntity.addMapping(tileEntityClass, id);
+    }
+
+    /**
+     * Register a tile entity, with alternative TileEntity identifiers. Use with caution!
+     * This method allows for you to "rename" the 'id' of the tile entity.
+     *
+     * @param tileEntityClass The tileEntity class to register
+     * @param id The primary ID, this will be the ID that the tileentity saves as
+     * @param alternatives A list of alternative IDs that will also map to this class. These will never save, but they will load
+     */
+    public static void registerTileEntityWithAlternatives(Class<? extends TileEntity> tileEntityClass, String id, String... alternatives)
+    {
+        TileEntity.addMapping(tileEntityClass, id);
+        Map<String,Class> teMappings = ObfuscationReflectionHelper.getPrivateValue(TileEntity.class, null, "field_" + "70326_a", "field_70326_a", "a");
+        for (String s: alternatives)
+        {
+            if (!teMappings.containsKey(s))
+            {
+                teMappings.put(s, tileEntityClass);
+            }
+        }
+    }
+
+    public static void addBiome(BiomeGenBase biome) {
+        ((IMixinWorldType) WorldType.DEFAULT).addNewBiome(biome);
+    }
+
+    public static void removeBiome(BiomeGenBase biome)
+    {
+
+        ((IMixinWorldType) WorldType.DEFAULT).removeBiome(biome);
+    }
+
+    public static void registerFuelHandler(IFuelHandler handler)
+    {
+        fuelHandlers.add(handler);
+    }
+    public static int getFuelValue(ItemStack itemStack)
+    {
+        int fuelValue = 0;
+        for (IFuelHandler handler : fuelHandlers)
+        {
+            fuelValue = Math.max(fuelValue, handler.getBurnTime(itemStack));
+        }
+        return fuelValue;
+    }
+
+    public static void registerCraftingHandler(ICraftingHandler handler)
+    {
+        craftingHandlers.add(handler);
+    }
+
+    public static void onItemCrafted(EntityPlayer player, ItemStack item, IInventory craftMatrix)
+    {
+        for (ICraftingHandler handler : craftingHandlers)
+        {
+            handler.onCrafting(player, item, craftMatrix);
+        }
+    }
+
+    public static void onItemSmelted(EntityPlayer player, ItemStack item)
+    {
+        for (ICraftingHandler handler : craftingHandlers)
+        {
+            handler.onSmelting(player, item);
+        }
+    }
+
+    public static void registerPickupHandler(IPickupNotifier handler)
+    {
+        pickupHandlers.add(handler);
+    }
+
+    public static void onPickupNotification(EntityPlayer player, EntityItem item)
+    {
+        for (IPickupNotifier notify : pickupHandlers)
+        {
+            notify.notifyPickup(item, player);
+        }
+    }
+
+    public static void registerPlayerTracker(IPlayerTracker tracker)
+	{
+		playerTrackers.add(tracker);
+	}
+
+	public static void onPlayerLogin(EntityPlayer player)
+	{
+        for (IPlayerTracker tracker : playerTrackers)
+            try
+            {
+                tracker.onPlayerLogin(player);
+            }
+            catch (Exception e)
+            {
+                FMLLog.log(Level.SEVERE, e, "A critical error occured handling the onPlayerLogin event with player tracker %s", tracker.getClass().getName());
+            }
+	}
+
+	public static void onPlayerLogout(EntityPlayer player)
+	{
+        for (IPlayerTracker tracker : playerTrackers)
+            try
+            {
+                tracker.onPlayerLogout(player);
+            }
+            catch (Exception e)
+            {
+                FMLLog.log(Level.SEVERE, e, "A critical error occured handling the onPlayerLogout event with player tracker %s", tracker.getClass().getName());
+            }
+	}
+
+	public static void onPlayerChangedDimension(EntityPlayer player)
+	{
+        for (IPlayerTracker tracker : playerTrackers)
+            try
+            {
+                tracker.onPlayerChangedDimension(player);
+            }
+            catch (Exception e)
+            {
+                FMLLog.log(Level.SEVERE, e, "A critical error occured handling the onPlayerChangedDimension event with player tracker %s", tracker.getClass()
+                        .getName());
+            }
+	}
+
+	public static void onPlayerRespawn(EntityPlayer player)
+	{
+        for (IPlayerTracker tracker : playerTrackers)
+            try
+            {
+                tracker.onPlayerRespawn(player);
+            }
+            catch (Exception e)
+            {
+                FMLLog.log(Level.SEVERE, e, "A critical error occured handling the onPlayerRespawn event with player tracker %s", tracker.getClass().getName());
+            }
+	}
+
+
+	/**
+	 * Look up a mod block in the global "named item list"
+	 * @param modId The modid owning the block
+	 * @param name The name of the block itself
+	 * @return The block or null if not found
+	 */
+	public static net.minecraft.block.Block findBlock(String modId, String name)
+	{
+	    return GameData.findBlock(modId, name);
+	}
+
+	/**
+	 * Look up a mod item in the global "named item list"
+	 * @param modId The modid owning the item
+	 * @param name The name of the item itself
+	 * @return The item or null if not found
+	 */
+	public static Item findItem(String modId, String name)
+    {
+        return GameData.findItem(modId, name);
+    }
+
+	/**
+	 * Manually register a custom item stack with FML for later tracking. It is automatically scoped with the active modid
+	 *
+	 * @param name The name to register it under
+	 * @param itemStack The itemstack to register
+	 */
+	public static void registerCustomItemStack(String name, ItemStack itemStack)
+	{
+	    GameData.registerCustomItemStack(name, itemStack);
+	}
+	/**
+	 * Lookup an itemstack based on mod and name. It will create "default" itemstacks from blocks and items if no
+	 * explicit itemstack is found.
+	 *
+	 * If it is built from a block, the metadata is by default the "wildcard" value.
+	 *
+	 * Custom itemstacks can be dumped from minecraft by setting the system property fml.dumpRegistry to true
+	 * (-Dfml.dumpRegistry=true on the command line will work)
+	 *
+	 * @param modId The modid of the stack owner
+	 * @param name The name of the stack
+	 * @param stackSize The size of the stack returned
+	 * @return The custom itemstack or null if no such itemstack was found
+	 */
+	public static ItemStack findItemStack(String modId, String name, int stackSize)
+	{
+	    ItemStack foundStack = GameData.findItemStack(modId, name);
+	    if (foundStack != null)
+	    {
+            ItemStack is = foundStack.copy();
+    	    is.stackSize = Math.min(stackSize, is.getMaxStackSize());
+    	    return is;
+	    }
+	    return null;
+	}
+
+	public static class UniqueIdentifier
+	{
+	    public final String modId;
+	    public final String name;
+        UniqueIdentifier(String modId, String name)
+        {
+            this.modId = modId;
+            this.name = name;
+        }
+	}
+
+	/**
+	 * Look up the mod identifier data for a block.
+	 * Returns null if there is no mod specified mod identifier data, or it is part of a
+	 * custom itemstack definition {@link #registerCustomItemStack}
+	 *
+	 * Note: uniqueness and persistence is only guaranteed by mods using the game registry
+	 * correctly.
+	 *
+	 * @param block to lookup
+     * @return a {@link UniqueIdentifier} for the block or null
+	 */
+	public static UniqueIdentifier findUniqueIdentifierFor(net.minecraft.block.Block block)
+	{
+	    return GameData.getUniqueName(block);
+	}
+    /**
+     * Look up the mod identifier data for an item.
+     * Returns null if there is no mod specified mod identifier data, or it is part of a
+     * custom itemstack definition {@link #registerCustomItemStack}
+     *
+     * Note: uniqueness and persistence is only guaranteed by mods using the game registry
+     * correctly.
+     *
+     * @param item to lookup
+     * @return a {@link UniqueIdentifier} for the item or null
+     */
+    public static UniqueIdentifier findUniqueIdentifierFor(Item item)
+    {
+        return GameData.getUniqueName(item);
     }
 }

@@ -38,13 +38,19 @@ public class Configuration
     private static final int MAX_BLOCKS = 4096;
     private static final Pattern CONFIG_START = Pattern.compile("START: \"([^\\\"]+)\"");
     private static final Pattern CONFIG_END = Pattern.compile("END: \"([^\\\"]+)\"");
-    private static boolean[] configMarkers = new boolean[Item.itemsList.length];
+    private static boolean[] configMarkers;
     private static Configuration PARENT = null;
 
     static
     {
-        Arrays.fill(configMarkers, false);
         NEW_LINE = System.getProperty("line.separator");
+    }
+
+    private static boolean[] getConfigMarkers() {
+        if (configMarkers == null) {
+            configMarkers = new boolean[Item.itemsList.length];
+        }
+        return configMarkers;
     }
 
     public String defaultEncoding = DEFAULT_ENCODING;
@@ -64,7 +70,11 @@ public class Configuration
     public Configuration(File file)
     {
         this.file = file;
-        String basePath = ((File)(FMLInjectionData.data()[6])).getAbsolutePath().replace(File.separatorChar, '/').replace("/.", "");
+        Object[] injectedData = FMLInjectionData.data();
+        Object mcHome = injectedData != null && injectedData.length > 6 ? injectedData[6] : null;
+        String basePath = mcHome instanceof File
+                ? ((File) mcHome).getAbsolutePath().replace(File.separatorChar, '/').replace("/.", "")
+                : "";
         String path = file.getAbsolutePath().replace(File.separatorChar, '/').replace("/./", "/").replace(basePath, "");
         if (PARENT != null)
         {
@@ -128,7 +138,7 @@ public class Configuration
 
         if (prop.getInt() != -1)
         {
-            configMarkers[prop.getInt()] = true;
+            getConfigMarkers()[prop.getInt()] = true;
             return prop;
         }
         else
@@ -143,20 +153,20 @@ public class Configuration
                 defaultID = upper - 1;
             }
 
-            if (Block.blocksList[defaultID] == null && !configMarkers[defaultID])
+            if (Block.blocksList[defaultID] == null && !getConfigMarkers()[defaultID])
             {
                 prop.set(defaultID);
-                configMarkers[defaultID] = true;
+                getConfigMarkers()[defaultID] = true;
                 return prop;
             }
             else
             {
                 for (int j = upper - 1; j > 0; j--)
                 {
-                    if (Block.blocksList[j] == null && !configMarkers[j])
+                    if (Block.blocksList[j] == null && !getConfigMarkers()[j])
                     {
                         prop.set(j);
-                        configMarkers[j] = true;
+                        getConfigMarkers()[j] = true;
                         return prop;
                     }
                 }
@@ -179,7 +189,7 @@ public class Configuration
 
         if (prop.getInt() != -1)
         {
-            configMarkers[prop.getInt() + ITEM_SHIFT] = true;
+            getConfigMarkers()[prop.getInt() + ITEM_SHIFT] = true;
             return prop;
         }
         else
@@ -193,20 +203,20 @@ public class Configuration
                 FMLLog.warning("Config \"%s\" Category: \"%s\" Key: \"%s\" Default: %d", fileName, category, key, defaultID);
             }
 
-            if (Item.itemsList[defaultShift] == null && !configMarkers[defaultShift] && defaultShift >= Block.blocksList.length)
+            if (Item.itemsList[defaultShift] == null && !getConfigMarkers()[defaultShift] && defaultShift >= Block.blocksList.length)
             {
                 prop.set(defaultID);
-                configMarkers[defaultShift] = true;
+                getConfigMarkers()[defaultShift] = true;
                 return prop;
             }
             else
             {
                 for (int x = Item.itemsList.length - 1; x >= ITEM_SHIFT; x--)
                 {
-                    if (Item.itemsList[x] == null && !configMarkers[x])
+                    if (Item.itemsList[x] == null && !getConfigMarkers()[x])
                     {
                         prop.set(x - ITEM_SHIFT);
-                        configMarkers[x] = true;
+                        getConfigMarkers()[x] = true;
                         return prop;
                     }
                 }

@@ -20,6 +20,7 @@ import java.util.jar.JarFile;
  * original jar is kept on the classpath; Forge SRG names are adapted when class
  * bytes are loaded.
  */
+@Deprecated
 public final class ForgeModDiscoverer {
 
     private static final List<DiscoveredForgeMod> discovered = new ArrayList<>();

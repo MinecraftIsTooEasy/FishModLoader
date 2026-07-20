@@ -1,31 +1,59 @@
+/*
+ * Forge Mod Loader
+ * Copyright (c) 2012-2013 cpw.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the GNU Lesser Public License v2.1
+ * which accompanies this distribution, and is available at
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * 
+ * Contributors:
+ *     cpw - implementation
+ */
+
 package cpw.mods.fml.common;
 
 import java.util.EnumSet;
 
+
 /**
- * Stub for cpw.mods.fml.common.ITickHandler (Forge 1.6.4).
+ * 
+ * Tick handler for mods to implement and register through the TickRegistry
+ * 
+ * The data available to each tick is documented in the TickType
+ * 
+ * @author cpw
  *
- * <p>Tick handlers were the Forge 1.6 mechanism for hooking into the
- * client/server tick loop. They were registered with
- * {@code TickRegistry.registerTickHandler(handler, side)} and received
- * {@code tickStart}/{@code tickEnd} callbacks for each requested tick type.
- *
- * <p>FishModLoader does not yet drive these callbacks — the interface
- * exists purely so legacy mods that reference it (e.g. WorldEdit's tick
- * counter) can be loaded without {@link NoClassDefFoundError}. Mods that
- * rely on tick handlers for core gameplay behaviour will not function
- * correctly until {@code TickRegistry} is wired up.
  */
-public interface ITickHandler {
-    /** Called at the start of the tick. */
-    void tickStart(EnumSet<TickType> type, Object... tickData);
+public interface ITickHandler
+{
 
-    /** Called at the end of the tick. */
-    void tickEnd(EnumSet<TickType> type, Object... tickData);
-
-    /** Which tick types this handler wants to receive. */
-    EnumSet<TickType> ticks();
-
-    /** Human-readable label, used in logs and error messages. */
-    String getLabel();
+    /**
+     * Called at the "start" phase of a tick
+     * 
+     * Multiple ticks may fire simultaneously- you will only be called once with all the firing ticks
+     * 
+     * @param type
+     * @param tickData
+     */
+    public void tickStart(EnumSet<TickType> type, Object... tickData);
+    
+    /**
+     * Called at the "end" phase of a tick
+     * 
+     * Multiple ticks may fire simultaneously- you will only be called once with all the firing ticks
+     * 
+     * @param type
+     * @param tickData
+     */
+    public void tickEnd(EnumSet<TickType> type, Object... tickData);
+    
+    /**
+     * Returns the list of ticks this tick handler is interested in receiving at the minute
+     */
+    public EnumSet<TickType> ticks();
+    
+    /**
+     * A profiling label for this tick handler
+     */
+    public String getLabel();
 }

@@ -1,17 +1,26 @@
+/*
+ * Forge Mod Loader
+ * Copyright (c) 2012-2013 cpw.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the GNU Lesser Public License v2.1
+ * which accompanies this distribution, and is available at
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * 
+ * Contributors:
+ *     cpw - implementation
+ */
+
 package cpw.mods.fml.common.network;
 
-/**
- * Stub for cpw.mods.fml.common.network.FMLNetworkException (Forge 1.6.4).
- *
- * Upstream this extends IOException (checked). We make it a RuntimeException
- * here so callers don't have to redeclare throws — semantically still
- * catchable as the upstream type via try/catch (...) statements that
- * matched on this class. Stage 6 may re-checked-exception this if any mod
- * relies on the IOException relationship.
- */
-public class FMLNetworkException extends RuntimeException {
-    public FMLNetworkException(String message) { super(message); }
-    public FMLNetworkException(String message, Throwable cause) { super(message, cause); }
-    public FMLNetworkException(Throwable cause) { super(cause); }
-}
+public class FMLNetworkException extends RuntimeException
+{
 
+    public FMLNetworkException(Exception e)
+    {
+        super(e);
+    }
+
+    public FMLNetworkException()
+    {
+    }
+}

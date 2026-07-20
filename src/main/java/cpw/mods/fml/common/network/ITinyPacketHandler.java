@@ -1,13 +1,21 @@
+/*
+ * Forge Mod Loader
+ * Copyright (c) 2012-2013 cpw.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the GNU Lesser Public License v2.1
+ * which accompanies this distribution, and is available at
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * 
+ * Contributors:
+ *     cpw - implementation
+ */
+
 package cpw.mods.fml.common.network;
 
 import net.minecraft.network.packet.NetHandler;
 import net.minecraft.network.packet.Packet131MapData;
 
-/**
- * Stub for cpw.mods.fml.common.network.ITinyPacketHandler (Forge 1.6.4).
- * Forge 1.6.4 used Packet131MapData for tiny custom packets.
- */
-public interface ITinyPacketHandler {
-
+public interface ITinyPacketHandler
+{
     void handle(NetHandler handler, Packet131MapData mapData);
 }

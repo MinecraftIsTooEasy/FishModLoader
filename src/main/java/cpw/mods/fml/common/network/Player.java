@@ -1,9 +1,28 @@
+/*
+ * Forge Mod Loader
+ * Copyright (c) 2012-2013 cpw.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the GNU Lesser Public License v2.1
+ * which accompanies this distribution, and is available at
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * 
+ * Contributors:
+ *     cpw - implementation
+ */
+
 package cpw.mods.fml.common.network;
 
+import net.minecraft.world.World;
+
 /**
- * Marker interface for "things that can be a player on either side"
- * — in Forge 1.6.4 this is an empty interface used by network handlers
- * to abstract over server EntityPlayerMP and client EntityClientPlayerMP.
+ *
+ * @author cpw
+ *
  */
-public interface Player {
+public interface Player
+{
+
+    default void openGui(Object mod, int modGuiId, World world, int x, int y, int z) {
+
+    }
 }

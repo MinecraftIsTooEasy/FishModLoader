@@ -24,9 +24,8 @@ public class StatisticMixin {
     }
 
     @ModifyConstant(method = "initUsableStats", constant = @Constant(intValue = 256))
-    private static int modifyUsableItemIndex(int value, @Local(index = 5) int var5){
-        if (Item.itemsList[var5] instanceof ItemBlock) return 4096;
-        return value;
+    private static int modifyUsableItemIndex(int value){
+        return 4096;
     }
 
 

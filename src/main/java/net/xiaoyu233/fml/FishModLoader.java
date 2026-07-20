@@ -7,30 +7,38 @@ import net.fabricmc.accesswidener.AccessWidener;
 import net.fabricmc.accesswidener.AccessWidenerReader;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.LanguageAdapter;
+import net.fabricmc.loader.api.MappingResolver;
 import net.fabricmc.loader.api.ModContainer;
 import net.fabricmc.loader.api.VersionParsingException;
 import net.fabricmc.loader.api.entrypoint.EntrypointContainer;
 import net.fabricmc.loader.api.metadata.ModDependency;
 import net.fabricmc.loader.api.metadata.ModEnvironment;
+import net.fabricmc.loader.impl.LazyMappingResolver;
+import net.fabricmc.loader.impl.MappingResolverImpl;
 import net.fabricmc.loader.impl.ModContainerImpl;
 import net.fabricmc.loader.impl.discovery.*;
 import net.fabricmc.loader.impl.entrypoint.EntrypointStorage;
+import net.fabricmc.loader.impl.launch.MappingConfiguration;
 import net.fabricmc.loader.impl.metadata.*;
 import net.fabricmc.loader.impl.util.DefaultLanguageAdapter;
 import net.fabricmc.loader.impl.util.ExceptionUtil;
+import net.fabricmc.loader.impl.util.LoaderUtil;
 import net.fabricmc.loader.impl.util.SystemProperties;
 import net.fabricmc.loader.impl.util.log.Log;
 import net.fabricmc.loader.impl.util.log.LogCategory;
+import net.fabricmc.mappingio.tree.MappingTree;
 import net.xiaoyu233.fml.config.ConfigRegistry;
 import net.xiaoyu233.fml.config.Configs;
 import net.xiaoyu233.fml.config.InjectionConfig;
-import net.xiaoyu233.fml.forge.event.MixinPackage;
+import net.xiaoyu233.fml.modfixer.ForgeModDiscoverer;
+import net.xiaoyu233.fml.modfixer.LegacyModLifecycle;
 import net.xiaoyu233.fml.relaunch.Launch;
 import net.xiaoyu233.fml.reload.transform.MinecraftServerTrans;
 import net.xiaoyu233.fml.util.Constants;
 import net.xiaoyu233.fml.util.MITEReleaseAccess;
 import net.xiaoyu233.fml.util.RemoteModInfo;
 import net.xiaoyu233.fml.util.UrlUtil;
+import net.fabricmc.loader.impl.util.mappings.MixinIntermediaryDevRemapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.spongepowered.asm.launch.MixinBootstrap;
@@ -46,6 +54,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -68,6 +77,9 @@ public class FishModLoader {
    private static final AccessWidener accessWidener = new AccessWidener();
    private static boolean frozen;
    private static final boolean IS_DEVELOPMENT = Boolean.parseBoolean(System.getProperty(SystemProperties.DEVELOPMENT, "false"));
+   private MappingResolver mappingResolver;
+   private static MappingConfiguration mappingConfiguration = new MappingConfiguration();
+   private static final List<Path> classPath = new ArrayList<>();
 
    static {
       try {
@@ -101,7 +113,34 @@ public class FishModLoader {
       return isServer ? EnvType.SERVER : EnvType.CLIENT;
    }
 
-   private FishModLoader(){}
+   private FishModLoader() {
+      classPath.clear();
+      
+      List<String> missing = null;
+      List<String> unsupported = null;
+
+      for (String cpEntry : System.getProperty("java.class.path").split(File.pathSeparator)) {
+         if (cpEntry.equals("*") || cpEntry.endsWith(File.separator + "*")) {
+            if (unsupported == null) unsupported = new ArrayList<>();
+            unsupported.add(cpEntry);
+            continue;
+         }
+         
+         Path path = Paths.get(cpEntry);
+         
+         if (!Files.exists(path)) {
+            if (missing == null) missing = new ArrayList<>();
+            missing.add(cpEntry);
+            continue;
+         }
+         
+         classPath.add(LoaderUtil.normalizeExistingPath(path));
+      }
+   }
+   
+   public static List<Path> getClassPath() {
+      return classPath;
+   }
 
    public static Optional<ModContainer> getModContainer(String parentModId) {
       return Optional.ofNullable(modsMap.get(parentModId));
@@ -131,7 +170,7 @@ public class FishModLoader {
       // Adds them to the class loader, applies their AT to FML's AccessWidener,
       // and queues their @Mod classes for the lifecycle dispatcher (stage 4).
       try {
-         net.xiaoyu233.fml.modfixer.ForgeModDiscoverer.discoverIn(MOD_DIR.toPath());
+         ForgeModDiscoverer.discoverIn(MOD_DIR.toPath());
       } catch (Throwable t) {
          LOGGER.warn("Forge mod discovery threw", t);
       }
@@ -160,7 +199,7 @@ public class FishModLoader {
     */
    public static void constructForgeMods() {
       try {
-         net.xiaoyu233.fml.modfixer.LegacyModLifecycle.constructAll();
+         LegacyModLifecycle.constructAll();
       } catch (Throwable t) {
          LOGGER.warn("Forge mod construction threw", t);
       }
@@ -279,6 +318,31 @@ public class FishModLoader {
       System.setProperty("mixin.service", net.xiaoyu233.fml.mixin.service.MixinService.class.getName());
 
       MixinBootstrap.init();
+      
+      if (FishModLoader.isDevelopmentEnvironment()) {
+         MappingConfiguration config = FishModLoader.getMappingConfiguration();
+         MappingTree mappings = config.getMappings();
+         final String modNs = config.getDefaultModDistributionNamespace();
+         String runtimeNs = config.getRuntimeNamespace();
+         
+         if (config.hasAnyMappings() && !modNs.equals(runtimeNs)) {
+            List<String> namespaces = new ArrayList<>(mappings.getDstNamespaces());
+            namespaces.add(mappings.getSrcNamespace());
+            
+            if (namespaces.contains(modNs) && namespaces.contains(runtimeNs)) {
+               System.setProperty("mixin.env.remapRefMap", "true");
+               
+               try {
+                  MixinIntermediaryDevRemapper remapper = new MixinIntermediaryDevRemapper(mappings, modNs, runtimeNs);
+                  MixinEnvironment.getDefaultEnvironment().getRemappers().add(remapper);
+                  Log.info(LogCategory.MIXIN, "Loaded Fabric development mappings for mixin remapper!");
+               } catch (Exception e) {
+                  Log.error(LogCategory.MIXIN, "Fabric development environment setup error - the game will probably crash soon!", e);
+               }
+            }
+         }
+      }
+
       registerModloaderMixin(Launch.knotLoader.getClassLoader());
       Map<String, ModContainerImpl> configToModMap = new HashMap<>();
 
@@ -307,7 +371,7 @@ public class FishModLoader {
       return entrypointStorage.hasEntrypoints(key);
    }
 
-   public static  <T> void invokeEntrypoints(String key, Class<T> type, Consumer<? super T> invoker) {
+   public static <T> void invokeEntrypoints(String key, Class<T> type, Consumer<? super T> invoker) {
       if (!hasEntrypoints(key)) {
          Log.debug(LogCategory.ENTRYPOINT, "No subscribers for entrypoint '%s'", key);
          return;
@@ -335,6 +399,22 @@ public class FishModLoader {
       }
    }
 
+   public MappingResolver getMappingResolver() {
+      if (mappingResolver == null) {
+         MappingConfiguration config = FishModLoader.getMappingConfiguration();
+         String runtimeNamespace = config.getRuntimeNamespace();
+         
+         mappingResolver = new LazyMappingResolver(() -> new MappingResolverImpl(config.getMappings(), runtimeNamespace),
+                 runtimeNamespace);
+      }
+      
+      return mappingResolver;
+   }
+   
+   public static MappingConfiguration getMappingConfiguration() {
+      return mappingConfiguration;
+   }
+   
    public static <T> List<EntrypointContainer<T>> getEntrypointContainers(String key, Class<T> type) {
       return entrypointStorage.getEntrypointContainers(key, type);
    }
@@ -396,24 +476,30 @@ public class FishModLoader {
 
    public static void registerModloaderMixin(ClassLoader classLoader){
       Mixins.registerConfiguration((InjectionConfig.Builder.of(MOD_ID, MinecraftServerTrans.class.getPackage(), MixinEnvironment.Phase.DEFAULT).build().toConfig(classLoader, MixinService.getService(),MixinEnvironment.getCurrentEnvironment())));
-      // Forge event-bus mixins. Each class in net.xiaoyu233.fml.forge.event
-      // injects @ForgeEvent triggers into the matching vanilla / MITE class.
-      Mixins.registerConfiguration((InjectionConfig.Builder.of(
-              MOD_ID + "-forge-events",
-              MixinPackage.class.getPackage(),
-              MixinEnvironment.Phase.DEFAULT
-      ).build().toConfig(classLoader, MixinService.getService(), MixinEnvironment.getCurrentEnvironment())));
    }
 
    /** Forge mod lifecycle: classic 3-phase init. Called by Minecraft startup hooks (stage 5). */
-   public static void fireForgePreInit()  { net.xiaoyu233.fml.modfixer.LegacyModLifecycle.firePreInit(); }
-   public static void fireForgeInit()     { net.xiaoyu233.fml.modfixer.LegacyModLifecycle.fireInit(); }
-   public static void fireForgePostInit() { net.xiaoyu233.fml.modfixer.LegacyModLifecycle.firePostInit(); }
-   public static void fireForgeServerAboutToStart(Object server) { net.xiaoyu233.fml.modfixer.LegacyModLifecycle.fireServerAboutToStart(server); }
-   public static void fireForgeServerStarting(Object server) { net.xiaoyu233.fml.modfixer.LegacyModLifecycle.fireServerStarting(server); }
-   public static void fireForgeServerStarted()  { net.xiaoyu233.fml.modfixer.LegacyModLifecycle.fireServerStarted(); }
-   public static void fireForgeServerStopping() { net.xiaoyu233.fml.modfixer.LegacyModLifecycle.fireServerStopping(); }
-   public static void fireForgeServerStopped()  { net.xiaoyu233.fml.modfixer.LegacyModLifecycle.fireServerStopped(); }
+   @Deprecated
+   public static void fireForgePreInit()  { invokeForgeLifecycle("firePreInit"); }
+   public static void fireForgeInit()     { invokeForgeLifecycle("fireInit"); }
+   public static void fireForgePostInit() { invokeForgeLifecycle("firePostInit"); }
+   public static void fireForgeServerAboutToStart(Object server) { invokeForgeLifecycle("fireServerAboutToStart", server); }
+   public static void fireForgeServerStarting(Object server) { invokeForgeLifecycle("fireServerStarting", server); }
+   public static void fireForgeServerStarted()  { invokeForgeLifecycle("fireServerStarted"); }
+   public static void fireForgeServerStopping() { invokeForgeLifecycle("fireServerStopping"); }
+   public static void fireForgeServerStopped()  { invokeForgeLifecycle("fireServerStopped"); }
+
+   private static void invokeForgeLifecycle(String methodName, Object... args) {
+      try {
+         ClassLoader knotCL = Launch.knotLoader.getClassLoader();
+         Class<?>[] paramTypes = new Class<?>[args.length];
+         for (int i = 0; i < args.length; i++) paramTypes[i] = Object.class;
+         Class.forName("net.xiaoyu233.fml.modfixer.LegacyModLifecycle", true, knotCL)
+            .getMethod(methodName, paramTypes).invoke(null, (Object[]) args);
+      } catch (Throwable t) {
+         LOGGER.warn("Forge mod lifecycle {} threw", methodName, t);
+      }
+   }
 
    public static MixinEnvironment.Side getSide(){
       return isServer ? MixinEnvironment.Side.SERVER : MixinEnvironment.Side.CLIENT;
@@ -453,6 +539,19 @@ public class FishModLoader {
 
          addMod(modCandidate);
       }
+      Path cacheDir = new File("").toPath().resolve(".fml");
+      Path outputdir = cacheDir.resolve("processedMods");
+      if (remapRegularMods) {
+         if (System.getProperty(SystemProperties.REMAP_CLASSPATH_FILE) == null) {
+            MappingConfiguration config = FishModLoader.getMappingConfiguration();
+            
+            if (!config.getRuntimeNamespace().equals(config.getDefaultModDistributionNamespace())) {
+               Log.warn(LogCategory.MOD_REMAP, "Runtime mod remapping disabled due to no fabric.remapClasspathFile being specified. You may need to update loom.");
+            }
+         } else {
+            RuntimeModRemapper.remap(modCandidates, cacheDir.resolve("tmp"), outputdir);
+         }
+      }
       //Finish mod discovery
       MixinBootstrap.init();
    }
@@ -471,7 +570,7 @@ public class FishModLoader {
          javaDep = new ModDependencyImpl(
                  ModDependency.Kind.DEPENDS,
                  "java",
-                 List.of(">=17 <21"));
+                 List.of(">=17 <=25"));
       } catch (VersionParsingException e) {
          throw new RuntimeException(e);
       }

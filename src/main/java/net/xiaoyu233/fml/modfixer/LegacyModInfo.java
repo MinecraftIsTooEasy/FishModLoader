@@ -9,6 +9,7 @@ import java.util.Map;
  * Carries the source jar path, the FQCN of the mod class, and the raw
  * annotation values (modid, name, version, dependencies, ...).
  */
+@Deprecated
 public final class LegacyModInfo {
     private final Path jarPath;
     private final String modClass;

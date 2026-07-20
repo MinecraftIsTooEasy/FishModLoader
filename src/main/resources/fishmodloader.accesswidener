@@ -49,6 +49,7 @@ accessible field net/minecraft/entity/player/EntityPlayer itemInUse Lnet/minecra
 accessible field net/minecraft/entity/player/EntityPlayer itemInUseCount I
 accessible field net/minecraft/entity/player/EntityPlayer tentative_bounding_boxes Ljava/util/List;
 accessible field net/minecraft/entity/player/EntityPlayer username Ljava/lang/String;
+extendable	class	net/minecraft/entity/player/EntityPlayerMP
 accessible field net/minecraft/entity/player/EntityPlayerMP respawn_experience I
 accessible field net/minecraft/entity/projectile/EntityArrow speed_before_collision_sq F
 accessible field net/minecraft/inventory/Slot accepts_large_items Z
@@ -220,3 +221,23 @@ accessible method net/minecraft/world/World findEntityPathAwayFromXYZ (Lnet/mine
 accessible method net/minecraft/world/World findEntityPathTowardXYZ (Lnet/minecraft/entity/Entity;IIIIZ)Lnet/minecraft/pathfinding/PathEntity;
 accessible method net/minecraft/world/WorldServer tryCreateNewLivingEntityCloseTo (IIIIILjava/lang/Class;Lnet/minecraft/entity/EnumCreatureType;)Lnet/minecraft/entity/EntityLiving;
 accessible method net/minecraft/world/storage/SaveHandler getWorldDirectory ()Ljava/io/File;
+accessible field net/minecraft/entity/EntityList classToStringMapping Ljava/util/Map;
+accessible field net/minecraft/entity/EntityList stringToClassMapping Ljava/util/Map;
+accessible method net/minecraft/entity/EntityList addMapping (Ljava/lang/Class;Ljava/lang/String;I)V
+accessible field net/minecraft/client/renderer/entity/RenderManager entityRenderMap Ljava/util/Map;
+accessible field net/minecraft/client/Minecraft renderEngine Lnet/minecraft/client/renderer/texture/TextureManager;
+accessible field net/minecraft/client/renderer/tileentity/TileEntityRenderer specialRendererMap Ljava/util/Map;
+accessible field net/minecraft/client/renderer/entity/RenderBiped field_110859_k Ljava/util/Map;
+accessible field net/minecraft/entity/passive/EntityVillager villagerStockList Ljava/util/Map;
+accessible field net/minecraft/entity/passive/EntityVillager blacksmithSellingList Ljava/util/Map;
+accessible method net/minecraft/entity/passive/EntityVillager addMerchantItem (Lnet/minecraft/village/MerchantRecipeList;ILjava/util/Random;F)V
+accessible method net/minecraft/entity/passive/EntityVillager addBlacksmithItem (Lnet/minecraft/village/MerchantRecipeList;ILjava/util/Random;F)V
+accessible field net/minecraft/entity/player/EntityPlayerMP currentWindowId I
+accessible method net/minecraft/entity/player/EntityPlayerMP incrementWindowID ()V
+accessible method net/minecraft/tileentity/TileEntity addMapping (Ljava/lang/Class;Ljava/lang/String;)V
+accessible field net/minecraft/util/WeightedRandomItem itemWeight I
+accessible method net/minecraft/network/NetLoginHandler getClientUsername (Lnet/minecraft/network/NetLoginHandler;)Ljava/lang/String;
+accessible method net/minecraft/network/NetLoginHandler func_72531_a (Lnet/minecraft/network/NetLoginHandler;Z)Z
+accessible method net/minecraft/util/StringTranslate getInstance ()Lnet/minecraft/util/StringTranslate;
+accessible method net/minecraft/entity/EntityList addMapping (Ljava/lang/Class;Ljava/lang/String;III)V
+extendable class net/minecraft/client/renderer/EntityRenderer

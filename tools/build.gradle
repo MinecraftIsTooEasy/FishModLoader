@@ -1,0 +1,54 @@
+plugins {
+    id 'java'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        name = "Spongepowered"
+        url = "https://repo.spongepowered.org/repository/maven-public/"
+    }
+    maven {
+        name = "ModdedMITE"
+        url = "https://maven.limingzxc.top/repository/maven-public/"
+    }
+    maven {
+        name = 'legacy-fabric'
+        url = 'https://maven.legacyfabric.net'
+    }
+    maven {
+        name = 'fabric'
+        url = 'https://maven.fabricmc.net'
+    }
+    maven {
+        name = 'Minecraft'
+        url = 'https://libraries.minecraft.net'
+    }
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ['main/java']
+        }
+        resources {
+            srcDirs = ['main/resources']
+        }
+    }
+}
+
+dependencies {
+    implementation 'net.fabricmc:tiny-remapper:0.14.0'
+    implementation 'net.fabricmc:mapping-io:0.7.1'
+    implementation 'net.fabricmc:access-widener:2.1.0'
+    implementation 'org.ow2.asm:asm:9.9.1'
+    implementation 'org.ow2.asm:asm-tree:9.9.1'
+    implementation 'org.ow2.asm:asm-commons:9.9.1'
+    implementation 'org.ow2.asm:asm-util:9.9.1'
+    implementation 'com.google.code.gson:gson:2.11.0'
+    implementation 'com.google.guava:guava:33.4.8-jre'
+}

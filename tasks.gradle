@@ -1,11 +1,24 @@
+import java.util.jar.JarEntry
+import java.util.jar.JarInputStream
+import java.util.jar.JarOutputStream
+
 ext {
     runDir = file("${projectDir}/run") as File
     assetsDir = file("${projectDir}/run/assets/virtual/legacy") as File
     nativesDir = file("${projectDir}/run/natives") as File
 
+    def loaderIntermediaryJar = shadowJar.archiveFile.get().asFile.path.replace('-all.jar', '-all-intermediary.jar')
     def buildClasspath = { ->
         def classpathFiles = []
-        classpathFiles.add(shadowJar.archiveFile.get().asFile)
+        // Use the intermediary-remapped jar if it exists (for runtime,
+        // the game jar runs in intermediary namespace so the loader must
+        // also use intermediary names — especially Mixin annotations).
+        def jarFile = file(loaderIntermediaryJar)
+        if (jarFile.exists()) {
+            classpathFiles.add(jarFile)
+        } else {
+            classpathFiles.add(shadowJar.archiveFile.get().asFile)
+        }
         classpathFiles.add(runConfig.localJar)
         classpathFiles.addAll(configurations.launchLibs.files)
         return files(classpathFiles)
@@ -81,11 +94,13 @@ tasks.register('runClient', JavaExec) {
     group = 'fishmodloader'
 
     dependsOn extractNatives
-    dependsOn shadowJar
+    dependsOn buildJar
     dependsOn copyLogConfig
 
     mainClass = 'net.xiaoyu233.fml.relaunch.client.Main'
-    classpath = runConfig.buildClasspath.call()
+    // Lazily resolve classpath so buildJar (which produces the intermediary jar)
+    // is guaranteed to have run before we pick which jar to use.
+    classpath = project.layout.files(provider { runConfig.buildClasspath.call() })
     def jvmArgsList = new ArrayList(runConfig.jvmArgs as Collection)
     jvmArgsList.add("-Dlog.file.prefix=client")
     jvmArgs(jvmArgsList)
@@ -99,7 +114,7 @@ tasks.register('runServer', JavaExec) {
     group = 'fishmodloader'
 
     dependsOn extractNatives
-    dependsOn shadowJar
+    dependsOn buildJar
     dependsOn copyLogConfig
 
     mainClass = 'net.xiaoyu233.fml.relaunch.server.Main'
@@ -107,6 +122,8 @@ tasks.register('runServer', JavaExec) {
     def jvmArgsList = new ArrayList(runConfig.jvmArgs as Collection)
     jvmArgsList.add("-Dlog.file.prefix=server")
     jvmArgs(jvmArgsList)
+
+    args(runConfig.gameArgs)
 
     workingDir = runDir
 }
@@ -137,6 +154,129 @@ tasks.register('copyLogConfig', Copy) {
             runConfig.workingDir.mkdirs()
         }
     }
+}
+
+def widenJar = file("${buildDir}/tmp/widen.jar")
+
+configurations {
+    widen {
+        canBeResolved = true
+        canBeConsumed = false
+        description = 'MITE game jar with fishmodloader.accesswidener applied'
+    }
+}
+
+tasks.register('applyAccessWidener', JavaExec) {
+    dependsOn project(':tools').tasks.named('compileJava')
+    group = 'fishmodloader'
+
+    classpath = project(':tools').sourceSets.main.runtimeClasspath + configurations.shaded
+    mainClass = 'org.moddedmite.fish.faloom.ApplyAccessWidener'
+    args = [
+            file('libs/1.6.4-MITE.jar').path,
+            widenJar.path,
+            "${projectDir}/src/main/resources/fishmodloader.accesswidener"
+    ]
+}
+
+dependencies {
+    widen files(widenJar)
+}
+
+sourceSets.main.compileClasspath = configurations.widen + sourceSets.main.compileClasspath.filter {
+    it.name != '1.6.4-MITE.jar'
+}
+tasks.named('compileJava') { dependsOn applyAccessWidener }
+
+def mappingFile = file("${buildDir}/tmp/named2intermediary.tiny")
+def refmapFile = file("${buildDir}/tmp/mixin.refmap.json")
+
+tasks.register('genNamed2IntermediaryTiny', JavaExec) {
+    group = 'fishmodloader'
+
+    dependsOn shadowJar
+
+    classpath = project(':tools').sourceSets.main.runtimeClasspath + files(sourceSets.main.output.resourcesDir)
+    mainClass = 'org.moddedmite.fish.faloom.NamedToIntermediaryTinyGenerator'
+    args = ["${buildDir}/tmp/named2intermediary.tiny"]
+
+    doFirst {
+        file("${buildDir}/tmp").mkdirs()
+    }
+}
+
+tasks.register('genMixinRefmap', JavaExec) {
+    group = 'fishmodloader'
+
+    dependsOn genNamed2IntermediaryTiny
+    dependsOn remapLoaderJar
+
+    classpath = project(':tools').sourceSets.main.runtimeClasspath + files(sourceSets.main.output.resourcesDir)
+    mainClass = 'org.moddedmite.fish.faloom.MixinRefmapGenerator'
+    args = [
+            shadowJar.archiveFile.get().asFile.path,
+            mappingFile.path,
+            refmapFile.path
+    ]
+
+    doFirst {
+        file("${buildDir}/tmp").mkdirs()
+    }
+
+    doLast {
+        def intermediaryJar = file(shadowJar.archiveFile.get().asFile.path.replace('-all.jar', '-all-intermediary.jar'))
+        def tempFile = new File(intermediaryJar.parentFile, intermediaryJar.name + '.embed.tmp')
+        try {
+            def jis = new JarInputStream(new FileInputStream(intermediaryJar))
+            def jos = new JarOutputStream(new FileOutputStream(tempFile))
+
+            JarEntry entry
+            while ((entry = jis.nextJarEntry) != null) {
+                if (entry.name == 'mixin.refmap.json') continue
+                jos.putNextEntry(entry)
+                if (!entry.directory) {
+                    jis.transferTo(jos)
+                }
+                jos.closeEntry()
+            }
+            jis.close()
+
+            jos.putNextEntry(new JarEntry('mixin.refmap.json'))
+            jos.write(refmapFile.bytes)
+            jos.closeEntry()
+            jos.close()
+
+            intermediaryJar.delete()
+            tempFile.renameTo(intermediaryJar)
+        } catch (Exception e) {
+            tempFile.delete()
+            throw new RuntimeException("Failed to embed refmap into " + intermediaryJar, e)
+        }
+    }
+}
+
+tasks.register('remapLoaderJar', JavaExec) {
+    group = 'fishmodloader'
+
+    dependsOn genNamed2IntermediaryTiny
+
+    classpath = project(':tools').sourceSets.main.runtimeClasspath
+    mainClass = 'org.moddedmite.fish.faloom.LoaderRemapper'
+    args = [
+            shadowJar.archiveFile.get().asFile.path,
+            mappingFile.path,
+            shadowJar.archiveFile.get().asFile.path.replace('-all.jar', '-all-intermediary.jar'),
+            mappingFile.path
+    ]
+}
+
+tasks.register('buildJar') {
+    group = 'fishmodloader'
+
+    dependsOn shadowJar
+    dependsOn genNamed2IntermediaryTiny
+    dependsOn remapLoaderJar
+    dependsOn genMixinRefmap
 }
 
 tasks.withType(JavaExec).configureEach { task ->

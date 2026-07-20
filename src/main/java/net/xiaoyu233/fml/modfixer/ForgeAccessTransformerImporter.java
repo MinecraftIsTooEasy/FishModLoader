@@ -32,6 +32,7 @@ import java.util.zip.ZipEntry;
  * {@link AccessWidener}; the jar is not modified — runtime
  * AccessWidener pass widens at class-load.
  */
+@Deprecated
 public final class ForgeAccessTransformerImporter {
 
     /** Standard locations Forge mods ship their AT inside the jar. */

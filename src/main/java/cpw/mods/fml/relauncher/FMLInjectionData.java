@@ -1,33 +1,73 @@
+/*
+ * Forge Mod Loader
+ * Copyright (c) 2012-2013 cpw.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the GNU Lesser Public License v2.1
+ * which accompanies this distribution, and is available at
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ *
+ * Contributors:
+ *     cpw - implementation
+ */
+
 package cpw.mods.fml.relauncher;
 
+import net.minecraft.launchwrapper.LaunchClassLoader;
+
 import java.io.File;
-import java.util.HashMap;
-import java.util.Map;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Properties;
+import java.util.logging.Level;
 
-/**
- * Stub for cpw.mods.fml.relauncher.FMLInjectionData (Forge 1.6.4).
- * Holds early-injected runtime data (mc version, jar dir, etc).
- */
-public class FMLInjectionData {
-    private static final Map<String, Object> data = new HashMap<>();
+public class FMLInjectionData
+{
+    static File minecraftHome;
+    static String major;
+    static String minor;
+    static String rev;
+    static String build;
+    static String mccversion;
+    static String mcpversion;
+    static String deobfuscationDataHash;
 
-    static {
-        data.put("mccversion", "1.6.4");
-        data.put("mcpversion", "8.11");
-        data.put("McpDir", new File(".").getAbsoluteFile());
+    public static List<String> containers = new ArrayList<String>();
+
+    static void build(File mcHome, LaunchClassLoader classLoader)
+    {
+        minecraftHome = mcHome;
+        InputStream stream = classLoader.getResourceAsStream("fmlversion.properties");
+        Properties properties = new Properties();
+
+        if (stream != null)
+        {
+            try
+            {
+                properties.load(stream);
+            }
+            catch (IOException ex)
+            {
+                FMLRelaunchLog.log(Level.SEVERE, ex, "Could not get FML version information - corrupted installation detected!");
+            }
+        }
+
+        major = properties.getProperty("fmlbuild.major.number", "missing");
+        minor = properties.getProperty("fmlbuild.minor.number", "missing");
+        rev = properties.getProperty("fmlbuild.revision.number", "missing");
+        build = properties.getProperty("fmlbuild.build.number", "missing");
+        mccversion = properties.getProperty("fmlbuild.mcversion", "missing");
+        mcpversion = properties.getProperty("fmlbuild.mcpversion", "missing");
+        deobfuscationDataHash = properties.getProperty("fmlbuild.deobfuscation.hash","deadbeef");
     }
 
-    public static Object[] data() {
-        return new Object[] {
-                data.get("mccversion"),
-                data.get("mcpversion"),
-                data.get("mcversion"),
-                data.get("McpDir"),
-                data.get("McpDir"),
-                data.get("McpDir")
-        };
+    static String debfuscationDataName()
+    {
+        return "/deobfuscation_data-"+mccversion+".lzma";
     }
-
-    public static String mccversion() { return (String) data.get("mccversion"); }
-    public static String mcpversion() { return (String) data.get("mcpversion"); }
+    public static Object[] data()
+    {
+        return new Object[] { major, minor, rev, build, mccversion, mcpversion, minecraftHome, containers };
+    }
 }

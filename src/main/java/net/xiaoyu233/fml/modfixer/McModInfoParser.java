@@ -27,6 +27,7 @@ import java.util.jar.JarFile;
  * Returns the parsed entries; the caller merges them with whatever was
  * already discovered via {@code @Mod} annotation scanning.
  */
+@Deprecated
 public final class McModInfoParser {
     private McModInfoParser() {}
 

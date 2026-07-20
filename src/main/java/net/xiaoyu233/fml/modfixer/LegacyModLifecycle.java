@@ -1,8 +1,17 @@
 package net.xiaoyu233.fml.modfixer;
 
+import cpw.mods.fml.common.IFMLSidedHandler;
+import cpw.mods.fml.common.LoadController;
+import cpw.mods.fml.common.Loader;
 import cpw.mods.fml.common.LoaderState;
 import cpw.mods.fml.common.ModContainer;
 import cpw.mods.fml.common.ModMetadata;
+import cpw.mods.fml.common.event.FMLLoadEvent;
+import net.minecraft.client.Minecraft;
+import net.minecraft.command.ICommand;
+import net.minecraft.command.ICommandManager;
+import net.minecraft.command.ServerCommandManager;
+import net.minecraft.server.MinecraftServer;
 import net.xiaoyu233.fml.FishModLoader;
 import net.xiaoyu233.fml.relaunch.Launch;
 
@@ -35,6 +44,7 @@ import java.util.Map;
  * type. Subsequent dispatches just iterate that cache, so per-event cost
  * is bounded by the number of registered handlers.
  */
+@Deprecated
 public final class LegacyModLifecycle {
 
     private static final String ANN_EVENT_HANDLER = "cpw.mods.fml.common.Mod$EventHandler";
@@ -48,7 +58,7 @@ public final class LegacyModLifecycle {
     private static final String ANN_SERVER_STARTING = "cpw.mods.fml.common.Mod$ServerStarting";
     private static final String ANN_SERVER_STOPPED = "cpw.mods.fml.common.Mod$ServerStopped";
     private static final String ANN_SERVER_STOPPING = "cpw.mods.fml.common.Mod$ServerStopping";
-    private static final String ANN_SIDED_PROXY = "cpw.mods.fml.common.Mod$SidedProxy";
+    private static final String ANN_SIDED_PROXY = "cpw.mods.fml.common.SidedProxy";
     private static final String ANN_SIDE_ONLY = "cpw.mods.fml.relauncher.SideOnly";
 
     private static final String EVENT_CONSTRUCTION = "cpw.mods.fml.common.event.FMLConstructionEvent";
@@ -64,7 +74,7 @@ public final class LegacyModLifecycle {
     private static final Object[] NO_EVENT_DATA = new Object[0];
     private static final List<LoadedMod> loadedMods = new ArrayList<>();
     private static LoaderState currentState = LoaderState.NOINIT;
-    private static Object currentMinecraftServer;
+    private static MinecraftServer currentMinecraftServer;
 
     private LegacyModLifecycle() {}
 
@@ -86,6 +96,8 @@ public final class LegacyModLifecycle {
             FishModLoader.LOGGER.warn("LegacyModLifecycle.constructAll called twice; skipping");
             return;
         }
+        // Initialize FMLCommonHandler's sidedDelegate so Forge mods can access client/server APIs.
+        initFMLCommonHandler();
         currentState = LoaderState.LOADING;
         for (ForgeModDiscoverer.DiscoveredForgeMod discovered : ForgeModDiscoverer.getDiscovered()) {
             for (LegacyModInfo modInfo : discovered.modAnnotations) {
@@ -98,7 +110,17 @@ public final class LegacyModLifecycle {
             }
         }
         currentState = LoaderState.CONSTRUCTING;
-        dispatch(EVENT_CONSTRUCTION);
+
+        // Route through FML LoadController: FMLLoadEvent builds EventBus infrastructure.
+        LoadController ctrl = Loader.instance().getModController();
+        ctrl.distributeStateMessage(FMLLoadEvent.class);
+        // Transition is best-effort: the state machine doesn't track our custom lifecycle.
+        try {
+            ctrl.transition(LoaderState.CONSTRUCTING, false);
+            ctrl.distributeStateMessage(LoaderState.CONSTRUCTING, Loader.instance().getModClassLoader(), null);
+        } catch (Throwable t) {
+            FishModLoader.LOGGER.warn("LoadController CONSTRUCTING phase (non-fatal): {}", t.getMessage());
+        }
     }
 
     private static void constructOne(ForgeModDiscoverer.DiscoveredForgeMod discovered,
@@ -115,7 +137,17 @@ public final class LegacyModLifecycle {
         registerNetworkChannels(modClass, modInstance);
         Map<String, List<Method>> handlers = scanHandlers(modClass);
 
-        loadedMods.add(new LoadedMod(container, modInstance, modClass, handlers));
+        // Populate ForgeModContainer's handler map for EventBus dispatch
+        for (Map.Entry<String, List<Method>> entry : handlers.entrySet()) {
+            for (Method method : entry.getValue()) {
+                container.addHandler(entry.getKey(), method);
+            }
+        }
+
+        // Register with FML Loader so all FML APIs (findContainerFor, isModLoaded, …) work
+        Loader.instance().registerFMLMod(container, modInstance);
+
+        loadedMods.add(new LoadedMod(container, modInstance, modClass));
         FishModLoader.LOGGER.info("Constructed Forge mod: {} v{} ({} lifecycle handler(s))",
                 metadata.modId, metadata.version, countHandlers(handlers));
     }
@@ -163,22 +195,41 @@ public final class LegacyModLifecycle {
     }
 
     private static void injectSidedProxies(Class<?> modClass, Object modInstance) {
-        for (Field field : modClass.getDeclaredFields()) {
-            Annotation proxyAnn = getAnnotation(field, ANN_SIDED_PROXY);
-            if (proxyAnn == null) continue;
-            String targetClassName = FishModLoader.isServer()
-                    ? annotationString(proxyAnn, "serverSide")
-                    : annotationString(proxyAnn, "clientSide");
-            if (targetClassName == null || targetClassName.isEmpty()) continue;
-            try {
-                Class<?> proxyClass = Class.forName(targetClassName, true, Launch.knotLoader.getClassLoader());
-                Object proxyInstance = proxyClass.getDeclaredConstructor().newInstance();
-                field.setAccessible(true);
-                Object target = Modifier.isStatic(field.getModifiers()) ? null : modInstance;
-                field.set(target, proxyInstance);
-            } catch (Throwable thrown) {
-                FishModLoader.LOGGER.warn("@SidedProxy injection failed on {}.{}",
-                        modClass.getName(), field.getName(), thrown);
+        // Scan the full class hierarchy for @SidedProxy fields, not just the direct class.
+        // Some Forge mods (e.g., IngameIME) declare the proxy in a parent class.
+        FishModLoader.LOGGER.info("[SidedProxy] Scanning {} for @SidedProxy fields", modClass.getName());
+        for (Class<?> clazz = modClass; clazz != null && clazz != Object.class; clazz = clazz.getSuperclass()) {
+            FishModLoader.LOGGER.info("[SidedProxy]  Checking class {}", clazz.getName());
+            for (Field field : clazz.getDeclaredFields()) {
+                FishModLoader.LOGGER.info("[SidedProxy]    Field: {} (type={}, modifiers={})",
+                        field.getName(), field.getType().getName(), field.getModifiers());
+                Annotation proxyAnn = getAnnotation(field, ANN_SIDED_PROXY);
+                if (proxyAnn == null) {
+                    FishModLoader.LOGGER.info("[SidedProxy]      No @SidedProxy annotation found on field {}", field.getName());
+                    // Debug: what annotations are on this field?
+                    for (Annotation a : field.getAnnotations()) {
+                        FishModLoader.LOGGER.info("[SidedProxy]        Has annotation: {}", a.annotationType().getName());
+                    }
+                    continue;
+                }
+                FishModLoader.LOGGER.info("[SidedProxy]      Found @SidedProxy annotation on field {}", field.getName());
+                String targetClassName = FishModLoader.isServer()
+                        ? annotationString(proxyAnn, "serverSide")
+                        : annotationString(proxyAnn, "clientSide");
+                FishModLoader.LOGGER.info("[SidedProxy]      targetClassName={}", targetClassName);
+                if (targetClassName == null || targetClassName.isEmpty()) continue;
+                try {
+                    Class<?> proxyClass = Class.forName(targetClassName, true, Launch.knotLoader.getClassLoader());
+                    Object proxyInstance = proxyClass.getDeclaredConstructor().newInstance();
+                    field.setAccessible(true);
+                    Object target = Modifier.isStatic(field.getModifiers()) ? null : modInstance;
+                    field.set(target, proxyInstance);
+                    FishModLoader.LOGGER.info("[SidedProxy]      Injected proxy {} into {}.{}",
+                            targetClassName, clazz.getName(), field.getName());
+                } catch (Throwable thrown) {
+                    FishModLoader.LOGGER.warn("@SidedProxy injection failed on {} (proxy: {})",
+                            field, targetClassName, thrown);
+                }
             }
         }
     }
@@ -269,39 +320,95 @@ public final class LegacyModLifecycle {
 
     public static void firePreInit() {
         currentState = LoaderState.PREINITIALIZATION;
-        dispatchPreInit();
+
+        // Event dispatch through LoadController is best-effort; the state machine
+        // transitions are non-fatal since we manage lifecycle externally.
+        LoadController ctrl = Loader.instance().getModController();
+        try {
+            ctrl.transition(LoaderState.PREINITIALIZATION, false);
+        } catch (Throwable t) {
+            FishModLoader.LOGGER.warn("LoadController transition to PREINIT failed (non-fatal): {}", t.getMessage());
+        }
+        ctrl.distributeStateMessage(LoaderState.PREINITIALIZATION, null, FishModLoader.CONFIG_DIR);
     }
 
     public static void fireInit() {
         currentState = LoaderState.INITIALIZATION;
-        dispatch(EVENT_INIT);
-    }
-
-    public static void firePostInit() {
-        currentState = LoaderState.POSTINITIALIZATION;
-        dispatch(EVENT_POST_INIT);
+        LoadController ctrl = Loader.instance().getModController();
+        // Best-effort transitions; event distribution is the important part.
+        try {
+            ctrl.distributeStateMessage(LoaderState.INITIALIZATION);
+            ctrl.transition(LoaderState.POSTINITIALIZATION, false);
+            ctrl.distributeStateMessage(LoaderState.POSTINITIALIZATION);
+            ctrl.transition(LoaderState.AVAILABLE, false);
+        } catch (Throwable t) {
+            FishModLoader.LOGGER.warn("LoadController INIT phase transition (non-fatal): {}", t.getMessage());
+        }
+        ctrl.distributeStateMessage(LoaderState.AVAILABLE);
         currentState = LoaderState.AVAILABLE;
     }
 
-    public static void fireServerAboutToStart(Object server) {
+    /** No-op: POSTINIT is now handled by {@link #fireInit()} via LoadController. */
+    public static void firePostInit() {
+        // POSTINITIALIZATION state was already distributed in fireInit()
+    }
+
+    public static void fireServerAboutToStart(MinecraftServer server) {
         currentState = LoaderState.SERVER_ABOUT_TO_START;
         rememberServer(server);
         FishModLoader.LOGGER.info("Firing Forge FMLServerAboutToStartEvent");
-        dispatch(EVENT_SERVER_ABOUT_TO_START, currentMinecraftServer);
+        // Best-effort: Loader.serverAboutToStart has its own try-catch.
+        try {
+            Loader.instance().serverAboutToStart(server);
+        } catch (Throwable t) {
+            FishModLoader.LOGGER.warn("FMLServerAboutToStart dispatch (non-fatal): {}", t.getMessage());
+        }
     }
 
-    public static void fireServerStarting(Object server) {
+    public static void fireServerStarting(MinecraftServer server) {
         currentState = LoaderState.SERVER_STARTING;
         rememberServer(server);
         FishModLoader.LOGGER.info("Firing Forge FMLServerStartingEvent");
-        List<Object> events = dispatch(EVENT_SERVER_STARTING, currentMinecraftServer);
-        registerServerCommands(currentMinecraftServer, events);
+        // Keep manual dispatch for SERVER_STARTING so we can capture registered commands
+        List<Object> events = new ArrayList<>();
+        for (LoadedMod loadedMod : loadedMods) {
+            List<Method> handlers = loadedMod.container.getHandlerMethods().get(EVENT_SERVER_STARTING);
+            if (handlers == null) continue;
+            Object event;
+            try {
+                event = newEvent(loadedMod.modClass.getClassLoader(), EVENT_SERVER_STARTING, currentMinecraftServer);
+            } catch (Throwable thrown) {
+                FishModLoader.LOGGER.error("Failed to create FMLServerStartingEvent for Forge mod {}",
+                        loadedMod.container.getModId(), thrown);
+                continue;
+            }
+            events.add(event);
+            FishModLoader.LOGGER.info("Dispatching FMLServerStartingEvent to {} handler(s) on Forge mod {}",
+                    handlers.size(), loadedMod.container.getModId());
+            for (Method handler : handlers) {
+                try {
+                    handler.invoke(loadedMod.instance, event);
+                } catch (InvocationTargetException ite) {
+                    FishModLoader.LOGGER.error("Mod {} threw during FMLServerStartingEvent",
+                            loadedMod.container.getModId(), ite.getCause());
+                } catch (Throwable thrown) {
+                    FishModLoader.LOGGER.error("Failed to invoke handler {}.{}",
+                            loadedMod.modClass.getName(), handler.getName(), thrown);
+                }
+            }
+        }
+//        registerServerCommands(currentMinecraftServer, events);
     }
 
     public static void fireServerStarted() {
         currentState = LoaderState.SERVER_STARTED;
         FishModLoader.LOGGER.info("Firing Forge FMLServerStartedEvent");
-        dispatch(EVENT_SERVER_STARTED);
+        // Distribute event through LoadController EventBus (triggers ForgeModContainer.onEvent),
+        // but skip state transition since the state machine doesn't track our manual lifecycle.
+        LoadController ctrl = Loader.instance().getModController();
+        if (ctrl != null) {
+            ctrl.distributeStateMessage(LoaderState.SERVER_STARTED);
+        }
         installForgeSlashCommandAliases();
         logForgeStyleCommands();
     }
@@ -309,54 +416,67 @@ public final class LegacyModLifecycle {
     public static void fireServerStopping() {
         currentState = LoaderState.SERVER_STOPPING;
         FishModLoader.LOGGER.info("Firing Forge FMLServerStoppingEvent");
-        dispatch(EVENT_SERVER_STOPPING);
+        LoadController ctrl = Loader.instance().getModController();
+        if (ctrl != null) {
+            ctrl.distributeStateMessage(LoaderState.SERVER_STOPPING);
+        }
     }
 
     public static void fireServerStopped() {
         currentState = LoaderState.SERVER_STOPPED;
         FishModLoader.LOGGER.info("Firing Forge FMLServerStoppedEvent");
-        dispatch(EVENT_SERVER_STOPPED);
+        LoadController ctrl = Loader.instance().getModController();
+        if (ctrl != null) {
+            ctrl.distributeStateMessage(LoaderState.SERVER_STOPPED);
+        }
     }
 
-    private static void rememberServer(Object server) {
+    private static void rememberServer(MinecraftServer server) {
         if (server == null) return;
         currentMinecraftServer = server;
         try {
             ClassLoader loader = Launch.knotLoader.getClassLoader();
             Class<?> commonHandler = Class.forName("cpw.mods.fml.common.FMLCommonHandler", true, loader);
             Object instance = commonHandler.getMethod("instance").invoke(null);
-            Method setter = findMethod(commonHandler, "setMinecraftServerInstance", 1);
-            if (setter != null) {
-                setter.invoke(instance, server);
+
+            // Set the MinecraftServer via FMLCommonHandler's setServer if available,
+            // or fall back to wiring FMLClientHandler.client via reflection.
+            IFMLSidedHandler delegate = (IFMLSidedHandler) commonHandler.getMethod("getSidedDelegate").invoke(instance);
+            if (delegate != null) {
+                // Try calling setServer() or beginServerLoading() on the delegate
+                try {
+                    delegate.getClass().getMethod("beginServerLoading", server.getClass()).invoke(delegate, server);
+                } catch (NoSuchMethodException e1) {
+                    try {
+                        // FMLClientHandler stores server as client.getIntegratedServer().
+                        // If client isn't set, set it via reflection.
+                        Field clientField = delegate.getClass().getDeclaredField("client");
+                        clientField.setAccessible(true);
+                        Object client = clientField.get(delegate);
+                        if (client == null) {
+                            // Try to find the Minecraft class instance
+                            Class<?> mcClass = Class.forName("net.minecraft.client.Minecraft", false, loader);
+                            Method getMinecraft = mcClass.getMethod("getMinecraft");
+                            Object mcInstance = getMinecraft.invoke(null);
+                            if (mcInstance != null) {
+                                clientField.set(delegate, mcInstance);
+                                FishModLoader.LOGGER.info("Wired Minecraft instance into FMLClientHandler");
+                            }
+                        }
+                    } catch (NoSuchFieldException e2) {
+                        FishModLoader.LOGGER.warn("Cannot wire server into {}", delegate.getClass().getName());
+                    }
+                }
             }
         } catch (Throwable thrown) {
             FishModLoader.LOGGER.warn("Failed to cache Forge MinecraftServer instance", thrown);
         }
     }
 
-    private static void dispatchPreInit() {
-        for (LoadedMod loadedMod : loadedMods) {
-            List<Method> handlers = loadedMod.handlers.get(EVENT_PRE_INIT);
-            if (handlers == null) continue;
-            Object event;
-            try {
-                event = newEvent(loadedMod.modClass.getClassLoader(),
-                        EVENT_PRE_INIT,
-                        FishModLoader.CONFIG_DIR,
-                        loadedMod.container.getSource());
-            } catch (Throwable thrown) {
-                FishModLoader.LOGGER.error("Failed to create {} for Forge mod {}",
-                        simpleName(EVENT_PRE_INIT), loadedMod.container.getModId(), thrown);
-                continue;
-            }
-            invokeHandlers(loadedMod, EVENT_PRE_INIT, event, handlers);
-        }
-    }
-
     private static List<Object> dispatch(String eventType, Object... eventData) {
         List<Object> firedEvents = new ArrayList<>();
         for (LoadedMod loadedMod : loadedMods) {
-            List<Method> handlers = loadedMod.handlers.get(eventType);
+            List<Method> handlers = loadedMod.container.getHandlerMethods().get(eventType);
             if (handlers == null) continue;
             Object event;
             try {
@@ -367,58 +487,48 @@ public final class LegacyModLifecycle {
                 continue;
             }
             firedEvents.add(event);
-            invokeHandlers(loadedMod, eventType, event, handlers);
+            FishModLoader.LOGGER.info("Dispatching {} to {} handler(s) on Forge mod {}",
+                    simpleName(eventType), handlers.size(), loadedMod.container.getModId());
+            for (Method handler : handlers) {
+                try {
+                    handler.invoke(loadedMod.instance, event);
+                } catch (InvocationTargetException invocationException) {
+                    FishModLoader.LOGGER.error("Mod {} threw during {}",
+                            loadedMod.container.getModId(),
+                            simpleName(eventType),
+                            invocationException.getCause());
+                } catch (Throwable thrown) {
+                    FishModLoader.LOGGER.error("Failed to invoke handler {}.{}",
+                            loadedMod.modClass.getName(), handler.getName(), thrown);
+                }
+            }
         }
         return firedEvents;
     }
 
-    private static void invokeHandlers(LoadedMod loadedMod, String eventType, Object event, List<Method> handlers) {
-        FishModLoader.LOGGER.info("Dispatching {} to {} handler(s) on Forge mod {}",
-                simpleName(eventType), handlers.size(), loadedMod.container.getModId());
-        for (Method handler : handlers) {
-            try {
-                handler.invoke(loadedMod.instance, event);
-            } catch (InvocationTargetException invocationException) {
-                FishModLoader.LOGGER.error("Mod {} threw during {}",
-                        loadedMod.container.getModId(),
-                        simpleName(eventType),
-                        invocationException.getCause());
-            } catch (Throwable thrown) {
-                FishModLoader.LOGGER.error("Failed to invoke handler {}.{}",
-                        loadedMod.modClass.getName(), handler.getName(), thrown);
-            }
-        }
-    }
-
-    private static void registerServerCommands(Object server, List<Object> events) {
-        if (server == null || events.isEmpty()) return;
-        try {
-            Object commandManager = server.getClass().getMethod("getCommandManager").invoke(server);
-            if (commandManager == null) return;
-            Method registerCommand = findMethod(commandManager.getClass(), "registerCommand", 1);
-            if (registerCommand == null) {
-                FishModLoader.LOGGER.warn("Forge mods registered server command(s), but command manager {} cannot accept them",
-                        commandManager.getClass().getName());
-                return;
-            }
-            for (Object event : events) {
-                Method getRegisteredCommands = findMethod(event.getClass(), "getRegisteredCommands", 0);
-                if (getRegisteredCommands == null) continue;
-                Object commandsObject = getRegisteredCommands.invoke(event);
-                if (!(commandsObject instanceof List)) continue;
-                for (Object command : (List<?>) commandsObject) {
-                    try {
-                        registerCommand.invoke(commandManager, command);
-                    } catch (InvocationTargetException invocationException) {
-                        FishModLoader.LOGGER.warn("Failed to register Forge server command {}",
-                                command == null ? "null" : commandName(command), invocationException.getCause());
-                    }
-                }
-            }
-        } catch (Throwable thrown) {
-            FishModLoader.LOGGER.warn("Failed to register Forge server command(s)", thrown);
-        }
-    }
+//    private static void registerServerCommands(MinecraftServer server, List<Object> events) {
+//        if (server == null || events.isEmpty()) return;
+//        try {
+//            ServerCommandManager commandManager = (ServerCommandManager) server.getCommandManager();
+//            if (commandManager == null) return;
+//            for (Object event : events) {
+//                Method getRegisteredCommands = findMethod(event.getClass(), "getRegisteredCommands", 0);
+//                if (getRegisteredCommands == null) continue;
+//                Object commandsObject = getRegisteredCommands.invoke(event);
+//                if (!(commandsObject instanceof List)) continue;
+//                for (ICommand command : (List<?>) commandsObject) {
+//                    try {
+//                        commandManager.registerCommand(command);
+//                    } catch (InvocationTargetException invocationException) {
+//                        FishModLoader.LOGGER.warn("Failed to register Forge server command {}",
+//                                command == null ? "null" : commandName(command), invocationException.getCause());
+//                    }
+//                }
+//            }
+//        } catch (Throwable thrown) {
+//            FishModLoader.LOGGER.warn("Failed to register Forge server command(s)", thrown);
+//        }
+//    }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static void installForgeSlashCommandAliases() {
@@ -596,21 +706,47 @@ public final class LegacyModLifecycle {
         return index >= 0 ? className.substring(index + 1) : className;
     }
 
+    /**
+     * Initialize FMLCommonHandler with the appropriate sided delegate.
+     * Uses reflection to set the field directly, avoiding side effects
+     * from {@code FMLCommonHandler.beginLoading()} which calls
+     * {@code MinecraftForge.initialize()}.
+     */
+    private static void initFMLCommonHandler() {
+        try {
+            Class<?> commonHandlerClass = Class.forName("cpw.mods.fml.common.FMLCommonHandler", true, Launch.knotLoader.getClassLoader());
+            Object instance = commonHandlerClass.getMethod("instance").invoke(null);
+            Field delegateField = commonHandlerClass.getDeclaredField("sidedDelegate");
+            delegateField.setAccessible(true);
+            if (delegateField.get(instance) != null) return; // already set
+
+            IFMLSidedHandler delegate;
+            if (FishModLoader.isServer()) {
+                delegate = (IFMLSidedHandler) Class.forName("cpw.mods.fml.server.FMLServerHandler", true, Launch.knotLoader.getClassLoader())
+                        .getDeclaredConstructor().newInstance();
+            } else {
+                delegate = (IFMLSidedHandler) Class.forName("cpw.mods.fml.client.FMLClientHandler", true, Launch.knotLoader.getClassLoader())
+                        .getDeclaredConstructor().newInstance();
+            }
+            delegateField.set(instance, delegate);
+            FishModLoader.LOGGER.info("FMLCommonHandler sidedDelegate initialized to {}", delegate.getClass().getSimpleName());
+        } catch (Throwable thrown) {
+            FishModLoader.LOGGER.warn("Failed to init FMLCommonHandler sidedDelegate", thrown);
+        }
+    }
+
     /** Holds runtime data for a constructed Forge mod. */
     private static final class LoadedMod {
         final ForgeModContainer container;
         final Object instance;
         final Class<?> modClass;
-        final Map<String, List<Method>> handlers;
 
         LoadedMod(ForgeModContainer container,
                   Object instance,
-                  Class<?> modClass,
-                  Map<String, List<Method>> handlers) {
+                  Class<?> modClass) {
             this.container = container;
             this.instance = instance;
             this.modClass = modClass;
-            this.handlers = handlers;
         }
     }
 }

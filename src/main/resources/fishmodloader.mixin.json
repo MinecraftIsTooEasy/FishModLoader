@@ -1,4 +1,5 @@
 {
+  "refmap": "mixin.refmap.json",
   "mixins": [
     "net.xiaoyu233.fml.reload.transform.MinecraftServerTrans",
     "net.xiaoyu233.fml.reload.transform.client.MainMenuMixin"

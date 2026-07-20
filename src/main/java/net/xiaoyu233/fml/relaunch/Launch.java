@@ -14,6 +14,7 @@ import net.fabricmc.tinyremapper.TinyUtils;
 import net.xiaoyu233.fml.FishModLoader;
 import net.xiaoyu233.fml.classloading.KnotClassLoaderInterface;
 import net.xiaoyu233.fml.mapping.CachedMappedJar;
+import net.xiaoyu233.fml.mapping.IntermediaryMappingProvider;
 import net.xiaoyu233.fml.util.EnumExtends;
 import net.xiaoyu233.fml.util.LogProxy;
 import org.spongepowered.asm.launch.MixinBootstrap;
@@ -44,7 +45,7 @@ public class Launch {
       //Use parent to prevent preloading
       Path remappedGameJarPath;
       try {
-         IMappingProvider tinyMappingProvider = TinyUtils.createTinyMappingProvider(new BufferedReader(new InputStreamReader(Objects.requireNonNull(Launch.class.getResourceAsStream("/mappings.tiny")))), "official", "named");
+         IMappingProvider tinyMappingProvider = TinyUtils.createTinyMappingProvider(new BufferedReader(new InputStreamReader(Objects.requireNonNull(Launch.class.getResourceAsStream("/intermediary.tiny")))), "official", "named");
          CachedMappedJar cachedMappedJar = new CachedMappedJar(gameJarPath, tinyMappingProvider, new File(minecraftHome));
          remappedGameJarPath = cachedMappedJar.ensureJarMapped();
          knotInterface.addCodeSource(remappedGameJarPath);

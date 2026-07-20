@@ -1,0 +1,511 @@
+{
+  "minVersion": "0.8",
+  "mappings": {
+    "net.xiaoyu233.fml.reload.transform.fix.fix_creative_inv.GuiCreativeMixin": {
+      "handleMouseClick": "func_74191_a",
+      "updateScreen": "func_73876_c"
+    },
+    "net.xiaoyu233.fml.reload.transform.StringTranslateAccessor": {
+      "languageList": "field_74816_c"
+    },
+    "net.xiaoyu233.fml.reload.transform.registry.ItemBlockRecipeRegistryMixin": {
+      "addShapelessRecipe": "func_77596_b",
+      "addRecipe": "func_92103_a"
+    },
+    "net.xiaoyu233.fml.reload.transform.fix.fix_nbt.NBTTagCompoundMixin": {
+      "tagMap": "field_74784_a",
+      "createCrashReport": "func_82581_a"
+    },
+    "net.xiaoyu233.fml.forge.event.TickHandlerClientMixin": {
+      "runTick()V": "func_71407_l()V"
+    },
+    "net.xiaoyu233.fml.forge.event.ChunkProviderHellEventsMixin": {
+      "worldObj": "field_73175_o",
+      "populate(Lnet/minecraft/world/chunk/IChunkProvider;II)V": "func_73153_a(Lnet/minecraft/world/chunk/IChunkProvider;II)V"
+    },
+    "net.xiaoyu233.fml.reload.transform.fix.FixLongHashMapWorld": {
+      "chunkProvider": "field_73020_y",
+      "getBlockId": "func_72798_a"
+    },
+    "net.xiaoyu233.fml.reload.transform.id_extend.StatisticMixin": {
+      "initBreakableStats": "func_75922_b",
+      "initStats": "func_75925_c",
+      "initMinableStats": "func_75921_a",
+      "initUsableStats": "func_75920_a"
+    },
+    "net.xiaoyu233.fml.reload.transform.forge_compat.GuiMainMenuMixin": {
+      "addSingleplayerMultiplayerButtons": "func_73969_a",
+      "actionPerformed": "func_73875_a"
+    },
+    "net.xiaoyu233.fml.reload.transform.fix.skin.SkinFixTransform": {
+      "imageThread": "field_110561_e",
+      "imageLocation": "field_110558_f",
+      "loadTexture": "func_110551_a"
+    },
+    "net.xiaoyu233.fml.reload.transform.CommandHandlerTrans": {
+      "commandMap": "field_71562_a",
+      "executeCommand": "func_71556_a"
+    },
+    "net.xiaoyu233.fml.reload.transform.util.WorldAccessor": {
+      "provider": "field_73011_w"
+    },
+    "net.xiaoyu233.fml.reload.transform.fix.AllowedCharFix": {
+      "getAllowedCharacters": "func_71564_a"
+    },
+    "net.xiaoyu233.fml.reload.transform.util.ItemMixin": {
+      "setTextureName": "func_111206_d"
+    },
+    "net.xiaoyu233.fml.forge.event.ForgeServerPacketRouterMixin": {
+      "netManager": "field_72575_b",
+      "playerEntity": "field_72574_e",
+      "handleCustomPayload(Lnet/minecraft/network/packet/Packet250CustomPayload;)V": "func_72501_a(Lnet/minecraft/network/packet/Packet250CustomPayload;)V"
+    },
+    "net.xiaoyu233.fml.reload.transform.client.DefaultResourcePackMixin": {
+      "fileAssets": "field_110607_c",
+      "mapResourceFiles": "field_110606_b"
+    },
+    "net.xiaoyu233.fml.reload.transform.id_extend.WorldMixin": {
+      "getBlockId": "func_72798_a"
+    },
+    "net.xiaoyu233.fml.forge.event.ChunkProviderGenerateEventsMixin": {
+      "worldObj": "field_73230_p",
+      "rand": "field_73220_k",
+      "replaceBlocksForBiome(II[B[Lnet/minecraft/world/biome/BiomeGenBase;)V": "func_73207_a(II[B[Lnet/minecraft/world/biome/BiomeGenBase;)V",
+      "initializeNoiseField([DIIIIII)[D": "func_73205_a([DIIIIII)[D",
+      "populate(Lnet/minecraft/world/chunk/IChunkProvider;II)V": "func_73153_a(Lnet/minecraft/world/chunk/IChunkProvider;II)V"
+    },
+    "net.xiaoyu233.fml.reload.transform.fix.FixRender": {
+      "setActiveTexture": "func_77473_a"
+    },
+    "net.xiaoyu233.fml.reload.transform.registry.EnchantmentRegisterMixin": {
+      "enchantmentsBookList": "field_92090_c"
+    },
+    "net.xiaoyu233.fml.reload.transform.forge_compat.GuiConnectingMixin": {
+      "clientHandler": "field_74259_a",
+      "cancelled": "field_74258_b"
+    },
+    "net.xiaoyu233.fml.reload.transform.id_extend.ItemMapMixin": {
+      "updateMapData": "func_77872_a"
+    },
+    "net.xiaoyu233.fml.reload.transform.util.CraftingManagerInvoker": {
+      "addRecipe": "func_92103_a",
+      "addShapelessRecipe": "func_77596_b"
+    },
+    "net.xiaoyu233.fml.forge.event.ChunkProviderEndEventsMixin": {
+      "endWorld": "field_73200_m",
+      "populate(Lnet/minecraft/world/chunk/IChunkProvider;II)V": "func_73153_a(Lnet/minecraft/world/chunk/IChunkProvider;II)V"
+    },
+    "net.xiaoyu233.fml.reload.transform.fix.ChatFix": {
+      "handleKeyboardInput": "func_73860_n"
+    },
+    "net.xiaoyu233.fml.reload.transform.id_extend.ChunkSectionMixin": {
+      "setExtBlockID": "func_76655_a"
+    },
+    "net.xiaoyu233.fml.forge.event.ForgeClientPacketRouterMixin": {
+      "netManager": "field_72555_g",
+      "handleCustomPayload(Lnet/minecraft/network/packet/Packet250CustomPayload;)V": "func_72501_a(Lnet/minecraft/network/packet/Packet250CustomPayload;)V"
+    },
+    "net.xiaoyu233.fml.reload.transform.client.ClientPlayerMixin": {
+      "sendChatMessage(Ljava/lang/String;Z)V": "func_71165_d(Ljava/lang/String;Z)V"
+    },
+    "net.xiaoyu233.fml.reload.transform.registry.EntityRegistryMixin": {
+      "addMapping": "func_75614_a"
+    },
+    "net.xiaoyu233.fml.forge.event.MinecraftServerEventsMixin": {
+      "worldServers": "field_71305_c",
+      "loadAllWorlds(Ljava/lang/String;Ljava/lang/String;JLnet/minecraft/world/WorldType;Ljava/lang/String;)V": "func_71247_a(Ljava/lang/String;Ljava/lang/String;JLnet/minecraft/world/WorldType;Ljava/lang/String;)V",
+      "stopServer()V": "func_71260_j()V"
+    },
+    "net.xiaoyu233.fml.reload.transform.network.PendingConnectionTransform": {
+      "clientUsername": "field_72543_h",
+      "mcServer": "field_72534_f",
+      "isServerHandler": "func_72489_a",
+      "handleClientProtocol": "func_72500_a"
+    },
+    "net.xiaoyu233.fml.reload.transform.forge_compat.StringTranslateAccessor": {
+      "languageList": "field_74816_c"
+    },
+    "net.xiaoyu233.fml.reload.transform.fix.fix_minecart.EntityMinecartChestTrans": {
+      "getMinecartType": "func_94087_l",
+      "getSizeInventory": "func_70302_i_"
+    },
+    "net.xiaoyu233.fml.reload.transform.network.Packet2ClientProtocolTrans": {
+      "username": "field_73456_b",
+      "getPacketSize": "func_73284_a",
+      "processPacket": "func_73279_a",
+      "readPacketData": "func_73267_a",
+      "writePacketData": "func_73273_a"
+    },
+    "net.xiaoyu233.fml.reload.transform.forge_compat.NetLoginHandlerAccessor": {
+      "clientUsername": "field_72543_h"
+    },
+    "net.xiaoyu233.fml.forge.event.WorldEventsMixin": {
+      "playSoundAtEntity(Lnet/minecraft/entity/Entity;Ljava/lang/String;FF)V": "func_72956_a(Lnet/minecraft/entity/Entity;Ljava/lang/String;FF)V",
+      "spawnEntityInWorld(Lnet/minecraft/entity/Entity;)Z": "func_72838_d(Lnet/minecraft/entity/Entity;)Z",
+      "updateEntityWithOptionalForce(Lnet/minecraft/entity/Entity;Z)V": "func_72866_a(Lnet/minecraft/entity/Entity;Z)V"
+    },
+    "net.xiaoyu233.fml.reload.transform.util.BlockMixin": {
+      "setTextureName": "func_111022_d",
+      "setHardness": "func_71848_c",
+      "setResistance": "func_71894_b",
+      "setLightValue": "func_71900_a",
+      "setStepSound": "func_71884_a",
+      "setCreativeTab": "func_71849_a",
+      "setUnlocalizedName": "func_71864_b"
+    },
+    "net.xiaoyu233.fml.reload.transform.id_extend.PlayerRendererMixin": {
+      "renderSpecials": "func_77100_a"
+    },
+    "net.xiaoyu233.fml.forge.event.TickHandlerServerMixin": {
+      "tick()V": "func_71217_p()V"
+    },
+    "net.xiaoyu233.fml.reload.transform.id_extend.NetClientHandlerMixin": {
+      "worldClient": "field_72564_i",
+      "handleMultiBlockChange(Lnet/minecraft/network/packet/Packet97MultiBlockChange;)V": "func_72496_a(Lnet/minecraft/network/packet/Packet97MultiBlockChange;)V",
+      "handleMultiBlockChange(Lnet/minecraft/network/packet/Packet52MultiBlockChange;)V": "func_72496_a(Lnet/minecraft/network/packet/Packet52MultiBlockChange;)V"
+    },
+    "net.xiaoyu233.fml.reload.transform.network.PacketTrans": {
+      "addIdClassMapping": "func_73285_a",
+      "readString": "func_73282_a"
+    },
+    "net.xiaoyu233.fml.forge.event.EntityPlayerEventsMixin": {
+      "attackTargetEntityWithCurrentItem(Lnet/minecraft/entity/Entity;)V": "func_71059_n(Lnet/minecraft/entity/Entity;)V",
+      "fall(F)V": "func_70069_a(F)V"
+    },
+    "net.xiaoyu233.fml.reload.transform.client.MainMenuMixin": {
+      "drawScreen": "func_73863_a"
+    },
+    "net.xiaoyu233.fml.forge.event.BiomeDecoratorEventsMixin": {
+      "currentWorld": "field_76815_a",
+      "randomGenerator": "field_76813_b",
+      "chunk_X": "field_76814_c",
+      "chunk_Z": "field_76811_d",
+      "decorate()V": "func_76794_a()V"
+    },
+    "net.xiaoyu233.fml.reload.transform.forge_compat.MinecraftMixin": {
+      "integratedServerIsRunning": "field_71455_al",
+      "loadingScreen": "field_71461_s"
+    },
+    "net.xiaoyu233.fml.reload.transform.util.WorldServerAccessor": {
+      "pendingTickListEntriesHashSet": "field_73064_N"
+    },
+    "net.xiaoyu233.fml.reload.transform.registry.EntityRendererRegisterMixin": {
+      "entityRenderMap": "field_78729_o"
+    },
+    "net.xiaoyu233.fml.reload.transform.registry.TileEntityRegistryMixin": {
+      "addMapping": "func_70306_a"
+    },
+    "net.xiaoyu233.fml.reload.transform.util.ItemStackMixin": {
+      "itemID": "field_77993_c"
+    },
+    "net.xiaoyu233.fml.reload.transform.id_extend.SnowManRendererMixin": {
+      "renderSnowmanPumpkin(Lnet/minecraft/entity/monster/EntitySnowman;F)V": "func_77093_a(Lnet/minecraft/entity/monster/EntitySnowman;F)V"
+    },
+    "net.xiaoyu233.fml.reload.transform.LanguageLoaderTrans": {
+      "translateKeyPrivate": "func_135026_c"
+    },
+    "net.xiaoyu233.fml.forge.event.ChunkEventsMixin": {
+      "addEntity(Lnet/minecraft/entity/Entity;)V": "func_76612_a(Lnet/minecraft/entity/Entity;)V",
+      "onChunkLoad()V": "func_76631_c()V",
+      "onChunkUnload()V": "func_76623_d()V"
+    },
+    "net.xiaoyu233.fml.reload.transform.util.BlockAccessor": {
+      "setHardness": "func_71848_c",
+      "setResistance": "func_71894_b",
+      "setLightValue": "func_71900_a",
+      "setTextureName": "func_111022_d",
+      "setStepSound": "func_71884_a"
+    },
+    "net.xiaoyu233.fml.reload.transform.forge_compat.NetLoginHandlerMixin": {
+      "mcServer": "field_72534_f",
+      "myTCPConnection": "field_72538_b",
+      "clientUsername": "field_72543_h"
+    },
+    "net.xiaoyu233.fml.forge.event.IntegratedServerEventsMixin": {
+      "loadAllWorlds(Ljava/lang/String;Ljava/lang/String;JLnet/minecraft/world/WorldType;Ljava/lang/String;)V": "func_71247_a(Ljava/lang/String;Ljava/lang/String;JLnet/minecraft/world/WorldType;Ljava/lang/String;)V"
+    },
+    "net.xiaoyu233.fml.reload.transform.LocaleLanguageTrans": {
+      "instance": "field_74817_a"
+    },
+    "net.xiaoyu233.fml.reload.transform.id_extend.BlockMixin": {
+      "blockID": "field_71990_ca"
+    },
+    "net.xiaoyu233.fml.reload.transform.fix.skin.ThreadDownloadImageDataAccessor": {
+      "imageUrl": "field_110562_b",
+      "imageBuffer": "field_110563_c"
+    },
+    "net.xiaoyu233.fml.reload.transform.forge_compat.NetClientHandlerMixin": {
+      "mc": "field_72563_h",
+      "worldClient": "field_72564_i"
+    },
+    "net.xiaoyu233.fml.reload.transform.id_extend.ChunkMixin": {
+      "storageArrays": "field_76652_q",
+      "getBlockID": "func_76610_a"
+    }
+  },
+  "data": {
+    "named:intermediary": {
+      "net.xiaoyu233.fml.reload.transform.fix.fix_creative_inv.GuiCreativeMixin": {
+        "handleMouseClick": "func_74191_a",
+        "updateScreen": "func_73876_c"
+      },
+      "net.xiaoyu233.fml.reload.transform.StringTranslateAccessor": {
+        "languageList": "field_74816_c"
+      },
+      "net.xiaoyu233.fml.reload.transform.registry.ItemBlockRecipeRegistryMixin": {
+        "addShapelessRecipe(Lnet/minecraft/item/ItemStack;Z[Ljava/lang/Object;)Lnet/minecraft/item/crafting/ShapelessRecipes;": "func_77596_b(Lnet/minecraft/item/ItemStack;Z[Ljava/lang/Object;)Lnet/minecraft/item/crafting/ShapelessRecipes;",
+        "addShapelessRecipe": "func_77596_b",
+        "addRecipe(Lnet/minecraft/item/ItemStack;Z[Ljava/lang/Object;)Lnet/minecraft/item/crafting/ShapedRecipes;": "func_92103_a(Lnet/minecraft/item/ItemStack;Z[Ljava/lang/Object;)Lnet/minecraft/item/crafting/ShapedRecipes;",
+        "addRecipe": "func_92103_a"
+      },
+      "net.xiaoyu233.fml.reload.transform.fix.fix_nbt.NBTTagCompoundMixin": {
+        "tagMap": "field_74784_a",
+        "createCrashReport(Ljava/lang/String;ILjava/lang/ClassCastException;)Lnet/minecraft/crash/CrashReport;": "func_82581_a(Ljava/lang/String;ILjava/lang/ClassCastException;)Lnet/minecraft/crash/CrashReport;",
+        "createCrashReport": "func_82581_a"
+      },
+      "net.xiaoyu233.fml.forge.event.TickHandlerClientMixin": {
+        "runTick()V": "func_71407_l()V"
+      },
+      "net.xiaoyu233.fml.forge.event.ChunkProviderHellEventsMixin": {
+        "worldObj": "field_73175_o",
+        "populate(Lnet/minecraft/world/chunk/IChunkProvider;II)V": "func_73153_a(Lnet/minecraft/world/chunk/IChunkProvider;II)V"
+      },
+      "net.xiaoyu233.fml.reload.transform.fix.FixLongHashMapWorld": {
+        "chunkProvider": "field_73020_y",
+        "getBlockId": "func_72798_a"
+      },
+      "net.xiaoyu233.fml.reload.transform.id_extend.StatisticMixin": {
+        "initBreakableStats": "func_75922_b",
+        "initStats": "func_75925_c",
+        "initMinableStats": "func_75921_a",
+        "initUsableStats": "func_75920_a"
+      },
+      "net.xiaoyu233.fml.reload.transform.forge_compat.GuiMainMenuMixin": {
+        "addSingleplayerMultiplayerButtons": "func_73969_a",
+        "actionPerformed": "func_73875_a"
+      },
+      "net.xiaoyu233.fml.reload.transform.fix.skin.SkinFixTransform": {
+        "imageThread": "field_110561_e",
+        "imageLocation": "field_110558_f",
+        "loadTexture": "func_110551_a"
+      },
+      "net.xiaoyu233.fml.reload.transform.CommandHandlerTrans": {
+        "commandMap": "field_71562_a",
+        "executeCommand": "func_71556_a"
+      },
+      "net.xiaoyu233.fml.reload.transform.util.WorldAccessor": {
+        "provider": "field_73011_w"
+      },
+      "net.xiaoyu233.fml.reload.transform.fix.AllowedCharFix": {
+        "getAllowedCharacters": "func_71564_a"
+      },
+      "net.xiaoyu233.fml.reload.transform.util.ItemMixin": {
+        "setTextureName(Ljava/lang/String;)Lnet/minecraft/item/Item;": "func_111206_d(Ljava/lang/String;)Lnet/minecraft/item/Item;",
+        "setTextureName": "func_111206_d"
+      },
+      "net.xiaoyu233.fml.forge.event.ForgeServerPacketRouterMixin": {
+        "netManager": "field_72575_b",
+        "playerEntity": "field_72574_e",
+        "handleCustomPayload(Lnet/minecraft/network/packet/Packet250CustomPayload;)V": "func_72501_a(Lnet/minecraft/network/packet/Packet250CustomPayload;)V"
+      },
+      "net.xiaoyu233.fml.reload.transform.client.DefaultResourcePackMixin": {
+        "fileAssets": "field_110607_c",
+        "mapResourceFiles": "field_110606_b"
+      },
+      "net.xiaoyu233.fml.reload.transform.id_extend.WorldMixin": {
+        "getBlockId": "func_72798_a"
+      },
+      "net.xiaoyu233.fml.forge.event.ChunkProviderGenerateEventsMixin": {
+        "worldObj": "field_73230_p",
+        "rand": "field_73220_k",
+        "replaceBlocksForBiome(II[B[Lnet/minecraft/world/biome/BiomeGenBase;)V": "func_73207_a(II[B[Lnet/minecraft/world/biome/BiomeGenBase;)V",
+        "initializeNoiseField([DIIIIII)[D": "func_73205_a([DIIIIII)[D",
+        "populate(Lnet/minecraft/world/chunk/IChunkProvider;II)V": "func_73153_a(Lnet/minecraft/world/chunk/IChunkProvider;II)V"
+      },
+      "net.xiaoyu233.fml.reload.transform.fix.FixRender": {
+        "setActiveTexture": "func_77473_a"
+      },
+      "net.xiaoyu233.fml.reload.transform.registry.EnchantmentRegisterMixin": {
+        "enchantmentsBookList": "field_92090_c"
+      },
+      "net.xiaoyu233.fml.reload.transform.forge_compat.GuiConnectingMixin": {
+        "clientHandler": "field_74259_a",
+        "cancelled": "field_74258_b"
+      },
+      "net.xiaoyu233.fml.reload.transform.id_extend.ItemMapMixin": {
+        "updateMapData": "func_77872_a"
+      },
+      "net.xiaoyu233.fml.reload.transform.util.CraftingManagerInvoker": {
+        "addRecipe": "func_92103_a",
+        "addShapelessRecipe": "func_77596_b"
+      },
+      "net.xiaoyu233.fml.forge.event.ChunkProviderEndEventsMixin": {
+        "endWorld": "field_73200_m",
+        "populate(Lnet/minecraft/world/chunk/IChunkProvider;II)V": "func_73153_a(Lnet/minecraft/world/chunk/IChunkProvider;II)V"
+      },
+      "net.xiaoyu233.fml.reload.transform.fix.ChatFix": {
+        "handleKeyboardInput": "func_73860_n"
+      },
+      "net.xiaoyu233.fml.reload.transform.id_extend.ChunkSectionMixin": {
+        "setExtBlockID": "func_76655_a"
+      },
+      "net.xiaoyu233.fml.forge.event.ForgeClientPacketRouterMixin": {
+        "netManager": "field_72555_g",
+        "handleCustomPayload(Lnet/minecraft/network/packet/Packet250CustomPayload;)V": "func_72501_a(Lnet/minecraft/network/packet/Packet250CustomPayload;)V"
+      },
+      "net.xiaoyu233.fml.reload.transform.client.ClientPlayerMixin": {
+        "sendChatMessage(Ljava/lang/String;Z)V": "func_71165_d(Ljava/lang/String;Z)V"
+      },
+      "net.xiaoyu233.fml.reload.transform.registry.EntityRegistryMixin": {
+        "addMapping(Ljava/lang/Class;Ljava/lang/String;I)V": "func_75618_a(Ljava/lang/Class;Ljava/lang/String;I)V",
+        "addMapping": "func_75614_a",
+        "addMapping(Ljava/lang/Class;Ljava/lang/String;III)V": "func_75614_a(Ljava/lang/Class;Ljava/lang/String;III)V"
+      },
+      "net.xiaoyu233.fml.forge.event.MinecraftServerEventsMixin": {
+        "worldServers": "field_71305_c",
+        "loadAllWorlds(Ljava/lang/String;Ljava/lang/String;JLnet/minecraft/world/WorldType;Ljava/lang/String;)V": "func_71247_a(Ljava/lang/String;Ljava/lang/String;JLnet/minecraft/world/WorldType;Ljava/lang/String;)V",
+        "stopServer()V": "func_71260_j()V"
+      },
+      "net.xiaoyu233.fml.reload.transform.network.PendingConnectionTransform": {
+        "clientUsername": "field_72543_h",
+        "mcServer": "field_72534_f",
+        "isServerHandler()Z": "func_72489_a()Z",
+        "isServerHandler": "func_72489_a",
+        "handleClientProtocol": "func_72500_a"
+      },
+      "net.xiaoyu233.fml.reload.transform.forge_compat.StringTranslateAccessor": {
+        "languageList": "field_74816_c"
+      },
+      "net.xiaoyu233.fml.reload.transform.fix.fix_minecart.EntityMinecartChestTrans": {
+        "getMinecartType()I": "func_94087_l()I",
+        "getMinecartType": "func_94087_l",
+        "getSizeInventory()I": "func_70302_i_()I",
+        "getSizeInventory": "func_70302_i_"
+      },
+      "net.xiaoyu233.fml.reload.transform.network.Packet2ClientProtocolTrans": {
+        "username": "field_73456_b",
+        "getPacketSize()I": "func_73284_a()I",
+        "getPacketSize": "func_73284_a",
+        "processPacket(Lnet/minecraft/network/packet/NetHandler;)V": "func_73279_a(Lnet/minecraft/network/packet/NetHandler;)V",
+        "processPacket": "func_73279_a",
+        "readPacketData": "func_73267_a",
+        "writePacketData": "func_73273_a"
+      },
+      "net.xiaoyu233.fml.reload.transform.forge_compat.NetLoginHandlerAccessor": {
+        "clientUsername": "field_72543_h"
+      },
+      "net.xiaoyu233.fml.forge.event.WorldEventsMixin": {
+        "playSoundAtEntity(Lnet/minecraft/entity/Entity;Ljava/lang/String;FF)V": "func_72956_a(Lnet/minecraft/entity/Entity;Ljava/lang/String;FF)V",
+        "spawnEntityInWorld(Lnet/minecraft/entity/Entity;)Z": "func_72838_d(Lnet/minecraft/entity/Entity;)Z",
+        "updateEntityWithOptionalForce(Lnet/minecraft/entity/Entity;Z)V": "func_72866_a(Lnet/minecraft/entity/Entity;Z)V"
+      },
+      "net.xiaoyu233.fml.reload.transform.util.BlockMixin": {
+        "setTextureName(Ljava/lang/String;)Lnet/minecraft/block/Block;": "func_111022_d(Ljava/lang/String;)Lnet/minecraft/block/Block;",
+        "setTextureName": "func_111022_d",
+        "setHardness(F)Lnet/minecraft/block/Block;": "func_71848_c(F)Lnet/minecraft/block/Block;",
+        "setHardness": "func_71848_c",
+        "setResistance(F)Lnet/minecraft/block/Block;": "func_71894_b(F)Lnet/minecraft/block/Block;",
+        "setResistance": "func_71894_b",
+        "setLightValue(F)Lnet/minecraft/block/Block;": "func_71900_a(F)Lnet/minecraft/block/Block;",
+        "setLightValue": "func_71900_a",
+        "setStepSound(Lnet/minecraft/block/StepSound;)Lnet/minecraft/block/Block;": "func_71884_a(Lnet/minecraft/block/StepSound;)Lnet/minecraft/block/Block;",
+        "setStepSound": "func_71884_a",
+        "setCreativeTab(Lnet/minecraft/creativetab/CreativeTabs;)Lnet/minecraft/block/Block;": "func_71849_a(Lnet/minecraft/creativetab/CreativeTabs;)Lnet/minecraft/block/Block;",
+        "setCreativeTab": "func_71849_a",
+        "setUnlocalizedName(Ljava/lang/String;)Lnet/minecraft/block/Block;": "func_71864_b(Ljava/lang/String;)Lnet/minecraft/block/Block;",
+        "setUnlocalizedName": "func_71864_b"
+      },
+      "net.xiaoyu233.fml.reload.transform.id_extend.PlayerRendererMixin": {
+        "renderSpecials": "func_77100_a"
+      },
+      "net.xiaoyu233.fml.forge.event.TickHandlerServerMixin": {
+        "tick()V": "func_71217_p()V"
+      },
+      "net.xiaoyu233.fml.reload.transform.id_extend.NetClientHandlerMixin": {
+        "worldClient": "field_72564_i",
+        "handleMultiBlockChange(Lnet/minecraft/network/packet/Packet97MultiBlockChange;)V": "func_72496_a(Lnet/minecraft/network/packet/Packet97MultiBlockChange;)V",
+        "handleMultiBlockChange(Lnet/minecraft/network/packet/Packet52MultiBlockChange;)V": "func_72496_a(Lnet/minecraft/network/packet/Packet52MultiBlockChange;)V"
+      },
+      "net.xiaoyu233.fml.reload.transform.network.PacketTrans": {
+        "addIdClassMapping(IZZLjava/lang/Class;)V": "func_73285_a(IZZLjava/lang/Class;)V",
+        "addIdClassMapping": "func_73285_a",
+        "readString": "func_73282_a"
+      },
+      "net.xiaoyu233.fml.forge.event.EntityPlayerEventsMixin": {
+        "attackTargetEntityWithCurrentItem(Lnet/minecraft/entity/Entity;)V": "func_71059_n(Lnet/minecraft/entity/Entity;)V",
+        "fall(F)V": "func_70069_a(F)V"
+      },
+      "net.xiaoyu233.fml.reload.transform.client.MainMenuMixin": {
+        "drawScreen": "func_73863_a"
+      },
+      "net.xiaoyu233.fml.forge.event.BiomeDecoratorEventsMixin": {
+        "currentWorld": "field_76815_a",
+        "randomGenerator": "field_76813_b",
+        "chunk_X": "field_76814_c",
+        "chunk_Z": "field_76811_d",
+        "decorate()V": "func_76794_a()V"
+      },
+      "net.xiaoyu233.fml.reload.transform.forge_compat.MinecraftMixin": {
+        "integratedServerIsRunning": "field_71455_al",
+        "loadingScreen": "field_71461_s"
+      },
+      "net.xiaoyu233.fml.reload.transform.util.WorldServerAccessor": {
+        "pendingTickListEntriesHashSet": "field_73064_N"
+      },
+      "net.xiaoyu233.fml.reload.transform.registry.EntityRendererRegisterMixin": {
+        "entityRenderMap": "field_78729_o"
+      },
+      "net.xiaoyu233.fml.reload.transform.registry.TileEntityRegistryMixin": {
+        "addMapping(Ljava/lang/Class;Ljava/lang/String;)V": "func_70306_a(Ljava/lang/Class;Ljava/lang/String;)V",
+        "addMapping": "func_70306_a"
+      },
+      "net.xiaoyu233.fml.reload.transform.util.ItemStackMixin": {
+        "itemID": "field_77993_c"
+      },
+      "net.xiaoyu233.fml.reload.transform.id_extend.SnowManRendererMixin": {
+        "renderSnowmanPumpkin(Lnet/minecraft/entity/monster/EntitySnowman;F)V": "func_77093_a(Lnet/minecraft/entity/monster/EntitySnowman;F)V"
+      },
+      "net.xiaoyu233.fml.reload.transform.LanguageLoaderTrans": {
+        "translateKeyPrivate": "func_135026_c"
+      },
+      "net.xiaoyu233.fml.forge.event.ChunkEventsMixin": {
+        "addEntity(Lnet/minecraft/entity/Entity;)V": "func_76612_a(Lnet/minecraft/entity/Entity;)V",
+        "onChunkLoad()V": "func_76631_c()V",
+        "onChunkUnload()V": "func_76623_d()V"
+      },
+      "net.xiaoyu233.fml.reload.transform.util.BlockAccessor": {
+        "setHardness": "func_71848_c",
+        "setResistance": "func_71894_b",
+        "setLightValue": "func_71900_a",
+        "setTextureName": "func_111022_d",
+        "setStepSound": "func_71884_a"
+      },
+      "net.xiaoyu233.fml.reload.transform.forge_compat.NetLoginHandlerMixin": {
+        "mcServer": "field_72534_f",
+        "myTCPConnection": "field_72538_b",
+        "clientUsername": "field_72543_h"
+      },
+      "net.xiaoyu233.fml.forge.event.IntegratedServerEventsMixin": {
+        "loadAllWorlds(Ljava/lang/String;Ljava/lang/String;JLnet/minecraft/world/WorldType;Ljava/lang/String;)V": "func_71247_a(Ljava/lang/String;Ljava/lang/String;JLnet/minecraft/world/WorldType;Ljava/lang/String;)V"
+      },
+      "net.xiaoyu233.fml.reload.transform.LocaleLanguageTrans": {
+        "instance": "field_74817_a"
+      },
+      "net.xiaoyu233.fml.reload.transform.id_extend.BlockMixin": {
+        "blockID": "field_71990_ca"
+      },
+      "net.xiaoyu233.fml.reload.transform.fix.skin.ThreadDownloadImageDataAccessor": {
+        "imageUrl": "field_110562_b",
+        "imageBuffer": "field_110563_c"
+      },
+      "net.xiaoyu233.fml.reload.transform.forge_compat.NetClientHandlerMixin": {
+        "mc": "field_72563_h",
+        "worldClient": "field_72564_i"
+      },
+      "net.xiaoyu233.fml.reload.transform.id_extend.ChunkMixin": {
+        "storageArrays": "field_76652_q",
+        "getBlockID": "func_76610_a"
+      }
+    }
+  }
+}

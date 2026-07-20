@@ -20,16 +20,22 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Runtime SRG -> MITE member-name remapper for Forge 1.6.4 mods.
+ * Runtime SRG member-name remapper for Forge 1.6.4 mods.
  *
- * <p>Forge 1.6.4 mods are commonly distributed with SRG member names
- * ({@code func_*}/{@code field_*}) in their bytecode. FishModLoader keeps the
- * original mod jar on the classpath and rewrites class bytes as they are loaded,
- * so users can drop an unmodified Forge jar into {@code mods/}.
+ * <p>FishModLoader runs the game jar in the {@code intermediary} (SRG) namespace,
+ * so Forge mods, which are also distributed with SRG member names
+ * ({@code func_*}/{@code field_*}), need no remapping at runtime. This class
+ * loads {@code /intermediary.tiny} to validate that intermediary mappings are
+ * present and acts as an identity pass-through.
+ *
+ * <p>Keeping the (non-functional) remapper infrastructure lets us detect
+ * namespace mismatches early — if {@code intermediary.tiny} is missing or
+ * the runtime namespace changes, the log warnings will alert us.
  */
+@Deprecated
 public final class ForgeSrgModRemapper {
 
-    private static final String MAPPINGS_RESOURCE = "/forge-srg-1.6.4.tiny";
+    private static final String MAPPINGS_RESOURCE = "/intermediary.tiny";
 
     private static final Set<Path> forgeCodeSources =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
@@ -81,34 +87,41 @@ public final class ForgeSrgModRemapper {
     private static Mappings loadMappings() {
         InputStream resource = ForgeSrgModRemapper.class.getResourceAsStream(MAPPINGS_RESOURCE);
         if (resource == null) {
-            FishModLoader.LOGGER.warn("Missing {}; Forge SRG names will not be remapped", MAPPINGS_RESOURCE);
+            FishModLoader.LOGGER.warn("Missing {}; Forge SRG name remapping disabled", MAPPINGS_RESOURCE);
             return Mappings.EMPTY;
         }
 
-        Map<MemberKey, String> methods = new HashMap<>();
-        Map<MemberKey, String> fields = new HashMap<>();
+        // intermediary.tiny uses v1 format:
+        //   METHOD\t<owner>\t<desc>\t<official>\t<intermediary>
+        //   FIELD\t<owner>\t<desc>\t<official>\t<intermediary>
+        //
+        // At runtime the game jar is in the intermediary (SRG) namespace, so
+        // Forge mods already using SRG need no remapping.  We still load the
+        // file to validate that the intermediary namespace is available.
+        int methodCount = 0;
+        int fieldCount = 0;
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(resource, StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 String trimmed = line.trim();
-                if (trimmed.isEmpty() || trimmed.startsWith("#")) continue;
+                if (trimmed.isEmpty() || trimmed.startsWith("#") || trimmed.startsWith("v1\t")) continue;
                 String[] parts = trimmed.split("\t");
-                if (parts.length < 4) continue;
-                if ("m".equals(parts[0])) {
-                    methods.put(new MemberKey(parts[2], parts[1]), parts[3]);
-                } else if ("f".equals(parts[0])) {
-                    fields.put(new MemberKey(parts[2], parts[1]), parts[3]);
+                if (parts.length < 5) continue;
+                if ("METHOD".equals(parts[0])) {
+                    methodCount++;
+                } else if ("FIELD".equals(parts[0])) {
+                    fieldCount++;
                 }
             }
         } catch (IOException e) {
-            FishModLoader.LOGGER.warn("Failed to read {}; Forge SRG names will not be remapped",
+            FishModLoader.LOGGER.warn("Failed to read {}; Forge SRG name remapping disabled",
                     MAPPINGS_RESOURCE, e);
             return Mappings.EMPTY;
         }
 
-        FishModLoader.LOGGER.info("Loaded Forge SRG runtime mappings: {} methods, {} fields",
-                methods.size(), fields.size());
-        return new Mappings(methods, fields);
+        FishModLoader.LOGGER.info("Loaded {}: {} methods, {} fields (runtime uses intermediary, identity remap)",
+                MAPPINGS_RESOURCE, methodCount, fieldCount);
+        return Mappings.EMPTY_IDENTITY;
     }
 
     private static final class SrgMemberRemapper extends Remapper {
@@ -120,32 +133,51 @@ public final class ForgeSrgModRemapper {
 
         @Override
         public String mapMethodName(String owner, String name, String descriptor) {
-            if (!name.startsWith("func_")) return name;
-            String mapped = mappings.methods.get(new MemberKey(name, descriptor));
-            return mapped == null ? name : mapped;
+            // Runtime is in intermediary (SRG) namespace; Forge mods already use SRG names.
+            // No remapping needed — pass through unchanged.
+            return name;
         }
 
         @Override
         public String mapFieldName(String owner, String name, String descriptor) {
-            if (!name.startsWith("field_")) return name;
-            String mapped = mappings.fields.get(new MemberKey(name, descriptor));
-            return mapped == null ? name : mapped;
+            // Runtime is in intermediary (SRG) namespace; Forge mods already use SRG names.
+            // No remapping needed — pass through unchanged.
+            return name;
         }
     }
 
     private static final class Mappings {
-        static final Mappings EMPTY = new Mappings(Collections.emptyMap(), Collections.emptyMap());
+        static final Mappings EMPTY = new Mappings(Collections.emptyMap(), Collections.emptyMap(),
+                Collections.emptyMap(), Collections.emptyMap(), true);
+        // Identity mapping — runtime is in intermediary (SRG), same as Forge mods.
+        // Non-empty so remapClass() proceeds, but SrgMemberRemapper passes all
+        // names through unchanged.
+        static final Mappings EMPTY_IDENTITY = new Mappings(Collections.emptyMap(), Collections.emptyMap(),
+                Collections.emptyMap(), Collections.emptyMap(), false);
 
         final Map<MemberKey, String> methods;
         final Map<MemberKey, String> fields;
+        final Map<String, String> methodsByName;
+        final Map<String, String> fieldsByName;
+        private final boolean empty;
 
-        Mappings(Map<MemberKey, String> methods, Map<MemberKey, String> fields) {
+        Mappings(Map<MemberKey, String> methods, Map<MemberKey, String> fields,
+                 Map<String, String> methodsByName, Map<String, String> fieldsByName) {
+            this(methods, fields, methodsByName, fieldsByName, methods.isEmpty() && fields.isEmpty());
+        }
+
+        Mappings(Map<MemberKey, String> methods, Map<MemberKey, String> fields,
+                 Map<String, String> methodsByName, Map<String, String> fieldsByName,
+                 boolean empty) {
             this.methods = methods;
             this.fields = fields;
+            this.methodsByName = methodsByName;
+            this.fieldsByName = fieldsByName;
+            this.empty = empty;
         }
 
         boolean isEmpty() {
-            return methods.isEmpty() && fields.isEmpty();
+            return empty;
         }
     }
 

@@ -25,6 +25,7 @@ import java.util.jar.JarFile;
  * Stage-3 of the Forge compat plan. The downstream {@link LegacyModCandidate}
  * wraps the result so the rest of the loader treats it like a normal mod.
  */
+@Deprecated
 public class LegacyModParser {
 
     private static final String MOD_ANNOTATION_DESC = "Lcpw/mods/fml/common/Mod;";

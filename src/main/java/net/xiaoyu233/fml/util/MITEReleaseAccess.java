@@ -44,7 +44,7 @@ public class MITEReleaseAccess {
     }
 
     private static InputStream locateMinecraftClass() {
-        String resource = "net/minecraft/client/Minecraft.class";
+        String resource = "net/minecraft/client/atv.class";
         // 1. classloader of this class
         InputStream in = MITEReleaseAccess.class.getClassLoader() != null
                 ? MITEReleaseAccess.class.getClassLoader().getResourceAsStream(resource)

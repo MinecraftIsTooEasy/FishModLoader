@@ -76,6 +76,7 @@ public class InjectionConfig {
         String pkgName = this.transformPackage.getName();
         mixinObject.addProperty("package", pkgName);
         mixinObject.addProperty("compatibilityLevel",this.compatibleLevel.toString());
+        mixinObject.addProperty("refmap", "mixin.refmap.json");
         JsonArray mixins = new JsonArray();
         List<String> classes = PackageLoader.getClasses(pkgName, classLoader, Mixin.class);
         for (String aClass : classes) {

@@ -16,5 +16,6 @@ public class LaunchClassBlocker {
         classLoaderInterface.whitelistClassPrefix("net.xiaoyu233.fml.reload.util");
         classLoaderInterface.whitelistClassPrefix("net.xiaoyu233.fml.reload.event");
         classLoaderInterface.whitelistClassPrefix("net.xiaoyu233.fml.api");
+        classLoaderInterface.whitelistClassPrefix("net.xiaoyu233.fml.modfixer");
     }
 }
