@@ -1,11 +1,11 @@
 package net.minecraftforge.event.entity.living;
 
-import net.minecraft.entity.EntityLivingBase;
-import net.minecraft.entity.item.EntityItem;
-import net.minecraft.util.DamageSource;
-import net.minecraftforge.event.Cancelable;
-
 import java.util.ArrayList;
+
+import net.minecraft.util.DamageSource;
+import net.minecraft.entity.item.EntityItem;
+import net.minecraft.entity.EntityLivingBase;
+import net.minecraftforge.event.Cancelable;
 
 @Cancelable
 public class LivingDropsEvent extends LivingEvent

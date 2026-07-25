@@ -9,8 +9,9 @@
 
 package net.minecraftforge.liquids;
 
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-
+@Deprecated //See new net.minecraftforge.fluids
 public class LiquidContainerData {
 
     public final LiquidStack stillLiquid;

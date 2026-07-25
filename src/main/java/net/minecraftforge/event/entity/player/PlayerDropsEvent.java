@@ -1,13 +1,13 @@
 package net.minecraftforge.event.entity.player;
 
+import java.util.ArrayList;
+
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.util.DamageSource;
 import net.minecraftforge.event.Cancelable;
 import net.minecraftforge.event.entity.living.LivingDropsEvent;
-
-import java.util.ArrayList;
 
 /**
  * Child class of LivingDropEvent that is fired specifically when a

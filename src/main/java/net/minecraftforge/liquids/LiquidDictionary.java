@@ -1,29 +1,26 @@
 package net.minecraftforge.liquids;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
-import com.google.common.collect.ImmutableMap;
+import java.util.HashMap;
+import java.util.Map;
+
 import net.minecraft.block.Block;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.Event;
 
-import java.util.Map;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
+import com.google.common.collect.ImmutableMap;
 
 /**
  * When creating liquids you should register them with this class.
  *
  * @author CovertJaguar <railcraft.wikispaces.com>
  */
+@Deprecated //See new net.minecraftforge.fluids
 public abstract class LiquidDictionary
 {
 
     private static BiMap<String, LiquidStack> liquids = HashBiMap.create();
-
-    static
-    {
-        getOrCreateLiquid("Water", new LiquidStack(Block.waterStill, LiquidContainerRegistry.BUCKET_VOLUME));
-        getOrCreateLiquid("Lava", new LiquidStack(Block.lavaStill, LiquidContainerRegistry.BUCKET_VOLUME));
-    }
 
     /**
      * When creating liquids you should call this function.
@@ -77,7 +74,6 @@ public abstract class LiquidDictionary
     {
         return liquids.get(name);
     }
-
     /**
      * Get an immutable list of the liquids defined
      *
@@ -86,6 +82,27 @@ public abstract class LiquidDictionary
     public static Map<String, LiquidStack> getLiquids()
     {
         return ImmutableMap.copyOf(liquids);
+    }
+    /**
+     * Fired when a new liquid is created
+     *
+     */
+    public static class LiquidRegisterEvent extends Event
+    {
+        public final String Name;
+        public final LiquidStack Liquid;
+
+        public LiquidRegisterEvent(String name, LiquidStack liquid)
+        {
+            this.Name = name;
+            this.Liquid = liquid.copy();
+        }
+    }
+
+    static
+    {
+        getOrCreateLiquid("Water", new LiquidStack(Block.waterStill, LiquidContainerRegistry.BUCKET_VOLUME));
+        getOrCreateLiquid("Lava", new LiquidStack(Block.lavaStill, LiquidContainerRegistry.BUCKET_VOLUME));
     }
 
     public static String findLiquidName(LiquidStack reference)
@@ -103,21 +120,5 @@ public abstract class LiquidDictionary
     public static LiquidStack getCanonicalLiquid(LiquidStack liquidStack)
     {
         return liquids.get(liquids.inverse().get(liquidStack));
-    }
-
-    /**
-     * Fired when a new liquid is created
-     *
-     */
-    public static class LiquidRegisterEvent extends Event
-    {
-        public final String Name;
-        public final LiquidStack Liquid;
-
-        public LiquidRegisterEvent(String name, LiquidStack liquid)
-        {
-            this.Name = name;
-            this.Liquid = liquid.copy();
-        }
     }
 }

@@ -7,16 +7,48 @@ package net.minecraftforge.common;
 
 import java.util.ArrayList;
 
+import net.minecraftforge.common.Property.Type;
+
 public class Property
 {
+    public enum Type
+    {
+        STRING,
+        INTEGER,
+        BOOLEAN,
+        DOUBLE;
+
+        private static Type[] values = {STRING, INTEGER, BOOLEAN, DOUBLE};
+
+        public static Type tryParse(char id)
+        {
+            for (int x = 0; x < values.length; x++)
+            {
+                if (values[x].getID() == id)
+                {
+                    return values[x];
+                }
+            }
+
+            return STRING;
+        }
+
+        public char getID()
+        {
+            return name().charAt(0);
+        }
+    }
+
+    private String name;
+    private String value;
+    public String comment;
+    private String[] values;
+
     private final boolean wasRead;
     private final boolean isList;
     private final Type type;
-    public String comment;
-    private String name;
-    private String value;
-    private String[] values;
     private boolean changed = false;
+
     public Property()
     {
         wasRead = false;
@@ -54,7 +86,7 @@ public class Property
 
     /**
      * Returns the value in this property as it's raw string.
-     *
+     * 
      * @return current value
      */
     public String getString()
@@ -65,7 +97,7 @@ public class Property
     /**
      * Returns the value in this property as an integer,
      * if the value is not a valid integer, it will return -1.
-     *
+     * 
      * @return The value
      */
     public int getInt()
@@ -77,7 +109,7 @@ public class Property
      * Returns the value in this property as an integer,
      * if the value is not a valid integer, it will return the
      * provided default.
-     *
+     * 
      * @param _default The default to provide if the current value is not a valid integer
      * @return The value
      */
@@ -92,7 +124,7 @@ public class Property
             return _default;
         }
     }
-
+    
     /**
      * Checks if the current value stored in this property can be converted to an integer.
      * @return True if the type of the Property is an Integer
@@ -109,12 +141,12 @@ public class Property
             return false;
         }
     }
-    
+
     /**
      * Returns the value in this property as a boolean,
      * if the value is not a valid boolean, it will return the
      * provided default.
-     *
+     * 
      * @param _default The default to provide
      * @return The value as a boolean, or the default
      */
@@ -160,7 +192,7 @@ public class Property
      * Returns the value in this property as a double,
      * if the value is not a valid double, it will return the
      * provided default.
-     *
+     * 
      * @param _default The default to provide if the current value is not a valid double
      * @return The value
      */
@@ -184,13 +216,13 @@ public class Property
     /**
      * Returns the integer value of all values that can
      * be parsed in the list.
-     *
+     * 
      * @return Array of length 0 if none of the values could be parsed.
      */
     public int[] getIntList()
     {
         ArrayList<Integer> nums = new ArrayList<Integer>();
-
+        
         for (String value : values)
         {
             try
@@ -233,7 +265,7 @@ public class Property
     /**
      * Returns the boolean value of all values that can
      * be parsed in the list.
-     *
+     * 
      * @return Array of length 0 if none of the values could be parsed.
      */
     public boolean[] getBooleanList()
@@ -278,7 +310,7 @@ public class Property
     /**
      * Returns the double value of all values that can
      * be parsed in the list.
-     *
+     * 
      * @return Array of length 0 if none of the values could be parsed.
      */
     public double[] getDoubleList()
@@ -336,9 +368,9 @@ public class Property
 
     /**
      * Determines if this config value was just created, or if it was read from the config file.
-     * This is useful for mods who auto-assign there blocks to determine if the ID returned is
+     * This is useful for mods who auto-assign there blocks to determine if the ID returned is 
      * a configured one, or a automatically generated one.
-     *
+     * 
      * @return True if this property was loaded from the config file with a value
      */
     public boolean wasRead()
@@ -357,7 +389,6 @@ public class Property
     }
 
     public boolean hasChanged(){ return changed; }
-
     void resetChangedState(){ changed = false; }
 
     public void set(String value)
@@ -373,35 +404,6 @@ public class Property
     }
 
     public void set(int     value){ set(Integer.toString(value)); }
-
     public void set(boolean value){ set(Boolean.toString(value)); }
-
     public void set(double  value){ set(Double.toString(value));  }
-    public enum Type
-    {
-        STRING,
-        INTEGER,
-        BOOLEAN,
-        DOUBLE;
-
-        private static Type[] values = {STRING, INTEGER, BOOLEAN, DOUBLE};
-
-        public static Type tryParse(char id)
-        {
-            for (int x = 0; x < values.length; x++)
-            {
-                if (values[x].getID() == id)
-                {
-                    return values[x];
-                }
-            }
-
-            return STRING;
-        }
-
-        public char getID()
-        {
-            return name().charAt(0);
-        }
-    }
 }

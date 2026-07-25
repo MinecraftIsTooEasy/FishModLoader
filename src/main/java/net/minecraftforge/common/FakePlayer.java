@@ -1,46 +1,49 @@
 package net.minecraftforge.common;
 
+import cpw.mods.fml.common.FMLCommonHandler;
+import cpw.mods.fml.common.network.Player;
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.network.INetworkManager;
+import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.item.ItemInWorldManager;
+import net.minecraft.network.packet.Packet204ClientInfo;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.stats.StatBase;
+import net.minecraft.util.ChatMessageComponent;
 import net.minecraft.util.ChunkCoordinates;
+import net.minecraft.util.DamageSource;
 import net.minecraft.world.World;
 
-/**
- * Forge 1.6.4 FakePlayer.
- *
- * <p>EntityPlayer in stock 1.6.4 MITE has one abstract method
- * ({@code getNetManager}) and inherits {@link net.minecraft.command.ICommandSender}'s
- * {@code getPlayerCoordinates}. We satisfy both: a fake player has no
- * connection and stands at {@code (0, 0, 0)} unless someone moves it.
- *
- * <p>Constructor mirrors {@link EntityPlayer}'s {@code (World, String)} so
- * the {@code username} field lands on super.
- */
-public class FakePlayer extends EntityPlayer {
+//Preliminary, simple Fake Player class 
+public class FakePlayer extends EntityPlayerMP implements Player
+{
+    public FakePlayer(World world, String name)
+    {
+        super(FMLCommonHandler.instance().getMinecraftServerInstance(), world, name, new ItemInWorldManager(world));
+    }
 
-    public FakePlayer(World world, String name) {
-        super(world, name);
+    public void sendChatToPlayer(String s){}
+    public boolean canCommandSenderUseCommand(int i, String s){ return false; }
+    public ChunkCoordinates getPlayerCoordinates()
+    {
+        return new ChunkCoordinates(0,0,0);
     }
 
     @Override
-    public INetworkManager getNetManager() {
-        return null;
-    }
-
+    public void sendChatToPlayer(ChatMessageComponent chatmessagecomponent){}
     @Override
-    public ChunkCoordinates getPlayerCoordinates() {
-        return new ChunkCoordinates((int) posX, (int) posY, (int) posZ);
-    }
-
+    public void addStat(StatBase par1StatBase, int par2){}
     @Override
-    public boolean canCommandSenderUseCommand(int permissionLevel, String commandName) {
-        // Fake players have no operator privileges by default. Mods that need
-        // a privileged fake player can subclass and return true.
-        return false;
-    }
-
+    public void openGui(Object mod, int modGuiId, World world, int x, int y, int z){}
+    // TODO
+    // @Override public boolean isEntityInvulnerable(){ return true; }
     @Override
-    public void sendChatToPlayer(net.minecraft.util.ChatMessageComponent component) {
-        // Fake players have no chat sink — silently swallow.
-    }
+    public boolean canAttackPlayer(EntityPlayer player){ return false; }
+    @Override
+    public void onDeath(DamageSource source){ return; }
+    @Override
+    public void onUpdate(){ return; }
+    @Override
+    public void travelToDimension(int dim){ return; }
+    @Override
+    public void updateClientInfo(Packet204ClientInfo pkt){ return; }
 }

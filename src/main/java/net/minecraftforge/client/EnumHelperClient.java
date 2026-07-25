@@ -1,36 +1,44 @@
 package net.minecraftforge.client;
 
 import net.minecraft.world.EnumGameType;
+import net.minecraft.util.EnumOS;
+import net.minecraft.client.settings.EnumOptions;
+import net.minecraft.item.EnumRarity;
 import net.minecraftforge.common.EnumHelper;
 
-/**
- * Client-side companion to {@link EnumHelper}. Forge 1.6.4 split a few enum
- * helpers into a client-only class for things only the client side cares
- * about. We delegate to the real enum extender via {@link EnumHelper}.
- */
-public class EnumHelperClient extends EnumHelper {
+public class EnumHelperClient extends EnumHelper
+{
 
-    /**
-     * Generic enum addition convenience overload. Mirrors the upstream Forge
-     * {@code EnumHelperClient.addEnum(Class, String, Object...)} which
-     * inferred the constructor types from the supplied values.
-     */
-    @SafeVarargs
-    public static <T extends Enum<?>> T addEnum(Class<T> enumType, String enumName, Object... paramValues) {
-        Class<?>[] paramTypes = new Class<?>[paramValues.length];
-        for (int i = 0; i < paramValues.length; i++) {
-            paramTypes[i] = paramValues[i] == null ? Object.class : paramValues[i].getClass();
-        }
-        return EnumHelper.addEnum(enumType, enumName, paramTypes, paramValues);
+    private static Class[][] clentTypes =
+    {
+        {EnumGameType.class, int.class, String.class},
+        {EnumOptions.class, String.class, boolean.class, boolean.class},
+        {EnumOS.class},
+        {EnumRarity.class, int.class, String.class}
+    };
+    
+    public static EnumGameType addGameType(String name, int id, String displayName)
+    {
+        return addEnum(EnumGameType.class, name, id, displayName);
+    }
+    
+    public static EnumOptions addOptions(String name, String langName, boolean isSlider, boolean isToggle)
+    {
+        return addEnum(EnumOptions.class, name, langName, isSlider, isToggle);
+    }
+    
+    public static EnumOS addOS2(String name)
+    {
+        return addEnum(EnumOS.class, name);
+    }
+    
+    public static EnumRarity addRarity(String name, int color, String displayName)
+    {
+        return addEnum(EnumRarity.class, name, color, displayName);
     }
 
-    /**
-     * Add a new {@link EnumGameType}. MITE's constructor is
-     * {@code (id:int, name:String)} so we forward those two values.
-     */
-    public static EnumGameType addGameType(String name, int id, String typeName) {
-        return EnumHelper.addEnum(EnumGameType.class, name,
-                new Class<?>[]{int.class, String.class},
-                new Object[]{id, typeName});
+    public static <T extends Enum<? >> T addEnum(Class<T> enumType, String enumName, Object... paramValues)
+    {
+        return addEnum(clentTypes, enumType, enumName, paramValues);
     }
 }

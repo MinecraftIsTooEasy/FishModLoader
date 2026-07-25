@@ -1,5 +1,6 @@
 package net.minecraftforge.client.model;
 
+import java.io.InputStream;
 import java.net.URL;
 
 /**

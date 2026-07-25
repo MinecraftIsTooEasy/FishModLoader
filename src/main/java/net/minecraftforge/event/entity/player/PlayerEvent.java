@@ -1,6 +1,7 @@
 package net.minecraftforge.event.entity.player;
 
 import net.minecraft.block.Block;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraftforge.event.Cancelable;
 import net.minecraftforge.event.entity.living.LivingEvent;
@@ -42,6 +43,18 @@ public class PlayerEvent extends LivingEvent
             this.metadata = metadata;
             this.originalSpeed = original;
             this.newSpeed = original;
+        }
+    }
+
+    public static class NameFormat extends PlayerEvent
+    {
+        public final String username;
+        public String displayname;
+
+        public NameFormat(EntityPlayer player, String username) {
+            super(player);
+            this.username = username;
+            this.displayname = username;
         }
     }
 }

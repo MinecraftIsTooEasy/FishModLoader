@@ -1,7 +1,7 @@
 package net.minecraftforge.event.entity.living;
 
-import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.util.DamageSource;
+import net.minecraft.entity.EntityLivingBase;
 import net.minecraftforge.event.Cancelable;
 
 @Cancelable

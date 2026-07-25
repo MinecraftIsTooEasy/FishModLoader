@@ -1,14 +1,17 @@
 package net.minecraftforge.liquids;
 
+import static cpw.mods.fml.relauncher.Side.CLIENT;
+
+import com.google.common.base.Objects;
+
 import cpw.mods.fml.relauncher.SideOnly;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockFluid;
+import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.Icon;
-
-import static cpw.mods.fml.relauncher.Side.CLIENT;
 
 /**
  * ItemStack substitute for liquids
@@ -19,19 +22,16 @@ import static cpw.mods.fml.relauncher.Side.CLIENT;
  *
  * @author SirSengir
  */
+@Deprecated //See new net.minecraftforge.fluids
 public class LiquidStack
 {
     public final int itemID;
-    public final int itemMeta;
     public int amount;
+    public final int itemMeta;
     public NBTTagCompound extra;
-    private String textureSheet = "/terrain.png";
-    @SideOnly(CLIENT)
-    private Icon renderingIcon;
+
     public LiquidStack(int itemID,  int amount) { this(itemID,        amount, 0); }
-
     public LiquidStack(Item item,   int amount) { this(item.itemID,   amount, 0); }
-
     public LiquidStack(Block block, int amount) { this(block.blockID, amount, 0); }
 
     public LiquidStack(int itemID, int amount, int itemDamage)
@@ -48,40 +48,6 @@ public class LiquidStack
         {
             extra = (NBTTagCompound)nbt.copy();
         }
-    }
-
-    /**
-     * Reads a liquid stack from the passed nbttagcompound and returns it.
-     *
-     * @param nbt
-     * @return the liquid stack
-     */
-    public static LiquidStack loadLiquidStackFromNBT(NBTTagCompound nbt)
-    {
-        if (nbt == null)
-        {
-            return null;
-        }
-        String liquidName = nbt.getString("LiquidName");
-        int itemID = nbt.getShort("Id");
-        int itemMeta = nbt.getShort("Meta");
-        LiquidStack liquid = LiquidDictionary.getCanonicalLiquid(liquidName);
-        if(liquid != null) {
-            itemID = liquid.itemID;
-            itemMeta = liquid.itemMeta;
-        }
-        // if the item is not existent, and no liquid dictionary is found, null returns
-        else if (Item.itemsList[itemID] == null)
-        {
-            return null;
-        }
-        int amount = nbt.getInteger("Amount");
-        LiquidStack liquidstack = new LiquidStack(itemID, amount, itemMeta);
-        if (nbt.hasKey("extra"))
-        {
-            liquidstack.extra = nbt.getCompoundTag("extra");
-        }
-        return liquidstack.itemID == 0 ? null : liquidstack;
     }
 
     public NBTTagCompound writeToNBT(NBTTagCompound nbt)
@@ -160,6 +126,42 @@ public class LiquidStack
     }
 
     /**
+     * Reads a liquid stack from the passed nbttagcompound and returns it.
+     *
+     * @param nbt
+     * @return the liquid stack
+     */
+    public static LiquidStack loadLiquidStackFromNBT(NBTTagCompound nbt)
+    {
+        if (nbt == null)
+        {
+            return null;
+        }
+        String liquidName = nbt.getString("LiquidName");
+        int itemID = nbt.getShort("Id");
+        int itemMeta = nbt.getShort("Meta");
+        LiquidStack liquid = LiquidDictionary.getCanonicalLiquid(liquidName);
+        if(liquid != null) {
+            itemID = liquid.itemID;
+            itemMeta = liquid.itemMeta;
+        }
+        // if the item is not existent, and no liquid dictionary is found, null returns
+        else if (Item.itemsList[itemID] == null)
+        {
+            return null;
+        }
+        int amount = nbt.getInteger("Amount");
+        LiquidStack liquidstack = new LiquidStack(itemID, amount, itemMeta);
+        if (nbt.hasKey("extra"))
+        {
+            liquidstack.extra = nbt.getCompoundTag("extra");
+        }
+        return liquidstack.itemID == 0 ? null : liquidstack;
+    }
+
+    private String textureSheet = "/terrain.png";
+
+    /**
      * Return the textureSheet used for this liquid stack's texture Icon
      * Defaults to '/terrain.png'
      *
@@ -185,6 +187,8 @@ public class LiquidStack
         this.textureSheet = textureSheet;
         return this;
     }
+    @SideOnly(CLIENT)
+    private Icon renderingIcon;
 
     /**
      * Get the rendering icon for this liquid stack, for presentation in the world or in GUIs.

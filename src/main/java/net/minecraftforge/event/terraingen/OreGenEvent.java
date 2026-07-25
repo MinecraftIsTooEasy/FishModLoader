@@ -1,10 +1,10 @@
 package net.minecraftforge.event.terraingen;
 
+import java.util.Random;
+
 import net.minecraft.world.World;
 import net.minecraft.world.gen.feature.WorldGenerator;
-import net.minecraftforge.event.Event;
-
-import java.util.Random;
+import net.minecraftforge.event.*;
 
 public class OreGenEvent extends Event
 {
@@ -45,15 +45,16 @@ public class OreGenEvent extends Event
     @HasResult
     public static class GenerateMinable extends OreGenEvent
     {
+        public static enum EventType { COAL, DIAMOND, DIRT, GOLD, GRAVEL, IRON, LAPIS, REDSTONE, CUSTOM }
+        
         public final EventType type;
         public final WorldGenerator generator;
+        
         public GenerateMinable(World world, Random rand, WorldGenerator generator, int worldX, int worldZ, EventType type)
         {
             super(world, rand, worldX, worldZ);
             this.generator = generator;
             this.type = type;
         }
-        
-        public static enum EventType { COAL, DIAMOND, DIRT, GOLD, GRAVEL, IRON, LAPIS, REDSTONE, CUSTOM }
     }
 }

@@ -1,19 +1,40 @@
 package net.minecraftforge.client.event;
 
+import java.util.ArrayList;
+
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraftforge.event.Cancelable;
 import net.minecraftforge.event.Event;
 
-import java.util.ArrayList;
-
 @Cancelable
 public class RenderGameOverlayEvent extends Event
 {
+    public static enum ElementType
+    {
+        ALL,
+        HELMET,
+        PORTAL,
+        CROSSHAIRS,
+        BOSSHEALTH,
+        ARMOR,
+        HEALTH,
+        FOOD,
+        AIR,
+        HOTBAR,
+        EXPERIENCE,
+        TEXT,
+        HEALTHMOUNT,
+        JUMPBAR,
+        CHAT,
+        PLAYER_LIST
+    }
+
     public final float partialTicks;
     public final ScaledResolution resolution;
     public final int mouseX;
     public final int mouseY;
     public final ElementType type;
+
     public RenderGameOverlayEvent(float partialTicks, ScaledResolution resolution, int mouseX, int mouseY)
     {
         this.partialTicks = partialTicks;
@@ -30,24 +51,6 @@ public class RenderGameOverlayEvent extends Event
         this.mouseX = parent.mouseX;
         this.mouseY = parent.mouseY;
         this.type = type;
-    }
-
-    public static enum ElementType
-    {
-        ALL,
-        HELMET,
-        PORTAL,
-        CROSSHAIRS,
-        BOSSHEALTH,
-        ARMOR,
-        HEALTH,
-        FOOD,
-        AIR,
-        HOTBAR,
-        EXPERIENCE,
-        TEXT,
-        HEALTHMOUNT,
-        JUMPBAR
     }
 
     public static class Pre extends RenderGameOverlayEvent
@@ -76,6 +79,19 @@ public class RenderGameOverlayEvent extends Event
             super(parent, ElementType.TEXT);
             this.left = left;
             this.right = right;
+        }
+    }
+
+    public static class Chat extends Pre
+    {
+        public int posX;
+        public int posY;
+
+        public Chat(RenderGameOverlayEvent parent, int posX, int posY)
+        {
+            super(parent, ElementType.CHAT);
+            this.posX = posX;
+            this.posY = posY;
         }
     }
 }

@@ -1,7 +1,7 @@
 package net.minecraftforge.event.terraingen;
 
-import net.minecraft.world.WorldType;
 import net.minecraft.world.gen.layer.GenLayer;
+import net.minecraft.world.WorldType;
 import net.minecraftforge.event.Event;
 
 public class WorldTypeEvent extends Event

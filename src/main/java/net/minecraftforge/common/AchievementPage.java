@@ -5,13 +5,16 @@
 
 package net.minecraftforge.common;
 
-import net.minecraft.stats.Achievement;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Set;
 
-import java.util.*;
+import net.minecraft.stats.Achievement;
 
 public class AchievementPage
 {
-    private static LinkedList<AchievementPage> achievementPages = new LinkedList<AchievementPage>();
     private String name;
     private LinkedList<Achievement> achievements;
 
@@ -21,6 +24,18 @@ public class AchievementPage
         this.achievements = new LinkedList<Achievement>(Arrays.asList(achievements));
     }
 
+    public String getName()
+    {
+        return name;
+    }
+
+    public List<Achievement> getAchievements()
+    {
+        return achievements;
+    }
+    
+    private static LinkedList<AchievementPage> achievementPages = new LinkedList<AchievementPage>();
+    
     /**
      * Registers an achievement page.
      * @param page The page.
@@ -78,7 +93,7 @@ public class AchievementPage
     {
         for (AchievementPage page : achievementPages)
         {
-            if (page.getAchievements().contains(achievement))
+            if (page.getAchievements().contains(achievement)) 
             {
                 return true;
             }
@@ -89,15 +104,5 @@ public class AchievementPage
     public static String getTitle(int index)
     {
         return index == -1 ? "Minecraft" : getAchievementPage(index).getName();
-    }
-    
-    public String getName()
-    {
-        return name;
-    }
-    
-    public List<Achievement> getAchievements()
-    {
-        return achievements;
     }
 }

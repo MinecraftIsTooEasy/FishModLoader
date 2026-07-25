@@ -1,10 +1,10 @@
 package net.minecraftforge.client.model.obj;
 
+import java.util.ArrayList;
+
+import net.minecraft.client.renderer.Tessellator;
 import cpw.mods.fml.relauncher.Side;
 import cpw.mods.fml.relauncher.SideOnly;
-import net.minecraft.client.renderer.Tessellator;
-
-import java.util.ArrayList;
 
 @SideOnly(Side.CLIENT)
 public class GroupObject

@@ -1,23 +1,26 @@
 package net.minecraftforge.common;
 
-import com.google.common.base.Splitter;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-
-import java.io.BufferedWriter;
-import java.io.IOException;
-import java.util.*;
-
 import static net.minecraftforge.common.Configuration.NEW_LINE;
 import static net.minecraftforge.common.Configuration.allowedProperties;
 
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.base.Splitter;
+
 public class ConfigCategory implements Map<String, Property>
 {
-    public final ConfigCategory parent;
     private String name;
     private String comment;
     private ArrayList<ConfigCategory> children = new ArrayList<ConfigCategory>();
     private Map<String, Property> properties = new TreeMap<String, Property>();
+    public final ConfigCategory parent;
     private boolean changed = false;
 
     public ConfigCategory(String name)
@@ -35,25 +38,25 @@ public class ConfigCategory implements Map<String, Property>
         }
     }
 
-    public static String getQualifiedName(String name, ConfigCategory parent)
-    {
-        return (parent == null ? name : parent.getQualifiedName() + Configuration.CATEGORY_SPLITTER + name);
-    }
-
     public boolean equals(Object obj)
     {
         if (obj instanceof ConfigCategory)
         {
             ConfigCategory cat = (ConfigCategory)obj;
-            return name.equals(cat.name) && children.equals(cat.children);
+            return name.equals(cat.name) && children.equals(cat.children);  
         }
-
+        
         return false;
     }
 
     public String getQualifiedName()
     {
         return getQualifiedName(name, parent);
+    }
+
+    public static String getQualifiedName(String name, ConfigCategory parent)
+    {
+        return (parent == null ? name : parent.getQualifiedName() + Configuration.CATEGORY_SPLITTER + name);
     }
 
     public ConfigCategory getFirstParent()

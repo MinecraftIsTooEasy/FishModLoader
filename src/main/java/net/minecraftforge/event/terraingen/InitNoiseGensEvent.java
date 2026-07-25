@@ -1,10 +1,10 @@
 package net.minecraftforge.event.terraingen;
 
+import java.util.Random;
+
 import net.minecraft.world.World;
 import net.minecraft.world.gen.NoiseGeneratorOctaves;
-import net.minecraftforge.event.world.WorldEvent;
-
-import java.util.Random;
+import net.minecraftforge.event.world.*;
 
 public class InitNoiseGensEvent extends WorldEvent
 {

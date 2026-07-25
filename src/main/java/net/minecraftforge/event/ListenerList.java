@@ -1,6 +1,6 @@
 package net.minecraftforge.event;
 
-import java.util.ArrayList;
+import java.util.*;
 
 
 public class ListenerList
@@ -37,34 +37,18 @@ public class ListenerList
         maxSize = max;
     }
     
-    public static void clearBusID(int id)
-    {
-        for (ListenerList list : allLists)
-        {
-            list.lists[id].dispose();
-        }
-    }
-    
-    public static void unregiterAll(int id, IEventListener listener)
-    {
-        for (ListenerList list : allLists)
-        {
-            list.unregister(id, listener);
-        }
-    }
-    
     public void resizeLists(int max)
     {
         if (parent != null)
         {
             parent.resizeLists(max);
         }
-
+        
         if (lists.length >= max)
         {
             return;
         }
-
+        
         ListenerListInst[] newList = new ListenerListInst[max];
         int x = 0;
         for (; x < lists.length; x++)
@@ -84,12 +68,20 @@ public class ListenerList
         }
         lists = newList;
     }
-
+    
+    public static void clearBusID(int id)
+    {
+        for (ListenerList list : allLists)
+        {
+            list.lists[id].dispose();
+        }
+    }
+    
     protected ListenerListInst getInstance(int id)
     {
         return lists[id];
     }
-    
+
     public IEventListener[] getListeners(int id)
     {
         return lists[id].getListeners();
@@ -103,6 +95,14 @@ public class ListenerList
     public void unregister(int id, IEventListener listener)
     {
         lists[id].unregister(listener);
+    }
+    
+    public static void unregiterAll(int id, IEventListener listener)
+    {
+        for (ListenerList list : allLists)
+        {
+            list.unregister(id, listener);
+        }
     }
     
     private class ListenerListInst
@@ -123,12 +123,6 @@ public class ListenerList
             }
         }
         
-        private ListenerListInst(ListenerListInst parent)
-        {
-            this();
-            this.parent = parent;
-        }
-
         public void dispose()
         {
             for (ArrayList<IEventListener> listeners : priorities)
@@ -138,6 +132,12 @@ public class ListenerList
             priorities.clear();
             parent = null;
             listeners = null;
+        }
+
+        private ListenerListInst(ListenerListInst parent)
+        {
+            this();
+            this.parent = parent;
         }
         
         /**

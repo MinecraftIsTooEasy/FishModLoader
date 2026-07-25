@@ -1,12 +1,12 @@
 package net.minecraftforge.event;
 
+import static java.lang.annotation.ElementType.TYPE;
+import static java.lang.annotation.RetentionPolicy.RUNTIME;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.Target;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-
-import static java.lang.annotation.ElementType.TYPE;
-import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
 
 /**
@@ -14,12 +14,25 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  */
 public class Event
 {
-    private static final Map<Class, Map<Class, Boolean>> annotationMap = new ConcurrentHashMap<Class, Map<Class, Boolean>>();
-    private static ListenerList listeners = new ListenerList();
-    private final boolean isCancelable;
-    private final boolean hasResult;
+    @Retention(value = RUNTIME)
+    @Target(value = TYPE)
+    public @interface HasResult{}
+
+    public enum Result
+    {
+        DENY,
+        DEFAULT,
+        ALLOW
+    }
+
     private boolean isCanceled = false;
+    private final boolean isCancelable;
     private Result result = Result.DEFAULT;
+    private final boolean hasResult;
+    private static ListenerList listeners = new ListenerList();
+
+    private static final Map<Class, Map<Class, Boolean>> annotationMap = new ConcurrentHashMap<Class, Map<Class, Boolean>>();
+    
     public Event()
     {
         setup();
@@ -57,9 +70,9 @@ public class Event
         list.put(annotation, false);
         return false;
     }
-    
+
     /**
-     * Determine if this function is cancelable at all.
+     * Determine if this function is cancelable at all. 
      * @return If access to setCanceled should be allowed
      */
     public boolean isCancelable()
@@ -79,9 +92,9 @@ public class Event
     /**
      * Sets the state of this event, not all events are cancelable, and any attempt to
      * cancel a event that can't be will result in a IllegalArgumentException.
-     *
+     * 
      * The functionality of setting the canceled state is defined on a per-event bases.
-     *
+     * 
      * @param cancel The new canceled value
      */
     public void setCanceled(boolean cancel)
@@ -112,42 +125,31 @@ public class Event
     /**
      * Sets the result value for this event, not all events can have a result set, and any attempt to
      * set a result for a event that isn't expecting it will result in a IllegalArgumentException.
-     *
+     * 
      * The functionality of setting the result is defined on a per-event bases.
-     *
+     * 
      * @param value The new result
      */
     public void setResult(Result value)
     {
         result = value;
     }
-
     /**
-     * Called by the base constructor, this is used by ASM generated
+     * Called by the base constructor, this is used by ASM generated 
      * event classes to setup various functionality such as the listener's list.
      */
     protected void setup()
     {
     }
-
+    
     /**
      * Returns a ListenerList object that contains all listeners
      * that are registered to this event.
-     *
+     * 
      * @return Listener List
      */
     public ListenerList getListenerList()
     {
         return listeners;
     }
-    public enum Result
-    {
-        DENY,
-        DEFAULT,
-        ALLOW
-    }
-    
-    @Retention(value = RUNTIME)
-    @Target(value = TYPE)
-    public @interface HasResult{}
 }

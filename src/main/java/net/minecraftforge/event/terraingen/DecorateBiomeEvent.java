@@ -1,9 +1,9 @@
 package net.minecraftforge.event.terraingen;
 
-import net.minecraft.world.World;
-import net.minecraftforge.event.Event;
-
 import java.util.Random;
+
+import net.minecraft.world.World;
+import net.minecraftforge.event.*;
 
 public class DecorateBiomeEvent extends Event
 {
@@ -44,6 +44,10 @@ public class DecorateBiomeEvent extends Event
     @HasResult
     public static class Decorate extends DecorateBiomeEvent
     {
+        /** Use CUSTOM to filter custom event types
+         */
+        public static enum EventType { BIG_SHROOM, CACTUS, CLAY, DEAD_BUSH, LILYPAD, FLOWERS, GRASS, LAKE, PUMPKIN, REED, SAND, SAND_PASS2, SHROOM, TREE, CUSTOM }
+        
         public final EventType type;
         
         public Decorate(World world, Random rand, int worldX, int worldZ, EventType type)
@@ -51,9 +55,5 @@ public class DecorateBiomeEvent extends Event
             super(world, rand, worldX, worldZ);
             this.type = type;
         }
-        
-        /** Use CUSTOM to filter custom event types
-         */
-        public static enum EventType { BIG_SHROOM, CACTUS, CLAY, DEAD_BUSH, LILYPAD, FLOWERS, GRASS, LAKE, PUMPKIN, REED, SAND, SAND_PASS2, SHROOM, TREE, CUSTOM }
     }
 }

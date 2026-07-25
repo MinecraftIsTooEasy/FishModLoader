@@ -1,36 +1,46 @@
 package net.minecraftforge.common;
 
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.world.WorldProvider;
-import net.minecraft.world.WorldServer;
+import java.io.File;
+
 import net.minecraft.world.chunk.storage.IChunkLoader;
 import net.minecraft.world.storage.IPlayerFileData;
 import net.minecraft.world.storage.ISaveHandler;
+import net.minecraft.world.storage.SaveHandler;
+import net.minecraft.world.MinecraftException;
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.world.storage.WorldInfo;
+import net.minecraft.world.WorldProvider;
+import net.minecraft.world.WorldServer;
 
-import java.io.File;
+//Class used internally to provide the world specific data directories.
 
-/**
- * STUB. Forwards to the wrapped parent SaveHandler. The original delegates
- * to ChunkSaveLocation/data folders that aren't accessible on stock MITE
- * without AT/Mixin. Stage 6 will provide the real per-dimension save path.
- */
-public class WorldSpecificSaveHandler implements ISaveHandler {
-    private final WorldServer world;
-    private final ISaveHandler parent;
+public class WorldSpecificSaveHandler implements ISaveHandler
+{
+    private WorldServer world;
+    private ISaveHandler parent;
+    private File dataDir;
 
-    public WorldSpecificSaveHandler(WorldServer world, ISaveHandler parent) {
+    public WorldSpecificSaveHandler(WorldServer world, ISaveHandler parent)
+    {
         this.world = world;
         this.parent = parent;
+        /* MITE: WorldServer.getChunkSaveLocation() does not exist */
+        dataDir = new File(((SaveHandler)world.getSaveHandler()).getWorldDirectory(), "data");
+        dataDir.mkdirs();
     }
 
     @Override public WorldInfo loadWorldInfo() { return parent.loadWorldInfo(); }
     @Override public void checkSessionLock() { parent.checkSessionLock(); }
-    @Override public IChunkLoader getChunkLoader(WorldProvider provider) { return parent.getChunkLoader(provider); }
-    @Override public void saveWorldInfoWithPlayer(WorldInfo info, NBTTagCompound playerData) { parent.saveWorldInfoWithPlayer(info, playerData); }
-    @Override public void saveWorldInfo(WorldInfo info) { parent.saveWorldInfo(info); }
+    @Override public IChunkLoader getChunkLoader(WorldProvider var1) { return parent.getChunkLoader(var1); }
+    @Override public void saveWorldInfoWithPlayer(WorldInfo var1, NBTTagCompound var2) { parent.saveWorldInfoWithPlayer(var1, var2); }
+    @Override public void saveWorldInfo(WorldInfo var1){ parent.saveWorldInfo(var1); }
     @Override public IPlayerFileData getSaveHandler() { return parent.getSaveHandler(); }
     @Override public void flush() { parent.flush(); }
-    @Override public File getMapFileFromName(String mapName) { return parent.getMapFileFromName(mapName); }
     @Override public String getWorldDirectoryName() { return parent.getWorldDirectoryName(); }
+
+    @Override
+    public File getMapFileFromName(String name)
+    {
+        return new File(dataDir, name + ".dat");
+    }
 }

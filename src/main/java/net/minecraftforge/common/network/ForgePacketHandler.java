@@ -1,10 +1,12 @@
 package net.minecraftforge.common.network;
 
-import cpw.mods.fml.common.network.IPacketHandler;
-import cpw.mods.fml.common.network.Player;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.network.INetworkManager;
+import net.minecraft.network.NetLoginHandler;
 import net.minecraft.network.packet.Packet250CustomPayload;
+import cpw.mods.fml.common.network.FMLPacket;
+import cpw.mods.fml.common.network.IPacketHandler;
+import cpw.mods.fml.common.network.Player;
 
 public class ForgePacketHandler implements IPacketHandler {
 

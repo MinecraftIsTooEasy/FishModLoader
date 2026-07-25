@@ -1,33 +1,33 @@
 package net.minecraftforge.oredict;
 
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.List;
+
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
+import net.minecraft.item.crafting.CraftingResult;
+import net.minecraft.item.crafting.CraftingManager;
+import net.minecraft.item.crafting.IRecipe;
 import net.minecraft.inventory.InventoryCrafting;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.crafting.CraftingResult;
-import net.minecraft.item.crafting.IRecipe;
 import net.minecraft.item.crafting.ShapelessRecipes;
 import net.minecraft.world.World;
-
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 
 public class ShapelessOreRecipe implements IRecipe
 {
     private ItemStack output = null;
     private ArrayList input = new ArrayList();
-    // -------- MITE IRecipe additions (stage 2 stubs) --------
-    private float difficulty = 0;
-    private boolean includeInLowest = false;
+    /* MITE: IRecipe additions */
+    private float difficulty = -1.0F;
+    private boolean includeInLowestCraftingDifficultyDetermination = true;
     private int[] skillsets = new int[0];
-    private Material toolBenchHardnessMaterial = null;
+    private Material materialToCheckToolBenchHardnessAgainst = null;
 
     public ShapelessOreRecipe(Block result, Object... recipe){ this(new ItemStack(result), recipe); }
-
     public ShapelessOreRecipe(Item  result, Object... recipe){ this(new ItemStack(result), recipe); }
 
     public ShapelessOreRecipe(ItemStack result, Object... recipe)
@@ -90,26 +90,20 @@ public class ShapelessOreRecipe implements IRecipe
     public ItemStack getRecipeOutput(){ return output; }
 
     @Override
-    public CraftingResult getCraftingResult(InventoryCrafting var1){
-        return new CraftingResult(output.copy(), difficulty, skillsets, this);
-    }
+    public CraftingResult getCraftingResult(InventoryCrafting var1){ return new CraftingResult(output.copy(), -1.0F, new int[0], this); }
 
+    /* MITE IRecipe methods */
     @Override public ItemStack[] getComponents() { return new ItemStack[0]; }
     @Override public IRecipe setDifficulty(float d) { this.difficulty = d; return this; }
-    @Override public IRecipe scaleDifficulty(float s) { this.difficulty *= s; return this; }
-    @Override public float getUnmodifiedDifficulty() { return difficulty; }
-    @Override public void setIncludeInLowestCraftingDifficultyDetermination() { this.includeInLowest = true; }
-    @Override public boolean getIncludeInLowestCraftingDifficultyDetermination() { return includeInLowest; }
-
-    @Override public void setSkillset(int s) { this.skillsets = new int[]{s}; }
-
-    @Override public int[] getSkillsets() { return skillsets; }
-
+    @Override public IRecipe scaleDifficulty(float scale) { if (this.difficulty > 0) this.difficulty *= scale; return this; }
+    @Override public float getUnmodifiedDifficulty() { return this.difficulty; }
+    @Override public void setIncludeInLowestCraftingDifficultyDetermination() { this.includeInLowestCraftingDifficultyDetermination = true; }
+    @Override public boolean getIncludeInLowestCraftingDifficultyDetermination() { return this.includeInLowestCraftingDifficultyDetermination; }
     @Override public void setSkillsets(int[] s) { this.skillsets = s; }
-
-    @Override public Material getMaterialToCheckToolBenchHardnessAgainst() { return toolBenchHardnessMaterial; }
-
-    @Override public void setMaterialToCheckToolBenchHardnessAgainst(Material m) { this.toolBenchHardnessMaterial = m; }
+    @Override public void setSkillset(int s) { this.skillsets = new int[]{s}; }
+    @Override public int[] getSkillsets() { return this.skillsets; }
+    @Override public void setMaterialToCheckToolBenchHardnessAgainst(Material m) { this.materialToCheckToolBenchHardnessAgainst = m; }
+    @Override public Material getMaterialToCheckToolBenchHardnessAgainst() { return this.materialToCheckToolBenchHardnessAgainst; }
 
     @Override
     public boolean matches(InventoryCrafting var1, World world)

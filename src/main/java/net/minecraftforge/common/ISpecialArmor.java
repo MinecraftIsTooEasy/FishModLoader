@@ -5,14 +5,14 @@
 
 package net.minecraftforge.common;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+
+import net.minecraft.util.DamageSource;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemArmor;
 import net.minecraft.item.ItemStack;
-import net.minecraft.util.DamageSource;
-
-import java.util.ArrayList;
-import java.util.Arrays;
 
 /**
  * This interface is to be implemented by ItemArmor classes. It will allow to
@@ -67,11 +67,11 @@ public interface ISpecialArmor
     
     public static class ArmorProperties implements Comparable<ArmorProperties>
     {
-        private static final boolean DEBUG = false; //Only enable this if you wish to be spamed with debugging information.
         public int    Priority    = 0;
         public int    AbsorbMax   = Integer.MAX_VALUE;
         public double AbsorbRatio = 0;
         public int    Slot        = 0;
+        private static final boolean DEBUG = false; //Only enable this if you wish to be spamed with debugging information.
                                                     //Left it in because I figured it'd be useful for modders developing custom armor.
 
         public ArmorProperties(int priority, double ratio, int max)
@@ -114,17 +114,7 @@ public interface ISpecialArmor
                 else if (stack.getItem() instanceof ItemArmor && !source.isUnblockable())
                 {
                     ItemArmor armor = (ItemArmor)stack.getItem();
-                    // MITE replaced the legacy public {@code damageReduceAmount}
-                    // field with {@link ItemArmor#getProtectionAfterDamageFactor},
-                    // which returns the fraction of damage that gets through
-                    // (0.0 = full block, 1.0 = no protection). Convert that to
-                    // an AbsorbRatio so the rest of the standardize pipeline
-                    // sees the real defensive value of the armor.
-                    float passthrough = armor.getProtectionAfterDamageFactor(stack, entity);
-                    double absorbRatio = (1.0D - passthrough) * 0.04D;
-                    if (absorbRatio < 0.0D) absorbRatio = 0.0D;
-                    if (absorbRatio > 1.0D) absorbRatio = 1.0D;
-                    prop = new ArmorProperties(0, absorbRatio, stack.getMaxDamage() + 1 - stack.getItemDamage());
+                    prop = new ArmorProperties(0, armor.getMaterialProtection() / 25D, armor.getMaxDamage(armor.getItemStackForStatsIcon()) + 1 - stack.getItemDamage());
                 }
                 if (prop != null)
                 {
@@ -163,10 +153,7 @@ public interface ISpecialArmor
                             {
                                 System.out.println("Item: " + stack.toString() + " Absorbed: " + (absorb / 25D) + " Damaged: " + itemDamage);
                             }
-                            // STUB-PATCH: MITE replaced damageItem(int,Entity) with
-                            // tryDamageItem(DamageSource,int,EntityLivingBase). Use a
-                            // best-effort substitute. Stage 5 will route through the
-                            // proper hook.
+                            /* MITE: ItemStack.damageItem(int, EntityLivingBase) does not exist; use tryDamageItem instead */
                             stack.tryDamageItem(source, itemDamage, entity);
                         }
                         if (stack.stackSize <= 0)

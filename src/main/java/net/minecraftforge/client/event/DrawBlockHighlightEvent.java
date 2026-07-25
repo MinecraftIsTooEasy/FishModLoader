@@ -1,9 +1,9 @@
 package net.minecraftforge.client.event;
 
-import net.minecraft.client.renderer.RenderGlobal;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.MovingObjectPosition;
+import net.minecraft.client.renderer.RenderGlobal;
 import net.minecraftforge.event.Cancelable;
 import net.minecraftforge.event.Event;
 

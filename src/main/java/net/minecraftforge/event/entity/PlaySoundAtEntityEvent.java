@@ -6,9 +6,9 @@ import net.minecraftforge.event.Cancelable;
 @Cancelable
 public class PlaySoundAtEntityEvent extends EntityEvent
 { 
+    public String name;
     public final float volume;
     public final float pitch;
-    public String name;
     
     public PlaySoundAtEntityEvent(Entity entity, String name, float volume, float pitch)
     {

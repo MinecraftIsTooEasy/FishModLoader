@@ -25,6 +25,10 @@ public enum ForgeDirection
      */
     UNKNOWN(0, 0, 0);
 
+    public final int offsetX;
+    public final int offsetY;
+    public final int offsetZ;
+    public final int flag;
     public static final ForgeDirection[] VALID_DIRECTIONS = {DOWN, UP, NORTH, SOUTH, WEST, EAST};
     public static final int[] OPPOSITES = {1, 0, 3, 2, 5, 4, 6};
     // Left hand rule rotation matrix for all possible axes of rotation
@@ -37,10 +41,6 @@ public enum ForgeDirection
     	{3, 2, 0, 1, 4, 5, 6},
     	{0, 1, 2, 3, 4, 5, 6},
     };
-    public final int offsetX;
-    public final int offsetY;
-    public final int offsetZ;
-    public final int flag;
 
     private ForgeDirection(int x, int y, int z)
     {

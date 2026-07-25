@@ -1,5 +1,12 @@
 package net.minecraftforge.oredict;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+
 import net.minecraft.block.Block;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -10,23 +17,19 @@ import net.minecraft.item.crafting.ShapelessRecipes;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.Event;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-
 public class OreDictionary
 {
+    private static boolean hasInit = false;
+    private static int maxID = 0;
+    private static HashMap<String, Integer> oreIDs = new HashMap<String, Integer>();
+    private static HashMap<Integer, ArrayList<ItemStack>> oreStacks = new HashMap<Integer, ArrayList<ItemStack>>();
+
+
     /**
      * Minecraft changed from -1 to Short.MAX_VALUE in 1.5 release for the "block wildcard". Use this in case it
      * changes again.
      */
     public static final int WILDCARD_VALUE = Short.MAX_VALUE;
-    private static boolean hasInit = false;
-    private static int maxID = 0;
-    private static HashMap<String, Integer> oreIDs = new HashMap<String, Integer>();
-    private static HashMap<Integer, ArrayList<ItemStack>> oreStacks = new HashMap<Integer, ArrayList<ItemStack>>();
 
     static {
         initVanillaEntries();
@@ -46,19 +49,38 @@ public class OreDictionary
             registerOre("stickWood",   Item.stick);
             registerOre("treeSapling", new ItemStack(Block.sapling, 1, WILDCARD_VALUE));
             registerOre("treeLeaves",  new ItemStack(Block.leaves, 1, WILDCARD_VALUE));
-            registerOre("oreGold", Block.oreGold);
-            registerOre("oreIron", Block.oreIron);
-            registerOre("oreLapis", Block.oreLapis);
-            registerOre("oreDiamond", Block.oreDiamond);
+            registerOre("oreGold",     Block.oreGold);
+            registerOre("oreIron",     Block.oreIron);
+            registerOre("oreLapis",    Block.oreLapis);
+            registerOre("oreDiamond",  Block.oreDiamond);
             registerOre("oreRedstone", Block.oreRedstone);
-            registerOre("oreEmerald", Block.oreEmerald);
-            registerOre("oreQuartz", Block.oreNetherQuartz);
+            registerOre("oreEmerald",  Block.oreEmerald);
+            registerOre("oreQuartz",   Block.oreNetherQuartz);
+            registerOre("stone",       Block.stone);
+            registerOre("cobblestone", Block.cobblestone);
+            registerOre("record",      Item.record13);
+            registerOre("record",      Item.recordCat);
+            registerOre("record",      Item.recordBlocks);
+            registerOre("record",      Item.recordChirp);
+            registerOre("record",      Item.recordFar);
+            registerOre("record",      Item.recordMall);
+            registerOre("record",      Item.recordMellohi);
+            registerOre("record",      Item.recordStal);
+            registerOre("record",      Item.recordStrad);
+            registerOre("record",      Item.recordWard);
+            registerOre("record",      Item.record11);
+            registerOre("record",      Item.recordWait);
         }
 
         // Build our list of items to replace with ore tags
         Map<ItemStack, String> replacements = new HashMap<ItemStack, String>();
-        replacements.put(new ItemStack(Block.planks, 1, WILDCARD_VALUE), "plankWood");
         replacements.put(new ItemStack(Item.stick), "stickWood");
+        replacements.put(new ItemStack(Block.planks), "plankWood");
+        replacements.put(new ItemStack(Block.planks, 1, WILDCARD_VALUE), "plankWood");
+        replacements.put(new ItemStack(Block.stone), "stone");
+        replacements.put(new ItemStack(Block.stone, 1, WILDCARD_VALUE), "stone");
+        replacements.put(new ItemStack(Block.cobblestone), "cobblestone");
+        replacements.put(new ItemStack(Block.cobblestone, 1, WILDCARD_VALUE), "cobblestone");
 
         // Register dyes
         String[] dyes =
@@ -99,6 +121,14 @@ public class OreDictionary
         {
             new ItemStack(Block.blockLapis),
             new ItemStack(Item.cookie),
+            new ItemStack(Block.stoneBrick),
+            new ItemStack(Block.stoneSingleSlab),
+            new ItemStack(Block.stairsCobblestone),
+            new ItemStack(Block.cobblestoneWall),
+            new ItemStack(Block.stairsWoodOak),
+            new ItemStack(Block.stairsWoodBirch),
+            new ItemStack(Block.stairsWoodJungle),
+            new ItemStack(Block.stairsWoodSpruce)
         };
 
         List recipes = CraftingManager.getInstance().getRecipeList();

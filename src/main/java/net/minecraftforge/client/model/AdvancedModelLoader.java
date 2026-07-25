@@ -1,14 +1,18 @@
 package net.minecraftforge.client.model;
 
-import com.google.common.collect.Maps;
-import cpw.mods.fml.common.FMLLog;
-import cpw.mods.fml.relauncher.Side;
-import cpw.mods.fml.relauncher.SideOnly;
-import net.minecraftforge.client.model.obj.ObjModelLoader;
-
+import java.io.InputStream;
 import java.net.URL;
 import java.util.Collection;
 import java.util.Map;
+
+import net.minecraftforge.client.model.obj.ObjModelLoader;
+import net.minecraftforge.client.model.techne.TechneModelLoader;
+
+import com.google.common.collect.Maps;
+
+import cpw.mods.fml.common.FMLLog;
+import cpw.mods.fml.relauncher.Side;
+import cpw.mods.fml.relauncher.SideOnly;
 
 /**
  * Common interface for advanced model loading from files, based on file suffix
@@ -21,11 +25,6 @@ import java.util.Map;
 @SideOnly(Side.CLIENT)
 public class AdvancedModelLoader {
     private static Map<String, IModelCustomLoader> instances = Maps.newHashMap();
-
-    static
-    {
-        registerModelHandler(new ObjModelLoader());
-    }
 
     /**
      * Register a new model handler
@@ -74,5 +73,12 @@ public class AdvancedModelLoader {
     public static Collection<String> getSupportedSuffixes()
     {
         return instances.keySet();
+    }
+
+
+    static
+    {
+        registerModelHandler(new ObjModelLoader());
+        registerModelHandler(new TechneModelLoader());
     }
 }

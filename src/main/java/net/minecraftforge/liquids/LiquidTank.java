@@ -6,6 +6,7 @@ import net.minecraft.tileentity.TileEntity;
 /**
  * Reference implementation of ILiquidTank. Use this or implement your own.
  */
+@Deprecated //See new net.minecraftforge.fluids
 public class LiquidTank implements ILiquidTank {
     private LiquidStack liquid;
     private int capacity;
@@ -46,15 +47,15 @@ public class LiquidTank implements ILiquidTank {
         return this.liquid;
     }
 
-    public void setLiquid(LiquidStack liquid)
-    {
-        this.liquid = liquid;
-    }
-
     @Override
     public int getCapacity()
     {
         return this.capacity;
+    }
+
+    public void setLiquid(LiquidStack liquid)
+    {
+        this.liquid = liquid;
     }
 
     public void setCapacity(int capacity)

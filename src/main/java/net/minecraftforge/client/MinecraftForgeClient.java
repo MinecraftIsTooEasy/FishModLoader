@@ -5,21 +5,22 @@
 
 package net.minecraftforge.client;
 
+import java.util.BitSet;
+
+import org.lwjgl.opengl.Display;
+
+import net.minecraft.block.Block;
+import net.minecraft.entity.Entity;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.client.renderer.RenderBlocks;
+import net.minecraft.world.World;
 import net.minecraftforge.client.IItemRenderer.ItemRenderType;
-
-import java.util.BitSet;
+import net.minecraftforge.common.MinecraftForge;
 
 public class MinecraftForgeClient
 {
     private static IItemRenderer[] customItemRenderers = new IItemRenderer[Item.itemsList.length];
-    private static BitSet stencilBits = new BitSet(getStencilBits());
-
-    static
-    {
-        stencilBits.set(0,getStencilBits());
-    }
 
     /**
      * Register a custom renderer for a specific item. This can be used to
@@ -52,6 +53,13 @@ public class MinecraftForgeClient
     public static int getStencilBits()
     {
         return ForgeHooksClient.stencilBits;
+    }
+
+
+    private static BitSet stencilBits = new BitSet(getStencilBits());
+    static
+    {
+        stencilBits.set(0,getStencilBits());
     }
 
     /**

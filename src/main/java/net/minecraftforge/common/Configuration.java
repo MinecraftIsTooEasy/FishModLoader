@@ -5,20 +5,40 @@
 
 package net.minecraftforge.common;
 
-import com.google.common.base.CharMatcher;
-import com.google.common.collect.ImmutableSet;
-import cpw.mods.fml.common.FMLLog;
-import cpw.mods.fml.common.Loader;
-import cpw.mods.fml.relauncher.FMLInjectionData;
-import net.minecraft.block.Block;
-import net.minecraft.item.Item;
+import static net.minecraftforge.common.Property.Type.BOOLEAN;
+import static net.minecraftforge.common.Property.Type.DOUBLE;
+import static net.minecraftforge.common.Property.Type.INTEGER;
+import static net.minecraftforge.common.Property.Type.STRING;
 
-import java.io.*;
-import java.util.*;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.PushbackInputStream;
+import java.io.Reader;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static net.minecraftforge.common.Property.Type.*;
+import net.minecraft.block.Block;
+import net.minecraft.item.Item;
+
+import com.google.common.base.CharMatcher;
+import com.google.common.collect.ImmutableSet;
+
+import cpw.mods.fml.common.FMLLog;
+import cpw.mods.fml.common.Loader;
+import cpw.mods.fml.relauncher.FMLInjectionData;
 
 /**
  * This class offers advanced configurations capabilities, allowing to provide
@@ -26,6 +46,10 @@ import static net.minecraftforge.common.Property.Type.*;
  */
 public class Configuration
 {
+    private static boolean[] configMarkers = new boolean[Item.itemsList.length];
+    private static final int ITEM_SHIFT = 256;
+    private static final int MAX_BLOCKS = 4096;
+
     public static final String CATEGORY_GENERAL = "general";
     public static final String CATEGORY_BLOCK   = "block";
     public static final String CATEGORY_ITEM    = "item";
@@ -33,34 +57,29 @@ public class Configuration
     public static final String DEFAULT_ENCODING = "UTF-8";
     public static final String CATEGORY_SPLITTER = ".";
     public static final String NEW_LINE;
-    public static final CharMatcher allowedProperties = CharMatcher.javaLetterOrDigit().or(CharMatcher.anyOf(ALLOWED_CHARS));
-    private static final int ITEM_SHIFT = 256;
-    private static final int MAX_BLOCKS = 4096;
     private static final Pattern CONFIG_START = Pattern.compile("START: \"([^\\\"]+)\"");
     private static final Pattern CONFIG_END = Pattern.compile("END: \"([^\\\"]+)\"");
-    private static boolean[] configMarkers;
+    public static final CharMatcher allowedProperties = new CharMatcher() {
+        @Override public boolean matches(char c) { return Character.isLetterOrDigit(c) || ALLOWED_CHARS.indexOf(c) >= 0; }
+    };
     private static Configuration PARENT = null;
+
+    File file;
+
+    private Map<String, ConfigCategory> categories = new TreeMap<String, ConfigCategory>();
+    private Map<String, Configuration> children = new TreeMap<String, Configuration>();
+
+    private boolean caseSensitiveCustomCategories;
+    public String defaultEncoding = DEFAULT_ENCODING;
+    private String fileName = null;
+    public boolean isChild = false;
+    private boolean changed = false;
 
     static
     {
+        Arrays.fill(configMarkers, false);
         NEW_LINE = System.getProperty("line.separator");
     }
-
-    private static boolean[] getConfigMarkers() {
-        if (configMarkers == null) {
-            configMarkers = new boolean[Item.itemsList.length];
-        }
-        return configMarkers;
-    }
-
-    public String defaultEncoding = DEFAULT_ENCODING;
-    public boolean isChild = false;
-    File file;
-    private Map<String, ConfigCategory> categories = new TreeMap<String, ConfigCategory>();
-    private Map<String, Configuration> children = new TreeMap<String, Configuration>();
-    private boolean caseSensitiveCustomCategories;
-    private String fileName = null;
-    private boolean changed = false;
 
     public Configuration(){}
 
@@ -70,11 +89,7 @@ public class Configuration
     public Configuration(File file)
     {
         this.file = file;
-        Object[] injectedData = FMLInjectionData.data();
-        Object mcHome = injectedData != null && injectedData.length > 6 ? injectedData[6] : null;
-        String basePath = mcHome instanceof File
-                ? ((File) mcHome).getAbsolutePath().replace(File.separatorChar, '/').replace("/.", "")
-                : "";
+        String basePath = ((File)(FMLInjectionData.data()[6])).getAbsolutePath().replace(File.separatorChar, '/').replace("/.", "");
         String path = file.getAbsolutePath().replace(File.separatorChar, '/').replace("/./", "/").replace(basePath, "");
         if (PARENT != null)
         {
@@ -94,12 +109,6 @@ public class Configuration
         this.caseSensitiveCustomCategories = caseSensitiveCustomCategories;
     }
 
-    public static void enableGlobalConfig()
-    {
-        PARENT = new Configuration(new File(Loader.instance().getConfigDir(), "global.cfg"));
-        PARENT.load();
-    }
-
     /**
      * Gets or create a block id property. If the block id property key is
      * already in the configuration, then it will be used. Otherwise,
@@ -107,11 +116,8 @@ public class Configuration
      * will try to determine a free default id.
      */
     public Property getBlock(String key, int defaultID) { return getBlock(CATEGORY_BLOCK, key, defaultID, null); }
-
     public Property getBlock(String key, int defaultID, String comment) { return getBlock(CATEGORY_BLOCK, key, defaultID, comment); }
-
     public Property getBlock(String category, String key, int defaultID) { return getBlockInternal(category, key, defaultID, null, 256, Block.blocksList.length); }
-
     public Property getBlock(String category, String key, int defaultID, String comment) { return getBlockInternal(category, key, defaultID, comment, 256, Block.blocksList.length); }
 
     /**
@@ -119,17 +125,17 @@ public class Configuration
      * This should ONLY be used by mods who do low level terrain generation, or ones that add new
      * biomes.
      * EXA: ExtraBiomesXL
-     *
+     * 
      * Specifically, if your block is used BEFORE the Chunk is created, and placed in the terrain byte array directly.
      * If you add a new biome and you set the top/filler block, they need to be <256, nothing else.
-     *
+     * 
      * If you're adding a new ore, DON'T call this function.
-     *
+     * 
      * Normal mods such as '50 new ores' do not need to be below 256 so should use the normal getBlock
      */
     public Property getTerrainBlock(String category, String key, int defaultID, String comment)
     {
-        return getBlockInternal(category, key, defaultID, comment, 0, 256);
+        return getBlockInternal(category, key, defaultID, comment, 0, 256); 
     }
 
     private Property getBlockInternal(String category, String key, int defaultID, String comment, int lower, int upper)
@@ -138,7 +144,7 @@ public class Configuration
 
         if (prop.getInt() != -1)
         {
-            getConfigMarkers()[prop.getInt()] = true;
+            configMarkers[prop.getInt()] = true;
             return prop;
         }
         else
@@ -153,20 +159,20 @@ public class Configuration
                 defaultID = upper - 1;
             }
 
-            if (Block.blocksList[defaultID] == null && !getConfigMarkers()[defaultID])
+            if (Block.blocksList[defaultID] == null && !configMarkers[defaultID])
             {
                 prop.set(defaultID);
-                getConfigMarkers()[defaultID] = true;
+                configMarkers[defaultID] = true;
                 return prop;
             }
             else
             {
                 for (int j = upper - 1; j > 0; j--)
                 {
-                    if (Block.blocksList[j] == null && !getConfigMarkers()[j])
+                    if (Block.blocksList[j] == null && !configMarkers[j])
                     {
                         prop.set(j);
-                        getConfigMarkers()[j] = true;
+                        configMarkers[j] = true;
                         return prop;
                     }
                 }
@@ -177,9 +183,7 @@ public class Configuration
     }
 
     public Property getItem(String key, int defaultID) { return getItem(CATEGORY_ITEM, key, defaultID, null); }
-
     public Property getItem(String key, int defaultID, String comment) { return getItem(CATEGORY_ITEM, key, defaultID, comment); }
-
     public Property getItem(String category, String key, int defaultID) { return getItem(category, key, defaultID, null); }
 
     public Property getItem(String category, String key, int defaultID, String comment)
@@ -189,7 +193,7 @@ public class Configuration
 
         if (prop.getInt() != -1)
         {
-            getConfigMarkers()[prop.getInt() + ITEM_SHIFT] = true;
+            configMarkers[prop.getInt() + ITEM_SHIFT] = true;
             return prop;
         }
         else
@@ -203,20 +207,20 @@ public class Configuration
                 FMLLog.warning("Config \"%s\" Category: \"%s\" Key: \"%s\" Default: %d", fileName, category, key, defaultID);
             }
 
-            if (Item.itemsList[defaultShift] == null && !getConfigMarkers()[defaultShift] && defaultShift >= Block.blocksList.length)
+            if (Item.itemsList[defaultShift] == null && !configMarkers[defaultShift] && defaultShift >= Block.blocksList.length)
             {
                 prop.set(defaultID);
-                getConfigMarkers()[defaultShift] = true;
+                configMarkers[defaultShift] = true;
                 return prop;
             }
             else
             {
                 for (int x = Item.itemsList.length - 1; x >= ITEM_SHIFT; x--)
                 {
-                    if (Item.itemsList[x] == null && !getConfigMarkers()[x])
+                    if (Item.itemsList[x] == null && !configMarkers[x])
                     {
                         prop.set(x - ITEM_SHIFT);
-                        getConfigMarkers()[x] = true;
+                        configMarkers[x] = true;
                         return prop;
                     }
                 }
@@ -327,7 +331,7 @@ public class Configuration
         }
 
         Property prop =  get(category, key, values, comment, DOUBLE);
-
+        
         if (!prop.isDoubleList())
         {
             prop.set(values);
@@ -350,7 +354,7 @@ public class Configuration
         }
 
         Property prop =  get(category, key, values, comment, BOOLEAN);
-
+        
         if (!prop.isBooleanList())
         {
             prop.set(values);
@@ -384,7 +388,7 @@ public class Configuration
         else if (defaultValue != null)
         {
             Property prop = new Property(key, defaultValue, type);
-            prop.set(defaultValue); //Set and mark as dirty to signify it should save
+            prop.set(defaultValue); //Set and mark as dirty to signify it should save 
             cat.put(key, prop);
             prop.comment = comment;
             return prop;
@@ -602,9 +606,9 @@ public class Configuration
                                     }
 
                                     tmpList = new ArrayList<String>();
-
+                                    
                                     skip = true;
-
+                                    
                                     break;
 
                                 case '>':
@@ -713,7 +717,7 @@ public class Configuration
     }
 
     private void save(BufferedWriter out) throws IOException
-    {
+    {        
         for (ConfigCategory cat : categories.values())
         {
             if (!cat.isChild())
@@ -810,40 +814,10 @@ public class Configuration
         }
     }
 
-    public boolean hasChanged()
+    public static void enableGlobalConfig()
     {
-        if (changed) return true;
-
-        for (ConfigCategory cat : categories.values())
-        {
-            if (cat.hasChanged()) return true;
-        }
-
-        for (Configuration child : children.values())
-        {
-            if (child.hasChanged()) return true;
-        }
-
-        return false;
-    }
-
-    private void resetChangedState()
-    {
-        changed = false;
-        for (ConfigCategory cat : categories.values())
-        {
-            cat.resetChangedState();
-        }
-
-        for (Configuration child : children.values())
-        {
-            child.resetChangedState();
-        }
-    }
-
-    public Set<String> getCategoryNames()
-    {
-        return ImmutableSet.copyOf(categories.keySet());
+        PARENT = new Configuration(new File(Loader.instance().getConfigDir(), "global.cfg"));
+        PARENT.load();
     }
 
     public static class UnicodeInputStreamReader extends Reader
@@ -915,5 +889,41 @@ public class Configuration
         {
             input.close();
         }
+    }
+
+    public boolean hasChanged()
+    {
+        if (changed) return true;
+        
+        for (ConfigCategory cat : categories.values())
+        {
+            if (cat.hasChanged()) return true;
+        }
+
+        for (Configuration child : children.values())
+        {
+            if (child.hasChanged()) return true;
+        }
+
+        return false;
+    }
+
+    private void resetChangedState()
+    {
+        changed = false;
+        for (ConfigCategory cat : categories.values())
+        {
+            cat.resetChangedState();
+        }
+
+        for (Configuration child : children.values())
+        {
+            child.resetChangedState();
+        }
+    }
+
+    public Set<String> getCategoryNames()
+    {
+        return ImmutableSet.copyOf(categories.keySet());
     }
 }

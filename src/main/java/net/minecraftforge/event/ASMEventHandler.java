@@ -1,23 +1,26 @@
 package net.minecraftforge.event;
 
-import com.google.common.collect.Maps;
-import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.MethodVisitor;
-import org.objectweb.asm.Type;
+import static org.objectweb.asm.Opcodes.*;
 
 import java.lang.reflect.Method;
 import java.util.HashMap;
 
-import static org.objectweb.asm.Opcodes.*;
+
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Type;
+
+import com.google.common.collect.Maps;
 
 
 public class ASMEventHandler implements IEventListener
 {
+    private static int IDs = 0;
     private static final String HANDLER_DESC = Type.getInternalName(IEventListener.class);
-    private static final String HANDLER_FUNC_DESC = Type.getMethodDescriptor(IEventListener.class.getDeclaredMethods()[0]);
+    private static final String HANDLER_FUNC_DESC = Type.getMethodDescriptor(IEventListener.class.getDeclaredMethods()[0]);    
     private static final ASMClassLoader LOADER = new ASMClassLoader();
     private static final HashMap<Method, Class<?>> cache = Maps.newHashMap();
-    private static int IDs = 0;
+    
     private final IEventListener handler;
     private final ForgeSubscribe subInfo;
     public ASMEventHandler(Object target, Method method) throws Exception

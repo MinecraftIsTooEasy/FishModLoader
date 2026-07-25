@@ -1,38 +1,19 @@
 package net.minecraftforge.common;
 
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.WeightedRandomChestContent;
-import net.minecraftforge.oredict.OreDictionary;
-
-import java.lang.reflect.Field;
 import java.util.*;
 
-/**
- * Forge 1.6.4 ChestGenHooks — partial real implementation.
- *
- * <p>Each known chest category gets a {@link ChestGenHooks} populated from
- * the vanilla static {@code WeightedRandomChestContent[]} field for that
- * structure. The static fields are private on stock 1.6.4 MITE, and the
- * matching widening lines in {@code fishmodloader.accesswidener} only take
- * effect at class-load time; the compiler still sees them as private. We
- * therefore read them via reflection (which uses {@code setAccessible})
- * inside {@link #loadDefaults()}, mirroring what Forge upstream does.
- *
- * <p>Mods can read the merged loot table back through {@link #getItems(Random)}
- * and mutate the in-memory registry through {@link #addItem(WeightedRandomChestContent)}
- * / {@link #removeItem(ItemStack)}. The {@link OreDictionary#WILDCARD_VALUE}
- * sentinel is honoured on {@code removeItem} so mods can drop every
- * sub-variant of a single item id in one call.
- *
- * <p>Not yet wired: the vanilla structure generators still iterate over
- * their own private static arrays directly, so mod-added entries do not
- * yet reach generation. Hooking each generator is a separate per-structure
- * Mixin pass (deferred). The public API is real so mods that read/inspect
- * the loot tables — or mutate them via this class and pass the result back
- * through their own generation hooks — work today.
- */
-public class ChestGenHooks {
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.util.WeightedRandom;
+import net.minecraft.util.WeightedRandomChestContent;
+import net.minecraft.world.WorldServer;
+import net.minecraft.world.gen.feature.WorldGenDungeons;
+import net.minecraft.world.gen.structure.*;
+import net.minecraftforge.oredict.OreDictionary;
 
+public class ChestGenHooks
+{
+    //Currently implemented categories for chests/dispensers, Dungeon loot is still in DungeonHooks
     public static final String MINESHAFT_CORRIDOR       = "mineshaftCorridor";
     public static final String PYRAMID_DESERT_CHEST     = "pyramidDesertyChest";
     public static final String PYRAMID_JUNGLE_CHEST     = "pyramidJungleChest";
@@ -44,183 +25,225 @@ public class ChestGenHooks {
     public static final String BONUS_CHEST              = "bonusChest";
     public static final String DUNGEON_CHEST            = "dungeonChest";
 
-    private static final Map<String, ChestGenHooks> chestInfo = new HashMap<>();
-    private static boolean defaultsLoaded = false;
+    private static final HashMap<String, ChestGenHooks> chestInfo = new HashMap<String, ChestGenHooks>();
+    private static boolean hasInit = false;
+    static
+    {
+        init();
+    }
 
-    private final String category;
-    private final List<WeightedRandomChestContent> contents = new ArrayList<>();
-    private int countMin;
-    private int countMax;
+    private static void init()
+    {
+        if (hasInit)
+        {
+            return;
+        }
 
-    public ChestGenHooks(String category) {
+        hasInit = true;
+
+        /* MITE: commented out - API not available
+        if (false) // HACK: These fields are private/package-private and not accessible at compile time; made accessible at runtime via accesswidener
+        {
+        addInfo(MINESHAFT_CORRIDOR,       StructureMineshaftPieces.mineshaftChestContents,                         3,  7);
+        addInfo(PYRAMID_DESERT_CHEST,     ComponentScatteredFeatureDesertPyramid.itemsToGenerateInTemple,          2,  7);
+        addInfo(PYRAMID_JUNGLE_CHEST,     ComponentScatteredFeatureJunglePyramid.junglePyramidsChestContents,      2,  7);
+        addInfo(PYRAMID_JUNGLE_DISPENSER, ComponentScatteredFeatureJunglePyramid.junglePyramidsDispenserContents,  2,  2);
+        addInfo(STRONGHOLD_CORRIDOR,      ComponentStrongholdChestCorridor.strongholdChestContents,                2,  4);
+        addInfo(STRONGHOLD_LIBRARY,       ComponentStrongholdLibrary.strongholdLibraryChestContents,               1,  5);
+        addInfo(STRONGHOLD_CROSSING,      ComponentStrongholdRoomCrossing.strongholdRoomCrossingChestContents,     1,  5);
+        addInfo(VILLAGE_BLACKSMITH,       ComponentVillageHouse2.villageBlacksmithChestContents,                   3,  9);
+        addInfo(BONUS_CHEST,              WorldServer.bonusChestContent,                                          10, 10);
+        addInfo(DUNGEON_CHEST,            WorldGenDungeons.field_111189_a,                                         8,  8);
+        }
+        */
+
+        ItemStack book = new ItemStack(Item.enchantedBook, 1, 0);
+        WeightedRandomChestContent tmp = new WeightedRandomChestContent(book, 1, 1, 1);
+        getInfo(MINESHAFT_CORRIDOR  ).addItem(tmp);
+        getInfo(PYRAMID_DESERT_CHEST).addItem(tmp);
+        getInfo(PYRAMID_JUNGLE_CHEST).addItem(tmp);
+        getInfo(STRONGHOLD_CORRIDOR ).addItem(tmp);
+        getInfo(STRONGHOLD_LIBRARY  ).addItem(new WeightedRandomChestContent(book, 1, 5, 2));
+        getInfo(STRONGHOLD_CROSSING ).addItem(tmp);
+        getInfo(DUNGEON_CHEST       ).addItem(tmp);
+    }
+
+    static void addDungeonLoot(ChestGenHooks dungeon, ItemStack item, int weight, int min, int max)
+    {
+        dungeon.addItem(new WeightedRandomChestContent(item, min, max, weight));
+    }
+
+    private static void addInfo(String category, WeightedRandomChestContent[] items, int min, int max)
+    {
+        chestInfo.put(category, new ChestGenHooks(category, items, min, max));
+    }
+
+    /**
+     * Retrieves, or creates the info class for the specified category.
+     *
+     * @param category The category name
+     * @return A instance of ChestGenHooks for the specified category.
+     */
+    public static ChestGenHooks getInfo(String category)
+    {
+        if (!chestInfo.containsKey(category))
+        {
+            chestInfo.put(category, new ChestGenHooks(category));
+        }
+        return chestInfo.get(category);
+    }
+
+    /**
+     * Generates an array of items based on the input min/max count.
+     * If the stack can not hold the total amount, it will be split into
+     * stacks of size 1.
+     *
+     * @param rand A random number generator
+     * @param source Source item stack
+     * @param min Minimum number of items
+     * @param max Maximum number of items
+     * @return An array containing the generated item stacks
+     */
+    public static ItemStack[] generateStacks(Random rand, ItemStack source, int min, int max)
+    {
+        int count = min + (rand.nextInt(max - min + 1));
+
+        ItemStack[] ret;
+        if (source.getItem() == null)
+        {
+            ret = new ItemStack[0];
+        }
+        else if (count > source.getMaxStackSize())
+        {
+            ret = new ItemStack[count];
+            for (int x = 0; x < count; x++)
+            {
+                ret[x] = source.copy();
+                ret[x].stackSize = 1;
+            }
+        }
+        else
+        {
+            ret = new ItemStack[1];
+            ret[0] = source.copy();
+            ret[0].stackSize = count;
+        }
+        return ret;
+    }
+
+    //shortcut functions, See the non-static versions below
+    public static WeightedRandomChestContent[] getItems(String category, Random rnd){ return getInfo(category).getItems(rnd); }
+    public static int getCount(String category, Random rand){ return getInfo(category).getCount(rand); }
+    public static void addItem(String category, WeightedRandomChestContent item){ getInfo(category).addItem(item); }
+    public static void removeItem(String category, ItemStack item){ getInfo(category).removeItem(item); }
+    public static ItemStack getOneItem(String category, Random rand){ return getInfo(category).getOneItem(rand); }
+
+    private String category;
+    private int countMin = 0;
+    private int countMax = 0;
+    //TO-DO: Privatize this once again when we remove the Deprecated stuff in DungeonHooks
+    ArrayList<WeightedRandomChestContent> contents = new ArrayList<WeightedRandomChestContent>();
+
+    public ChestGenHooks(String category)
+    {
         this.category = category;
     }
 
-    public ChestGenHooks(String category, WeightedRandomChestContent[] base, int min, int max) {
+    public ChestGenHooks(String category, WeightedRandomChestContent[] items, int min, int max)
+    {
         this(category);
-        if (base != null) {
-            Collections.addAll(this.contents, base);
+        for (WeightedRandomChestContent item : items)
+        {
+            contents.add(item);
         }
-        this.countMin = min;
-        this.countMax = max;
+        countMin = min;
+        countMax = max;
     }
 
     /**
-     * Snapshot the vanilla static arrays once. Called lazily on first
-     * {@link #getInfo(String)}. Defaults track the count ranges Forge
-     * upstream picks for each category.
+     * Adds a new entry into the possible items to generate.
+     *
+     * @param item The item to add.
      */
-    private static void loadDefaults() {
-        if (defaultsLoaded) return;
-        defaultsLoaded = true;
-
-        snapshot(MINESHAFT_CORRIDOR,
-                "net.minecraft.world.gen.structure.StructureMineshaftPieces",
-                "mineshaftChestContents", 3, 7);
-        snapshot(PYRAMID_DESERT_CHEST,
-                "net.minecraft.world.gen.structure.ComponentScatteredFeatureDesertPyramid",
-                "itemsToGenerateInTemple", 2, 7);
-        snapshot(PYRAMID_JUNGLE_CHEST,
-                "net.minecraft.world.gen.structure.ComponentScatteredFeatureJunglePyramid",
-                "junglePyramidsChestContents", 2, 7);
-        snapshot(PYRAMID_JUNGLE_DISPENSER,
-                "net.minecraft.world.gen.structure.ComponentScatteredFeatureJunglePyramid",
-                "junglePyramidsDispenserContents", 2, 2);
-        snapshot(STRONGHOLD_CORRIDOR,
-                "net.minecraft.world.gen.structure.ComponentStrongholdChestCorridor",
-                "strongholdChestContents", 1, 5);
-        snapshot(STRONGHOLD_LIBRARY,
-                "net.minecraft.world.gen.structure.ComponentStrongholdLibrary",
-                "strongholdLibraryChestContents", 1, 5);
-        snapshot(STRONGHOLD_CROSSING,
-                "net.minecraft.world.gen.structure.ComponentStrongholdRoomCrossing",
-                "strongholdRoomCrossingChestContents", 1, 5);
-        snapshot(VILLAGE_BLACKSMITH,
-                "net.minecraft.world.gen.structure.ComponentVillageHouse2",
-                "villageBlacksmithChestContents", 3, 9);
-        snapshot(BONUS_CHEST,
-                "net.minecraft.world.WorldServer",
-                "bonusChestContent", 10, 10);
-
-        // DUNGEON_CHEST has no static array on vanilla — WorldGenDungeons
-        // builds it dynamically per-world. Keep an empty registry so mods
-        // calling addItem on it still get a working in-memory list.
-        chestInfo.computeIfAbsent(DUNGEON_CHEST, ChestGenHooks::new);
+    public void addItem(WeightedRandomChestContent item)
+    {
+        contents.add(item);
     }
 
     /**
-     * Reflectively read {@code className.fieldName} as a
-     * {@link WeightedRandomChestContent}[] and seed {@code category} with
-     * its contents. Robust to AW not being applied yet, missing classes,
-     * or unexpected field types — failure leaves the registry empty for
-     * that category, which is the safest fallback.
+     * Removes all items that match the input item stack, Only metadata and item ID are checked.
+     * If the input item has a metadata of -1, all metadatas will match.
+     *
+     * @param item The item to check
      */
-    private static void snapshot(String category, String className, String fieldName, int min, int max) {
-        try {
-            Class<?> cls = Class.forName(className);
-            Field f = cls.getDeclaredField(fieldName);
-            f.setAccessible(true);
-            Object value = f.get(null);
-            if (value instanceof WeightedRandomChestContent[]) {
-                chestInfo.put(category, new ChestGenHooks(category, (WeightedRandomChestContent[]) value, min, max));
-                return;
+    public void removeItem(ItemStack item)
+    {
+        Iterator<WeightedRandomChestContent> itr = contents.iterator();
+        while(itr.hasNext())
+        {
+            WeightedRandomChestContent cont = itr.next();
+            if ((item.itemID == cont.theItemId.itemID && (item.getItemDamage() == cont.theItemId.getItemDamage() || cont.theItemId.getItemDamage() == OreDictionary.WILDCARD_VALUE)) || (item.getItemDamage() == OreDictionary.WILDCARD_VALUE && item.itemID == cont.theItemId.itemID))
+            {
+                itr.remove();
             }
-            cpw.mods.fml.common.FMLLog.warning(
-                    "ChestGenHooks: %s.%s has unexpected type %s",
-                    className, fieldName, (value == null ? "null" : value.getClass().getName()));
-        } catch (Throwable thrown) {
-            cpw.mods.fml.common.FMLLog.warning(
-                    "ChestGenHooks: failed to snapshot %s.%s: %s",
-                    className, fieldName, thrown);
         }
-        // Fall back to an empty registry so mods can still register entries.
-        chestInfo.put(category, new ChestGenHooks(category, null, min, max));
-    }
-
-    public static ChestGenHooks getInfo(String category) {
-        if (!defaultsLoaded) loadDefaults();
-        return chestInfo.computeIfAbsent(category, ChestGenHooks::new);
-    }
-
-    public static void addItem(String category, WeightedRandomChestContent item) {
-        getInfo(category).addItem(item);
-    }
-
-    public static void removeItem(String category, ItemStack stack) {
-        getInfo(category).removeItem(stack);
     }
 
     /**
-     * Generate a stack list for {@code item} with size in [min, max]. Used
-     * by mods that build their own loot tables on top of vanilla generation.
+     * Gets an array of all random objects that are associated with this category.
+     *
+     * @return The random objects
      */
-    public static ItemStack[] generateStacks(Random rand, ItemStack item, int min, int max) {
-        if (item == null) return new ItemStack[0];
-        int count = (min >= max) ? min : min + rand.nextInt(max - min + 1);
-        if (count <= 0) return new ItemStack[0];
-        int maxPerStack = item.getMaxStackSize();
-        List<ItemStack> result = new ArrayList<>();
-        int remaining = count;
-        while (remaining > 0) {
-            int take = Math.min(remaining, maxPerStack);
-            ItemStack copy = item.copy();
-            copy.stackSize = take;
-            result.add(copy);
-            remaining -= take;
-        }
-        return result.toArray(new ItemStack[0]);
-    }
+    public WeightedRandomChestContent[] getItems(Random rnd)
+    {
+        ArrayList<WeightedRandomChestContent> ret = new ArrayList<WeightedRandomChestContent>();
 
-    /** Convenience adapter — adds an entry to the dungeon-loot registry. */
-    public static void addDungeonLoot(ChestGenHooks dungeon, ItemStack item, int weight, int min, int max) {
-        if (item == null) return;
-        WeightedRandomChestContent entry = new WeightedRandomChestContent(item, min, max, weight);
-        if (dungeon != null) {
-            dungeon.addItem(entry);
-        } else {
-            getInfo(DUNGEON_CHEST).addItem(entry);
-        }
-    }
+        for (WeightedRandomChestContent orig : contents)
+        {
+            Item item = orig.theItemId.getItem();
 
-    public void addItem(WeightedRandomChestContent item) {
-        if (item != null) contents.add(item);
+            if (item != null)
+            {
+                WeightedRandomChestContent n = orig; // MITE's Item doesn't have getChestGenBase
+                if (n != null)
+                {
+                    ret.add(n);
+                }
+            }
+        }
+
+        return ret.toArray(new WeightedRandomChestContent[ret.size()]);
     }
 
     /**
-     * Remove every entry whose stack matches {@code stack} by item id and
-     * damage value. MITE follows the metadata-subtype convention: distinct
-     * variants of the same item share an id and differ by damage. To remove
-     * every sub-variant in one call, pass damage =
-     * {@link OreDictionary#WILDCARD_VALUE}. NBT and stack size are ignored,
-     * matching upstream behaviour.
+     * Gets a random number between countMin and countMax.
+     *
+     * @param rand A RNG
+     * @return A random number where countMin <= num <= countMax
      */
-    public void removeItem(ItemStack stack) {
-        if (stack == null) return;
-        int targetId = stack.itemID;
-        int targetDmg = stack.getItemDamage();
-        boolean wildcard = (targetDmg == OreDictionary.WILDCARD_VALUE);
-        contents.removeIf(entry -> entry.theItemId != null
-                && entry.theItemId.itemID == targetId
-                && (wildcard || entry.theItemId.getItemDamage() == targetDmg));
+    public int getCount(Random rand)
+    {
+        return countMin < countMax ? countMin + rand.nextInt(countMax - countMin) : countMin;
     }
 
-    /** Snapshot of the current contents — useful for tests and inspection. */
-    public WeightedRandomChestContent[] getItems(Random rand) {
-        return contents.toArray(new WeightedRandomChestContent[0]);
+    /**
+     * Returns a single ItemStack from the possible items in this registry,
+     * Useful if you just want a quick and dirty random Item.
+     *
+     * @param rand  A Random Number gen
+     * @return A single ItemStack, or null if it could not get one.
+     */
+    public ItemStack getOneItem(Random rand)
+    {
+        WeightedRandomChestContent[] items = getItems(rand);
+        WeightedRandomChestContent item = (WeightedRandomChestContent)WeightedRandom.getRandomItem(rand, items);
+        ItemStack[] stacks = ChestGenHooks.generateStacks(rand, item.theItemId, item.min_quantity, item.max_quantity);
+        return (stacks.length > 0 ? stacks[0] : null);
     }
 
-    public int getCount(Random rand) {
-        if (countMax <= countMin) return countMin;
-        return countMin + rand.nextInt(countMax - countMin + 1);
-    }
-
-    public int getMin() { return countMin; }
-
-    public void setMin(int min) { this.countMin = min; }
-
-    public int getMax() { return countMax; }
-
-    public void setMax(int max) { this.countMax = max; }
-
-    public String getCategory() { return category; }
+    //Accessors
+    public int getMin(){ return countMin; }
+    public int getMax(){ return countMax; }
+    public void setMin(int value){ countMin = value; }
+    public void setMax(int value){ countMax = value; }
 }

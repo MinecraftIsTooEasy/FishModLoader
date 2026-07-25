@@ -1,7 +1,9 @@
 package net.minecraftforge.event.world;
 
-import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.world.ChunkCoordIntPair;
+import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.server.management.PlayerInstance;
+import net.minecraft.world.WorldServer;
 import net.minecraftforge.event.Event;
 
 public class ChunkWatchEvent extends Event

@@ -1,5 +1,16 @@
 package net.minecraftforge.common.network;
 
+import java.util.Arrays;
+import java.util.concurrent.ConcurrentMap;
+import java.util.logging.Level;
+
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.network.INetworkManager;
+import net.minecraft.network.packet.NetHandler;
+import net.minecraft.network.packet.Packet250CustomPayload;
+import net.minecraftforge.common.network.packet.DimensionRegisterPacket;
+import net.minecraftforge.fluids.FluidIdMapPacket;
+
 import com.google.common.base.Throwables;
 import com.google.common.collect.MapMaker;
 import com.google.common.io.ByteArrayDataInput;
@@ -7,37 +18,85 @@ import com.google.common.io.ByteStreams;
 import com.google.common.primitives.Bytes;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.UnsignedBytes;
+
 import cpw.mods.fml.common.FMLLog;
 import cpw.mods.fml.common.network.FMLNetworkException;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.network.INetworkManager;
-import net.minecraft.network.packet.Packet250CustomPayload;
-import net.minecraftforge.common.network.packet.DimensionRegisterPacket;
-
-import java.util.Arrays;
-import java.util.concurrent.ConcurrentMap;
-import java.util.logging.Level;
 
 public abstract class ForgePacket
 {
     public static final String CHANNEL_ID = "FORGE";
-    private Type type;
-    private byte[][] partials;
-    public ForgePacket()
+    enum Type
     {
-        for (Type t : Type.values())
+        /**
+         * Registers a dimension for a provider on client
+         */
+        REGISTERDIMENSION(DimensionRegisterPacket.class),
+        /**
+         * The Fluid ID map to send to the client
+         */
+        FLUID_IDMAP(FluidIdMapPacket.class);
+
+        private Class<? extends ForgePacket> packetType;
+        private ConcurrentMap<INetworkManager, ForgePacket> partTracker;
+
+        private Type(Class<? extends ForgePacket> clazz)
         {
-            if (t.packetType == getClass())
+            this.packetType = clazz;
+        }
+
+        ForgePacket make()
+        {
+            try
             {
-                type = t;
-                continue;
+                return this.packetType.newInstance();
+            }
+            catch (Exception e)
+            {
+                Throwables.propagateIfPossible(e);
+                FMLLog.log(Level.SEVERE, e, "A bizarre critical error occured during packet encoding");
+                throw new FMLNetworkException(e);
             }
         }
-        if (type == null)
+
+        private ForgePacket consumePart(INetworkManager network, byte[] data)
         {
-            throw new RuntimeException("ForgePacket constructor called on ungregistered type.");
+            if (partTracker == null)
+            {
+                partTracker = new MapMaker().weakKeys().weakValues().makeMap();
+            }
+            if (!partTracker.containsKey(network))
+            {
+                partTracker.put(network, make());
+            }
+
+            ForgePacket pkt = partTracker.get(network);
+
+            ByteArrayDataInput bdi = ByteStreams.newDataInput(data);
+            int chunkIdx = UnsignedBytes.toInt(bdi.readByte());
+            int chunkTotal = UnsignedBytes.toInt(bdi.readByte());
+            int chunkLength = bdi.readInt();
+
+            if (pkt.partials == null)
+            {
+                pkt.partials = new byte[chunkTotal][];
+            }
+
+            pkt.partials[chunkIdx] = new byte[chunkLength];
+            bdi.readFully(pkt.partials[chunkIdx]);
+            for (int i = 0; i < pkt.partials.length; i++)
+            {
+                if (pkt.partials[i] == null)
+                {
+                    return null;
+                }
+            }
+
+            return pkt;
         }
     }
+
+    private Type type;
+    private byte[][] partials;
 
     public static Packet250CustomPayload[] makePacketSet(ForgePacket packet)
     {
@@ -104,6 +163,22 @@ public abstract class ForgePacket
         }
     }
 
+    public ForgePacket()
+    {
+        for (Type t : Type.values())
+        {
+            if (t.packetType == getClass())
+            {
+                type = t;
+                continue;
+            }
+        }
+        if (type == null)
+        {
+            throw new RuntimeException("ForgePacket constructor called on ungregistered type.");
+        }
+    }
+
     public byte getID()
     {
         return UnsignedBytes.checkedCast(type.ordinal());
@@ -114,70 +189,4 @@ public abstract class ForgePacket
     public abstract ForgePacket consumePacket(byte[] data);
 
     public abstract void execute(INetworkManager network, EntityPlayer player);
-
-    enum Type
-    {
-        /**
-         * Registers a dimension for a provider on client
-         */
-        REGISTERDIMENSION(DimensionRegisterPacket.class);
-
-        private Class<? extends ForgePacket> packetType;
-        private ConcurrentMap<INetworkManager, ForgePacket> partTracker;
-
-        private Type(Class<? extends ForgePacket> clazz)
-        {
-            this.packetType = clazz;
-        }
-
-        ForgePacket make()
-        {
-            try
-            {
-                return this.packetType.newInstance();
-            }
-            catch (Exception e)
-            {
-                Throwables.propagateIfPossible(e);
-                FMLLog.log(Level.SEVERE, e, "A bizarre critical error occured during packet encoding");
-                throw new FMLNetworkException(e);
-            }
-        }
-
-        private ForgePacket consumePart(INetworkManager network, byte[] data)
-        {
-            if (partTracker == null)
-            {
-                partTracker = new MapMaker().weakKeys().weakValues().makeMap();
-            }
-            if (!partTracker.containsKey(network))
-            {
-                partTracker.put(network, make());
-            }
-
-            ForgePacket pkt = partTracker.get(network);
-
-            ByteArrayDataInput bdi = ByteStreams.newDataInput(data);
-            int chunkIdx = UnsignedBytes.toInt(bdi.readByte());
-            int chunkTotal = UnsignedBytes.toInt(bdi.readByte());
-            int chunkLength = bdi.readInt();
-
-            if (pkt.partials == null)
-            {
-                pkt.partials = new byte[chunkTotal][];
-            }
-
-            pkt.partials[chunkIdx] = new byte[chunkLength];
-            bdi.readFully(pkt.partials[chunkIdx]);
-            for (int i = 0; i < pkt.partials.length; i++)
-            {
-                if (pkt.partials[i] == null)
-                {
-                    return null;
-                }
-            }
-
-            return pkt;
-        }
-    }
 }

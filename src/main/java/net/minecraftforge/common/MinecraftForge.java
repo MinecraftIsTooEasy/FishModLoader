@@ -1,108 +1,228 @@
 package net.minecraftforge.common;
 
-import cpw.mods.fml.common.FMLLog;
-import net.minecraft.block.Block;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraftforge.event.EventBus;
-import net.minecraftforge.oredict.OreDictionary;
-
+import java.lang.reflect.Constructor;
 import java.util.*;
 
-/**
- * Stub-friendly version of MinecraftForge core entry. The 3 EventBuses are
- * the only thing mods absolutely need at this stage; the initialize() method
- * does Forge-patched id-table fixups that don't apply on stock 1.6.4 MITE.
- */
-public class MinecraftForge {
+import cpw.mods.fml.common.FMLCommonHandler;
+import cpw.mods.fml.common.FMLLog;
+import cpw.mods.fml.common.Mod;
+import cpw.mods.fml.common.ModContainer;
+import cpw.mods.fml.relauncher.Side;
+import cpw.mods.fml.relauncher.SideOnly;
 
-    public static final EventBus EVENT_BUS       = new EventBus();
+import net.minecraft.block.Block;
+import net.minecraft.block.material.Material;
+import net.minecraft.client.renderer.texture.IconRegister;
+import net.minecraft.crash.CrashReport;
+import net.minecraft.entity.monster.EntityEnderman;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraftforge.common.ForgeHooks.GrassEntry;
+import net.minecraftforge.common.ForgeHooks.SeedEntry;
+import net.minecraftforge.event.EventBus;
+import net.minecraftforge.event.ForgeSubscribe;
+import net.minecraftforge.event.entity.EntityEvent;
+import net.minecraftforge.oredict.OreDictionary;
+
+public class MinecraftForge
+{
+    /**
+     * The core Forge EventBusses, all events for Forge will be fired on these,
+     * you should use this to register all your listeners.
+     * This replaces every register*Handler() function in the old version of Forge.
+     * TERRAIN_GEN_BUS for terrain gen events
+     * ORE_GEN_BUS for ore gen events
+     * EVENT_BUS for everything else
+     */
+    public static final EventBus EVENT_BUS = new EventBus();
     public static final EventBus TERRAIN_GEN_BUS = new EventBus();
-    public static final EventBus ORE_GEN_BUS     = new EventBus();
-
-    private static final Map<List<Object>, Integer> toolHarvestLevels = new HashMap<>();
-    private static final Set<List<Object>> toolEffectiveness         = new HashSet<>();
+    public static final EventBus ORE_GEN_BUS = new EventBus();
+    
     private static final ForgeInternalHandler INTERNAL_HANDLER = new ForgeInternalHandler();
-
-    public static void addGrassPlant(Block block, int metadata, int weight) {
-        ForgeHooks.grassList.add(new ForgeHooks.GrassEntry(block, metadata, weight));
+    
+    
+    /** Register a new plant to be planted when bonemeal is used on grass.
+     * @param block The block to place.
+     * @param metadata The metadata to set for the block when being placed.
+     * @param weight The weight of the plant, where red flowers are
+     *               10 and yellow flowers are 20.
+     */
+    public static void addGrassPlant(Block block, int metadata, int weight)
+    {
+        ForgeHooks.grassList.add(new GrassEntry(block, metadata, weight));
     }
-
-    public static void addGrassSeed(ItemStack seed, int weight) {
-        ForgeHooks.seedList.add(new ForgeHooks.SeedEntry(seed, weight));
+    
+    /**
+     * Register a new seed to be dropped when breaking tall grass.
+     *
+     * @param seed The item to drop as a seed.
+     * @param weight The relative probability of the seeds,
+     *               where wheat seeds are 10.
+     */
+    public static void addGrassSeed(ItemStack seed, int weight)
+    {
+        ForgeHooks.seedList.add(new SeedEntry(seed, weight));
     }
-
-    public static void setToolClass(Item tool, String toolClass, int harvestLevel) {
+    
+    /**
+     *
+     * Register a tool as a tool class with a given harvest level.
+     *
+     * @param tool The custom tool to register.
+     * @param toolClass The tool class to register as.  The predefined tool
+     *                  clases are "pickaxe", "shovel", "axe".  You can add
+     *                  others for custom tools.
+     * @param harvestLevel The harvest level of the tool.
+     */
+    public static void setToolClass(Item tool, String toolClass, int harvestLevel)
+    {
         ForgeHooks.toolClasses.put(tool, Arrays.asList(toolClass, harvestLevel));
     }
-
-    public static void setBlockHarvestLevel(Block block, int metadata, String toolClass, int harvestLevel) {
-        List<Object> key = Arrays.asList(block, metadata, toolClass);
-        toolHarvestLevels.put(key, harvestLevel);
-        toolEffectiveness.add(key);
-    }
-
-    public static void removeBlockEffectiveness(Block block, int metadata, String toolClass) {
-        toolEffectiveness.remove(Arrays.asList(block, metadata, toolClass));
-    }
-
-    public static void setBlockHarvestLevel(Block block, String toolClass, int harvestLevel) {
-        for (int metadata = 0; metadata < 16; metadata++) {
-            setBlockHarvestLevel(block, metadata, toolClass, harvestLevel);
-        }
-    }
-
-    public static int getBlockHarvestLevel(Block block, int metadata, String toolClass) {
-        Integer h = toolHarvestLevels.get(Arrays.asList(block, metadata, toolClass));
-        return h == null ? -1 : h;
-    }
-
-    /** Package access for {@link ForgeHooks}. */
-    static boolean isToolEffectiveAgainst(Block block, int metadata, String toolClass) {
-        return toolEffectiveness.contains(Arrays.asList(block, metadata, toolClass));
-    }
-
-    public static void removeBlockEffectiveness(Block block, String toolClass) {
-        for (int metadata = 0; metadata < 16; metadata++) {
-            removeBlockEffectiveness(block, metadata, toolClass);
-        }
-    }
-
+    
     /**
-     * Bring the Forge core into a usable state for any subsequently-loaded
-     * mod. This is the first thing the Forge mod loader calls on its own
-     * world, and Forge mods rely on certain side-effects:
+     * Register a block to be harvested by a tool class.  This is the metadata
+     * sensitive version, use it if your blocks are using metadata variants.
+     * By default, this sets the block class as effective against that type.
      *
-     * <ul>
-     *   <li>The internal event handler is registered on {@link #EVENT_BUS}
-     *       so default Forge entity bookkeeping (UUID assignment etc.) runs.
-     *       Our handler is currently a no-op marker; future passes will
-     *       attach real listeners to it.</li>
-     *   <li>{@link OreDictionary} is touched so its static initializer
-     *       runs before any mod tries to register an ore name.</li>
-     * </ul>
-     *
-     * The Forge-patched fixups for {@code Block.blocksList} and
-     * {@code EntityEnderman.carriableBlocks} from upstream don't apply on
-     * stock 1.6.4 MITE and are intentionally skipped.
+     * @param block The block to register.
+     * @param metadata The metadata for the block subtype.
+     * @param toolClass The tool class to register as able to remove this block.
+     *                  You may register the same block multiple times with different tool
+     *                  classes, if multiple tool types can be used to harvest this block.
+     * @param harvestLevel The minimum tool harvest level required to successfully
+     * harvest the block.
+     * @see MinecraftForge#setToolClass for details on tool classes.
      */
-    public static void initialize() {
-        FMLLog.info("MinecraftForge initialized (FishModLoader Forge compat)");
-        try {
-            EVENT_BUS.register(INTERNAL_HANDLER);
-        } catch (Throwable thrown) {
-            FMLLog.warning("Failed to register ForgeInternalHandler: %s", thrown);
-        }
-        // Force OreDictionary class init.
-        try { OreDictionary.getOreName(0); } catch (Throwable ignored) {}
-        // Seed BiomeDictionary with vanilla biomes so isBiomeOfType works
-        // before any mod calls registerBiomeType.
-        try { BiomeDictionary.registerAllBiomes(); } catch (Throwable thrown) {
-            FMLLog.warning("BiomeDictionary.registerAllBiomes failed: %s", thrown);
+    public static void setBlockHarvestLevel(Block block, int metadata, String toolClass, int harvestLevel)
+    {
+        List key = Arrays.asList(block, metadata, toolClass);
+        ForgeHooks.toolHarvestLevels.put(key, harvestLevel);
+        ForgeHooks.toolEffectiveness.add(key);
+    }
+    
+    /**
+     * Remove a block effectiveness mapping.  Since setBlockHarvestLevel
+     * makes the tool class effective against the block by default, this can be
+     * used to remove that mapping.  This will force a block to be harvested at
+     * the same speed regardless of tool quality, while still requiring a given
+     * harvesting level.
+     *
+     * @param block The block to remove effectiveness from.
+     * @param metadata The metadata for the block subtype.
+     * @param toolClass The tool class to remove the effectiveness mapping from.
+     * @see MinecraftForge#setToolClass for details on tool classes.
+     */
+    public static void removeBlockEffectiveness(Block block, int metadata, String toolClass)
+    {
+        List key = Arrays.asList(block, metadata, toolClass);
+        ForgeHooks.toolEffectiveness.remove(key);
+    }
+    
+    /**
+     * Register a block to be harvested by a tool class.
+     * By default, this sets the block class as effective against that type.
+     *
+     * @param block The block to register.
+     * @param toolClass The tool class to register as able to remove this block.
+     *                  You may register the same block multiple times with different tool
+     *                  classes, if multiple tool types can be used to harvest this block.
+     * @param harvestLevel The minimum tool harvest level required to successfully
+     *                     harvest the block.
+     * @see MinecraftForge#setToolClass for details on tool classes.
+     */
+    public static void setBlockHarvestLevel(Block block, String toolClass, int harvestLevel)
+    {
+        for (int metadata = 0; metadata < 16; metadata++)
+        {
+            List key = Arrays.asList(block, metadata, toolClass);
+            ForgeHooks.toolHarvestLevels.put(key, harvestLevel);
+            ForgeHooks.toolEffectiveness.add(key);
         }
     }
+    
+    /**
+     * Returns the block harvest level for a particular tool class.
+     *
+     * @param block The block to check.
+     * @param metadata The metadata for the block subtype.
+     * @param toolClass The tool class to check as able to remove this block.
+     * @see MinecraftForge#setToolClass for details on tool classes.
+     * @return The harvest level or -1 if no mapping exists.
+     */
+    public static int getBlockHarvestLevel(Block block, int metadata, String toolClass)
+    {
+        ForgeHooks.initTools();
+        List key = Arrays.asList(block, metadata, toolClass);
+        Integer harvestLevel = ForgeHooks.toolHarvestLevels.get(key);
+        return (harvestLevel == null ? -1 : harvestLevel);
+    }
+    
+    /**
+     * Remove a block effectiveness mapping.  Since setBlockHarvestLevel
+     * makes the tool class effective against the block by default, this can be
+     * used to remove that mapping.  This will force a block to be harvested at
+     * the same speed regardless of tool quality, while still requiring a given
+     * harvesting level.
+     *
+     * @param block The block to remove effectiveness from.
+     * @param toolClass The tool class to remove the effectiveness mapping from.
+     * @see MinecraftForge#setToolClass for details on tool classes.
+     */
+    public static void removeBlockEffectiveness(Block block, String toolClass)
+    {
+        for (int metadata = 0; metadata < 16; metadata++)
+        {
+            List key = Arrays.asList(block, metadata, toolClass);
+            ForgeHooks.toolEffectiveness.remove(key);
+        }
+    }
+    
+    /**
+     * Method invoked by FML before any other mods are loaded.
+     */
+    public static void initialize()
+    {
+        System.out.printf("MinecraftForge v%s Initialized\n", ForgeVersion.getVersion());
+        FMLLog.info("MinecraftForge v%s Initialized", ForgeVersion.getVersion());
 
-    public static String getBrandingVersion() {
-        return "Minecraft Forge " + ForgeVersion.getVersion();
+        /* MITE: commented out - API not available
+       if (false) { // MITE: Block constructor not accessible - already handled by AW
+       Block filler = new Block(0, Material.air)
+       {
+           @SideOnly(Side.CLIENT)
+           @Override
+           public void registerIcons(IconRegister register){}
+       };
+       Block.blocksList[0] = null;
+       Block.opaqueCubeLookup[0] = false;
+       Block.lightOpacity[0] = 0;
+       filler.setUnlocalizedName("ForgeFiller");
+       }
+       */
+
+       /* MITE: commented out - filler variable is not defined (was in commented-out block above)
+       for (int x = 256; x < 4096; x++)
+       {
+           if (Item.itemsList[x] != null)
+           {
+               Block.blocksList[x] = filler;
+           }
+       }
+       */
+        
+        boolean[] temp = new boolean[4096];
+        System.arraycopy(EntityEnderman.carriableBlocks, 0, temp, 0, EntityEnderman.carriableBlocks.length);
+        EntityEnderman.carriableBlocks = temp;
+        
+        EVENT_BUS.register(INTERNAL_HANDLER);
+        OreDictionary.getOreName(0);
+        
+        //Force these classes to be defined, Should prevent derp error hiding.
+        new CrashReport("ThisIsFake", new Exception("Not real"));
+    }
+    
+    public static String getBrandingVersion()
+    {
+        return "Minecraft Forge "+ ForgeVersion.getVersion();
     }
 }

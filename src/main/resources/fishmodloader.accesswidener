@@ -241,3 +241,41 @@ accessible method net/minecraft/network/NetLoginHandler func_72531_a (Lnet/minec
 accessible method net/minecraft/util/StringTranslate getInstance ()Lnet/minecraft/util/StringTranslate;
 accessible method net/minecraft/entity/EntityList addMapping (Ljava/lang/Class;Ljava/lang/String;III)V
 extendable class net/minecraft/client/renderer/EntityRenderer
+accessible class net/minecraft/crash/CallableMinecraftVersion
+accessible class net/minecraft/server/management/PlayerInstance
+accessible field net/minecraft/client/gui/GuiIngame mc Lnet/minecraft/client/Minecraft;
+accessible field net/minecraft/client/gui/GuiIngame updateCounter I
+accessible field net/minecraft/client/gui/GuiIngame rand Ljava/util/Random;
+accessible field net/minecraft/client/gui/GuiIngame remainingHighlightTicks I
+accessible field net/minecraft/client/gui/GuiIngame highlightingItemStack Lnet/minecraft/item/ItemStack;
+extendable method net/minecraft/client/gui/GuiIngame renderBossHealth ()V
+accessible field net/minecraft/client/settings/GameSettings fancyGraphics Z
+accessible field net/minecraft/client/settings/GameSettings renderDistance I
+accessible field net/minecraft/entity/monster/EntityEnderman carriableBlocks [Z
+accessible field net/minecraft/client/gui/GuiIngame recordPlayingUpFor I
+accessible field net/minecraft/client/gui/GuiIngame recordIsPlaying Z
+accessible field net/minecraft/client/gui/GuiIngame recordPlaying Ljava/lang/String;
+accessible field net/minecraft/client/gui/GuiIngame persistantChatGUI Lnet/minecraft/client/gui/GuiNewChat;
+accessible field net/minecraft/util/WeightedRandomChestContent min_quantity I
+accessible field net/minecraft/util/WeightedRandomChestContent max_quantity I
+accessible field net/minecraft/client/renderer/RenderBlocks renderAllFaces Z
+accessible field net/minecraft/client/renderer/RenderBlocks renderMinY D
+accessible field net/minecraft/client/renderer/RenderBlocks renderMaxY D
+accessible method net/minecraft/crash/CallableMinecraftVersion <init> (Lnet/minecraft/crash/CrashReport;)V
+accessible method net/minecraft/client/gui/GuiIngame renderVignette (FII)V
+accessible method net/minecraft/client/gui/GuiIngame renderInventorySlot (IIIF)V
+accessible method net/minecraft/client/gui/GuiIngame func_96136_a (Lnet/minecraft/scoreboard/ScoreObjective;IILnet/minecraft/client/gui/FontRenderer;)V
+accessible method net/minecraft/client/gui/GuiIngame func_130015_b (FII)V
+accessible method net/minecraft/client/gui/GuiIngame renderPumpkinBlur (II)V
+accessible field net/minecraft/world/biome/BiomeDecorator bigMushroomsPerChunk I
+accessible field net/minecraft/world/biome/BiomeDecorator cactiPerChunk I
+accessible field net/minecraft/world/biome/BiomeDecorator clayPerChunk I
+accessible field net/minecraft/world/biome/BiomeDecorator deadBushPerChunk I
+accessible field net/minecraft/world/biome/BiomeDecorator flowersPerChunk I
+accessible field net/minecraft/world/biome/BiomeDecorator grassPerChunk I
+accessible field net/minecraft/world/biome/BiomeDecorator reedsPerChunk I
+accessible field net/minecraft/world/biome/BiomeDecorator sandPerChunk I
+accessible field net/minecraft/world/biome/BiomeDecorator sandPerChunk2 I
+accessible field net/minecraft/world/biome/BiomeDecorator treesPerChunk I
+accessible field net/minecraft/world/biome/BiomeDecorator waterlilyPerChunk I
+accessible method net/minecraft/entity/player/EntityPlayer joinEntityItemWithWorld (Lnet/minecraft/entity/item/EntityItem;)V

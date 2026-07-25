@@ -1,95 +1,111 @@
 package net.minecraftforge.common;
 
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.WeightedRandomChestContent;
-
 import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Random;
 
-/**
- * Forge 1.6.4 DungeonHooks.
- *
- * <p>Forge mods register extra dungeon spawner mobs and chest loot through
- * this class. We keep the in-memory registries here; the actual dungeon
- * generator picks them up via {@link #getRandomDungeonMob(Random)} /
- * {@link #getDungeonLoot()}. Tying the loot list back into the vanilla
- * dungeon loot table requires widening private fields on
- * {@code WorldGenDungeons}, which is deferred — until then the loot list
- * is queryable but the vanilla generator does not consult it.
- */
-public class DungeonHooks {
+import cpw.mods.fml.common.FMLLog;
 
-    private static final List<DungeonMob> dungeonMobs = new ArrayList<>();
-    private static final List<WeightedRandomChestContent> dungeonLoot = new ArrayList<>();
+import net.minecraft.inventory.IInventory;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.util.WeightedRandom;
+import net.minecraft.util.WeightedRandomChestContent;
+import net.minecraft.util.WeightedRandomItem;
 
-    /** Add or boost a mob's spawn weight in dungeon spawners. */
-    public static int addDungeonMob(String mob, int rarity) {
-        for (DungeonMob existing : dungeonMobs) {
-            if (existing.type.equals(mob)) {
-                existing.rarity += rarity;
-                return existing.rarity;
+import static net.minecraftforge.common.ChestGenHooks.DUNGEON_CHEST;
+
+public class DungeonHooks
+{
+    private static ArrayList<DungeonMob> dungeonMobs = new ArrayList<DungeonMob>();
+
+    /**
+     * Adds a mob to the possible list of creatures the spawner will create.
+     * If the mob is already in the spawn list, the rarity will be added to the existing one,
+     * causing the mob to be more common.
+     *
+     * @param name The name of the monster, use the same name used when registering the entity.
+     * @param rarity The rarity of selecting this mob over others. Must be greater then 0.
+     *        Vanilla Minecraft has the following mobs:
+     *        Spider   100
+     *        Skeleton 100
+     *        Zombie   200
+     *        Meaning, Zombies are twice as common as spiders or skeletons.
+     * @return The new rarity of the monster,
+     */
+    public static float addDungeonMob(String name, int rarity)
+    {
+        if (rarity <= 0)
+        {
+            throw new IllegalArgumentException("Rarity must be greater then zero");
+        }
+
+        for (DungeonMob mob : dungeonMobs)
+        {
+            if (name.equals(mob.type))
+            {
+                return mob.itemWeight += rarity;
             }
         }
-        dungeonMobs.add(new DungeonMob(mob, rarity));
+
+        dungeonMobs.add(new DungeonMob(rarity, name));
         return rarity;
     }
 
-    /** Remove a mob from dungeon spawners. Returns its previous weight. */
-    public static int removeDungeonMob(String mob) {
-        Iterator<DungeonMob> iterator = dungeonMobs.iterator();
-        while (iterator.hasNext()) {
-            DungeonMob entry = iterator.next();
-            if (entry.type.equals(mob)) {
-                iterator.remove();
-                return entry.rarity;
+    /**
+     * Will completely remove a Mob from the dungeon spawn list.
+     *
+     * @param name The name of the mob to remove
+     * @return The rarity of the removed mob, prior to being removed.
+     */
+    public static int removeDungeonMob(String name)
+    {
+        for (DungeonMob mob : dungeonMobs)
+        {
+            if (name.equals(mob.type))
+            {
+                dungeonMobs.remove(mob);
+                return mob.itemWeight;
             }
         }
         return 0;
     }
 
-    /** Pick a random mob name from the registry, defaulting to Skeleton. */
-    public static String getRandomDungeonMob(Random rand) {
-        if (dungeonMobs.isEmpty()) return "Skeleton";
-        return dungeonMobs.get(rand.nextInt(dungeonMobs.size())).type;
-    }
-
-    public static void addDungeonLoot(ItemStack item, int weight) {
-        addDungeonLoot(item, weight, 1, 1);
-    }
-
-    public static void addDungeonLoot(ItemStack item, int weight, int min, int max) {
-        if (item != null) {
-            dungeonLoot.add(new WeightedRandomChestContent(item, min, max, weight));
-        }
-    }
-
     /**
-     * Remove every loot entry whose stack is item-equal to {@code item}
-     * (matching ID and damage; ignoring stack size and NBT, like upstream).
+     * Gets a random mob name from the list.
+     * @param rand World generation random number generator
+     * @return The mob name
      */
-    public static void removeDungeonLoot(ItemStack item) {
-        if (item == null) return;
-        dungeonLoot.removeIf(entry -> entry.theItemId != null
-                && entry.theItemId.itemID == item.itemID
-                && entry.theItemId.getItemDamage() == item.getItemDamage());
-    }
-
-    /** Snapshot of the currently-registered dungeon loot. */
-    public static List<WeightedRandomChestContent> getDungeonLoot() {
-        return new ArrayList<>(dungeonLoot);
-    }
-
-    /** Single registered dungeon mob entry. */
-    public static class DungeonMob {
-
-        public final String type;
-        public int rarity;
-
-        public DungeonMob(String type, int rarity) {
-            this.type = type;
-            this.rarity = rarity;
+    public static String getRandomDungeonMob(Random rand)
+    {
+        DungeonMob mob = (DungeonMob)WeightedRandom.getRandomItem(rand, dungeonMobs);
+        if (mob == null)
+        {
+            return "";
         }
+        return mob.type;
+    }
+
+
+    public static class DungeonMob extends WeightedRandomItem
+    {
+        public String type;
+        public DungeonMob(int weight, String type)
+        {
+            super(weight);
+            this.type = type;
+        }
+
+        @Override
+        public boolean equals(Object target)
+        {
+            return target instanceof DungeonMob && type.equals(((DungeonMob)target).type);
+        }
+    }
+
+    static
+    {
+        addDungeonMob("Skeleton", 100);
+        addDungeonMob("Zombie",   200);
+        addDungeonMob("Spider",   100);
     }
 }

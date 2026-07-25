@@ -1,9 +1,10 @@
 package net.minecraftforge.event.terraingen;
 
+import java.util.Random;
+
 import net.minecraft.world.World;
 import net.minecraft.world.chunk.IChunkProvider;
-
-import java.util.Random;
+import net.minecraftforge.event.world.*;
 
 public class PopulateChunkEvent extends ChunkProviderEvent
 {
@@ -48,16 +49,16 @@ public class PopulateChunkEvent extends ChunkProviderEvent
     @HasResult
     public static class Populate extends PopulateChunkEvent
     {
-        public final EventType type;
+        /** Use CUSTOM to filter custom event types
+         */
+        public static enum EventType { DUNGEON, FIRE, GLOWSTONE, ICE, LAKE, LAVA, NETHER_LAVA, CUSTOM }
         
+        public final EventType type;
+
         public Populate(IChunkProvider chunkProvider, World world, Random rand, int chunkX, int chunkZ, boolean hasVillageGenerated, EventType type)
         {
             super(chunkProvider, world, rand, chunkX, chunkZ, hasVillageGenerated);
             this.type = type;
         }
-
-        /** Use CUSTOM to filter custom event types
-         */
-        public static enum EventType { DUNGEON, FIRE, GLOWSTONE, ICE, LAKE, LAVA, NETHER_LAVA, CUSTOM }
     }
 }

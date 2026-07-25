@@ -1,44 +1,34 @@
 package net.minecraftforge.common;
 
-import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.world.World;
 
-import java.util.Map;
-import java.util.WeakHashMap;
-
-/**
- * Forge 1.6.4 FakePlayerFactory — pools {@link FakePlayer} instances per
- * (world, username) so mods that need to attribute world changes to a
- * synthetic player share the same handle.
- */
-public class FakePlayerFactory {
-
-    private static final Map<World, Map<String, FakePlayer>> WORLD_POOL = new WeakHashMap<>();
-
-    /** Get or create a FakePlayer for {@code username} in {@code world}. */
-    public static FakePlayer get(World world, String username) {
-        if (world == null || username == null) return null;
-        Map<String, FakePlayer> pool = WORLD_POOL.computeIfAbsent(world, w -> new WeakHashMap<>());
-        FakePlayer player = pool.get(username);
-        if (player == null) {
-            player = new FakePlayer(world, username);
-            pool.put(username, player);
+//To be expanded for generic Mod fake players?
+public class FakePlayerFactory
+{
+    // Map of all active fake player usernames to their entities
+    private static java.util.Map<String, FakePlayer> fakePlayers = new java.util.HashMap<String, FakePlayer>();
+    private static FakePlayer MINECRAFT_PLAYER = null;
+    
+    public static FakePlayer getMinecraft(World world)
+    {
+        if (MINECRAFT_PLAYER == null)
+        {
+            MINECRAFT_PLAYER = FakePlayerFactory.get(world,  "[Minecraft]");
         }
-        return player;
+        return MINECRAFT_PLAYER;
     }
+    
+    /**
+     * Get a fake player with a given username
+     */
+    public static FakePlayer get(World world, String username)
+    {
+        if (!fakePlayers.containsKey(username))
+        {
+            FakePlayer fakePlayer = new FakePlayer(world, username);
+            fakePlayers.put(username, fakePlayer);
+        }
 
-    /** Convenience: a fake player named "[Minecraft]". */
-    public static FakePlayer getMinecraft(World world) {
-        return get(world, "[Minecraft]");
-    }
-
-    /** Returns the player as a FakePlayer if it actually is one, else null. */
-    public static FakePlayer unwrap(EntityPlayer player) {
-        return player instanceof FakePlayer ? (FakePlayer) player : null;
-    }
-
-    /** Drop pooled fake players for an unloaded world. */
-    public static void unloadWorld(World world) {
-        WORLD_POOL.remove(world);
+        return fakePlayers.get(username);
     }
 }

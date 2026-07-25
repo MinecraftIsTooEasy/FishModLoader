@@ -1,9 +1,10 @@
 package net.minecraftforge.liquids;
 
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.Event;
-
+@Deprecated //See new net.minecraftforge.fluids
 public class LiquidEvent extends Event {
     public final LiquidStack liquid;
     public final int x;
@@ -18,16 +19,6 @@ public class LiquidEvent extends Event {
         this.x = x;
         this.y = y;
         this.z = z;
-    }
-
-    /**
-     * A handy shortcut for firing the various liquid events
-     *
-     * @param event
-     */
-    public static final void fireEvent(LiquidEvent event)
-    {
-        MinecraftForge.EVENT_BUS.post(event);
     }
 
     /**
@@ -78,6 +69,7 @@ public class LiquidEvent extends Event {
         }
     }
 
+
     /**
      * Mods should fire this event when a liquid "spills", for example, if a block containing liquid is broken.
      *
@@ -90,5 +82,15 @@ public class LiquidEvent extends Event {
         {
             super(liquid, world, x, y, z);
         }
+    }
+
+    /**
+     * A handy shortcut for firing the various liquid events
+     *
+     * @param event
+     */
+    public static final void fireEvent(LiquidEvent event)
+    {
+        MinecraftForge.EVENT_BUS.post(event);
     }
 }
