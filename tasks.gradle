@@ -284,3 +284,144 @@ tasks.withType(JavaExec).configureEach { task ->
         task.dependsOn extractNatives
     }
 }
+
+// ====== ForgeGradle-style patching pipeline ======
+
+def miteIntermediaryJar = file("${buildDir}/tmp/mite-intermediary.jar")
+def miteDecompiledDir = file("${buildDir}/tmp/mite-src")
+def miteSrcWorkDir = file("${buildDir}/tmp/mite-src-work")
+def mitePatchedClassesDir = file("${buildDir}/tmp/mite-patched-classes")
+def mitePatchedJar = file("${buildDir}/tmp/mite-patched.jar")
+
+tasks.register('remapMiteToIntermediary', JavaExec) {
+    dependsOn project(':tools').tasks.named('compileJava')
+    group = 'forge-patching'
+
+    classpath = project(':tools').sourceSets.main.runtimeClasspath
+    mainClass = 'org.moddedmite.fish.faloom.RemapToIntermediary'
+    args = [
+            file('libs/1.6.4-MITE.jar').path,
+            miteIntermediaryJar.path,
+            "${projectDir}/src/main/resources/intermediary.tiny"
+    ]
+
+    doFirst {
+        file("${buildDir}/tmp").mkdirs()
+    }
+}
+
+tasks.register('decompileMiteJar', JavaExec) {
+    dependsOn remapMiteToIntermediary
+    group = 'forge-patching'
+
+    classpath = project(':tools').sourceSets.main.runtimeClasspath
+    mainClass = 'org.benf.cfr.reader.Main'
+    args = [
+            miteIntermediaryJar.path,
+            "--outputdir", miteDecompiledDir.path,
+            "--silent", "true",
+            "--caseinsensitivefs", "false",
+            "--hideutf", "true"
+    ]
+
+    doFirst {
+        miteDecompiledDir.deleteDir()
+        miteDecompiledDir.mkdirs()
+    }
+
+    doLast {
+        println "Decompiled source written to " + miteDecompiledDir
+    }
+}
+
+tasks.register('applyForgePatches') {
+    dependsOn decompileMiteJar
+    group = 'forge-patching'
+
+    doLast {
+        // Clear and copy decompiled source to work directory
+        miteSrcWorkDir.deleteDir()
+        miteSrcWorkDir.mkdirs()
+        // Patches expect paths like minecraft/net/minecraft/block/Block.java
+        // (with -p2 stripping ../src_base/../src_work/ prefix)
+        copy {
+            from miteDecompiledDir
+            into "${miteSrcWorkDir}/minecraft"
+        }
+
+        // Apply each patch
+        def patchesDir = file("${projectDir}/patches/minecraft")
+        def patchCount = 0
+        def successCount = 0
+        def failCount = 0
+
+        fileTree(patchesDir).matching { include '**/*.patch' }.each { patchFile ->
+            patchCount++
+            def relativePath = patchFile.name
+            def result = project.exec {
+                workingDir = miteSrcWorkDir
+                executable = 'patch'
+                args = [
+                        '--batch', '--silent',
+                        '-p2',
+                        '-i', patchFile.path
+                ]
+                ignoreExitValue = true
+            }
+            if (result.exitValue == 0) {
+                successCount++
+            } else {
+                failCount++
+                println "PATCH FAILED: ${relativePath}"
+                def rejectFile = new File(miteSrcWorkDir, patchFile.path.replace('.patch', '.rej'))
+                if (rejectFile.exists()) {
+                    println "  Rejects in: ${rejectFile.path}"
+                }
+            }
+        }
+
+        println "Patches applied: ${successCount}/${patchCount} succeeded, ${failCount} failed"
+        if (failCount > 0) {
+            println "WARNING: ${failCount} patches failed. Fix rejects in ${miteSrcWorkDir}"
+        }
+    }
+}
+
+tasks.register('compilePatchedSource', JavaCompile) {
+    dependsOn applyForgePatches
+    group = 'forge-patching'
+
+    source = miteSrcWorkDir
+    destinationDirectory = mitePatchedClassesDir
+    classpath = files(
+            file('libs/1.6.4-MITE.jar'),
+            configurations.launchLibs
+    )
+
+    options.encoding = 'UTF-8'
+    sourceCompatibility = '1.8'
+    targetCompatibility = '1.8'
+
+    doFirst {
+        mitePatchedClassesDir.mkdirs()
+    }
+}
+
+tasks.register('packagePatchedJar', Jar) {
+    dependsOn compilePatchedSource
+    group = 'forge-patching'
+
+    destinationDirectory = file("${buildDir}/tmp")
+    archiveFileName = 'mite-patched.jar'
+
+    from mitePatchedClassesDir
+    from {
+        fileTree(miteIntermediaryJar).matching {
+            exclude '**/*.class'
+        }
+    }
+
+    doLast {
+        println "Patched MITE jar: ${archiveFile.get().asFile.path}"
+    }
+}

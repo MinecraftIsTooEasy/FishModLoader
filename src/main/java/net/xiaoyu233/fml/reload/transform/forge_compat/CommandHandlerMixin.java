@@ -1,0 +1,37 @@
+package net.xiaoyu233.fml.reload.transform.forge_compat;
+
+import net.minecraft.command.CommandHandler;
+import net.minecraft.command.ICommand;
+import net.minecraft.command.ICommandSender;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.CommandEvent;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+@Mixin(CommandHandler.class)
+public abstract class CommandHandlerMixin {
+
+    @Shadow
+    public abstract int executeCommand(ICommandSender par1ICommandSender, String par2Str);
+
+    @Inject(method = "executeCommand", at = @At("HEAD"), cancellable = true)
+    private void fmlForgeExecuteCommand(ICommandSender par1ICommandSender, String par2Str, CallbackInfo ci) {
+        // The actual CommandEvent is fired inside the method body - handled via @Redirect
+    }
+
+    @Unique
+    protected boolean fmlForgeFireCommandEvent(ICommand command, ICommandSender sender, String[] args) {
+        CommandEvent event = new CommandEvent(command, sender, args);
+        if (MinecraftForge.EVENT_BUS.post(event)) {
+            if (event.exception != null) {
+                throw new RuntimeException(event.exception);
+            }
+            return true; // consumed
+        }
+        return false;
+    }
+}

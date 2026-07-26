@@ -1,0 +1,243 @@
+package net.xiaoyu233.fml.reload.transform.forge_compat;
+
+import net.minecraft.block.Block;
+import net.minecraft.client.gui.FontRenderer;
+import net.minecraft.client.gui.ScaledResolution;
+import net.minecraft.client.model.ModelBiped;
+import net.minecraft.util.Icon;
+import net.minecraft.creativetab.CreativeTabs;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.entity.item.EntityItem;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemArmor;
+import net.minecraft.item.ItemStack;
+import net.minecraft.util.WeightedRandomChestContent;
+import net.minecraft.world.World;
+import net.minecraftforge.common.ChestGenHooks;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
+
+import java.util.Random;
+
+@Mixin(Item.class)
+public class ItemMixin {
+    @Shadow private boolean damageable;
+
+    @Unique
+    protected boolean canRepair = true;
+
+    @Unique
+    public boolean onDroppedByPlayer(ItemStack item, EntityPlayer player) {
+        return true;
+    }
+
+    @Unique
+    public boolean onItemUseFirst(ItemStack stack, EntityPlayer player, World world, int x, int y, int z, int side, float hitX, float hitY, float hitZ) {
+        return false;
+    }
+
+    @Unique
+    public float getStrVsBlock(Block block, int metadata) {
+        // Forge added 3-arg version getStrVsBlock(ItemStack, Block, int)
+        // MITE uses getStrVsBlock(Block, int)
+        return ((Item)(Object)this).getStrVsBlock(block, metadata);
+    }
+
+    @Unique
+    public boolean isRepairable() {
+        return canRepair && ((Item)(Object)this).isDamageable();
+    }
+
+    @Unique
+    public Item setNoRepair() {
+        canRepair = false;
+        return (Item)(Object)this;
+    }
+
+    @Unique
+    public boolean onBlockStartBreak(ItemStack itemstack, int X, int Y, int Z, EntityPlayer player) {
+        return false;
+    }
+
+    @Unique
+    public void onUsingItemTick(ItemStack stack, EntityPlayer player, int count) {
+    }
+
+    @Unique
+    public boolean onLeftClickEntity(ItemStack stack, EntityPlayer player, Entity entity) {
+        return false;
+    }
+
+    @Unique
+    public Icon getIcon(ItemStack stack, int renderPass, EntityPlayer player, ItemStack usingItem, int useRemaining) {
+        return null;
+    }
+
+    @Unique
+    public int getRenderPasses(int metadata) {
+        return ((Item)(Object)this).requiresMultipleRenderPasses() ? 2 : 1;
+    }
+
+    @Unique
+    public ItemStack getContainerItemStack(ItemStack itemStack) {
+        if (!((Item)(Object)this).hasContainerItem()) {
+            return null;
+        }
+        return new ItemStack(((Item)(Object)this).getContainerItem());
+    }
+
+    @Unique
+    public int getEntityLifespan(ItemStack itemStack, World world) {
+        return 6000;
+    }
+
+    @Unique
+    public boolean hasCustomEntity(ItemStack stack) {
+        return false;
+    }
+
+    @Unique
+    public Entity createEntity(World world, Entity location, ItemStack itemstack) {
+        return null;
+    }
+
+    @Unique
+    public boolean onEntityItemUpdate(EntityItem entityItem) {
+        return false;
+    }
+
+    @Unique
+    public CreativeTabs[] getCreativeTabs() {
+        return new CreativeTabs[]{ ((Item)(Object)this).getCreativeTab() };
+    }
+
+    @Unique
+    public float getSmeltingExperience(ItemStack item) {
+        return -1;
+    }
+
+    @Unique
+    public Icon getIcon(ItemStack stack, int pass) {
+        // MITE does not have getIconFromDamageForRenderPass(int, int)
+        return null;
+    }
+
+    @Unique
+    public WeightedRandomChestContent getChestGenBase(ChestGenHooks chest, Random rnd, WeightedRandomChestContent original) {
+        return original;
+    }
+
+    @Unique
+    public boolean shouldPassSneakingClickToBlock(World par2World, int par4, int par5, int par6) {
+        return false;
+    }
+
+    @Unique
+    public void onArmorTickUpdate(World world, EntityPlayer player, ItemStack itemStack) {
+    }
+
+    @Unique
+    public boolean isValidArmor(ItemStack stack, int armorType, Entity entity) {
+        if (((Item)(Object)this) instanceof ItemArmor) {
+            return ((ItemArmor)(Object)this).armorType == armorType;
+        }
+        if (armorType == 0) {
+            return ((Item)(Object)this).itemID == Block.pumpkin.blockID || ((Item)(Object)this).itemID == Item.skull.itemID;
+        }
+        return false;
+    }
+
+    @Unique
+    public boolean isPotionIngredient(ItemStack stack) {
+        return ((Item)(Object)this).isPotionIngredient();
+    }
+
+    @Unique
+    public String getPotionEffect(ItemStack stack) {
+        return ((Item)(Object)this).getPotionEffect();
+    }
+
+    @Unique
+    public boolean isBookEnchantable(ItemStack itemstack1, ItemStack itemstack2) {
+        return true;
+    }
+
+    @Unique
+    public float getDamageVsEntity(Entity par1Entity, ItemStack itemStack) {
+        return 0.0F;
+    }
+
+    @Unique
+    public String getArmorTexture(ItemStack stack, Entity entity, int slot, int layer) {
+        return null;
+    }
+
+    @Unique
+    public String getArmorTexture(ItemStack stack, Entity entity, int slot, String type) {
+        return null;
+    }
+
+    @Unique
+    public FontRenderer getFontRenderer(ItemStack stack) {
+        return null;
+    }
+
+    @Unique
+    public ModelBiped getArmorModel(EntityLivingBase entityLiving, ItemStack itemStack, int armorSlot) {
+        return null;
+    }
+
+    @Unique
+    public boolean onEntitySwing(EntityLivingBase entityLiving, ItemStack stack) {
+        return false;
+    }
+
+    @Unique
+    public void renderHelmetOverlay(ItemStack stack, EntityPlayer player, ScaledResolution resolution, float partialTicks, boolean hasScreen, int mouseX, int mouseY) {
+    }
+
+    @Unique
+    public int getDamage(ItemStack stack) {
+        return stack.getItemDamage();
+    }
+
+    @Unique
+    public int getDisplayDamage(ItemStack stack) {
+        return stack.getItemDamage();
+    }
+
+    @Unique
+    public int getMaxDamage(ItemStack stack) {
+        // MITE's getMaxDamage may require EnumQuality
+        return 0;
+    }
+
+    @Unique
+    public boolean isDamaged(ItemStack stack) {
+        return stack.getItemDamage() > 0;
+    }
+
+    @Unique
+    public void setDamage(ItemStack stack, int damage) {
+        stack.setItemDamage(damage);
+    }
+
+    @Unique
+    public boolean canHarvestBlock(Block par1Block, ItemStack itemStack) {
+        return false;
+    }
+
+    @Unique
+    public boolean hasEffect(ItemStack par1ItemStack, int pass) {
+        return ((Item)(Object)this).hasEffect(par1ItemStack);
+    }
+
+    @Unique
+    public int getItemStackLimit(ItemStack stack) {
+        // MITE's getItemStackLimit may have different parameters
+        return 64;
+    }
+}

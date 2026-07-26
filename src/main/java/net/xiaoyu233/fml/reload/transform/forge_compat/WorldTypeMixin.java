@@ -38,4 +38,19 @@ public class WorldTypeMixin implements IMixinWorldType {
         newBiomesForWorld.remove(biome);
         forge_biomesForWorldType = newBiomesForWorld.toArray(new BiomeGenBase[0]);
     }
+
+    @Unique
+    public int getSpawnFuzz() {
+        return 20;
+    }
+
+    @Unique
+    public boolean isCustomizable() {
+        return ((WorldType)(Object)this) == WorldType.FLAT;
+    }
+
+    @Unique
+    public float getCloudHeight() {
+        return 128.0F;
+    }
 }

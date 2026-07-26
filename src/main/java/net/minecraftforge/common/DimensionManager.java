@@ -37,6 +37,7 @@ import net.minecraft.world.WorldProvider;
 import net.minecraft.world.WorldProviderEnd;
 import net.minecraft.world.WorldProviderHell;
 import net.minecraft.world.WorldProviderSurface;
+import net.minecraft.world.WorldProviderUnderworld;
 import net.minecraft.world.WorldServer;
 import net.minecraft.world.WorldServerMulti;
 import net.minecraft.world.WorldSettings;
@@ -108,12 +109,15 @@ public class DimensionManager
 
         hasInit = true;
 
-        registerProviderType( 0, WorldProviderSurface.class, true);
-        registerProviderType(-1, WorldProviderHell.class,    true);
-        registerProviderType( 1, WorldProviderEnd.class,     false);
+        registerProviderType( 0, WorldProviderSurface.class,        true);
+        registerProviderType(-1, WorldProviderHell.class,           true);
+        registerProviderType( 1, WorldProviderEnd.class,            false);
+        registerProviderType(-2, WorldProviderUnderworld.class,     true);
+        
         registerDimension( 0,  0);
         registerDimension(-1, -1);
         registerDimension( 1,  1);
+        registerDimension(-2, -2);
     }
 
     public static void registerDimension(int id, int providerType)

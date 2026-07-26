@@ -51,4 +51,5 @@ dependencies {
     implementation 'org.ow2.asm:asm-util:9.9.1'
     implementation 'com.google.code.gson:gson:2.11.0'
     implementation 'com.google.guava:guava:33.4.8-jre'
+    implementation 'net.fabricmc:cfr:0.2.1'
 }
