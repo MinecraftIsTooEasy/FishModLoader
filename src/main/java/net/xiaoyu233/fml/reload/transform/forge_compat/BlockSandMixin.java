@@ -4,14 +4,16 @@ import net.minecraft.block.Block;
 import net.minecraft.block.BlockSand;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Overwrite;
+import org.spongepowered.asm.mixin.Unique;
 
 @Mixin(BlockSand.class)
 public class BlockSandMixin {
     /**
      * @reason Use isAirBlock instead of getBlockId == 0 for Forge compat
      */
-    @Overwrite
+    /** NOTE: MITE has no canFallAbove on BlockSand, so this cannot be an @Overwrite
+     *  (mixin apply would fail hard). Kept inert. See PLAN.md. */
+    @Unique
     public boolean canFallAbove(World world, int x, int y, int z) {
         int l = world.getBlockId(x, y, z);
         if (world.isAirBlock(x, y, z)) {

@@ -3,7 +3,7 @@ package net.xiaoyu233.fml.reload.transform.forge_compat;
 import cpw.mods.fml.common.network.Player;
 import net.minecraft.entity.player.EntityPlayerMP;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Overwrite;
+import org.spongepowered.asm.mixin.Unique;
 
 @Mixin(EntityPlayerMP.class)
 public class EntityPlayerMPMixin implements Player {
@@ -12,7 +12,9 @@ public class EntityPlayerMPMixin implements Player {
     /**
      * @reason Forge changes getDefaultEyeHeight to match EntityPlayerMP's height
      */
-    @Overwrite
+    /** NOTE: MITE has no getDefaultEyeHeight on EntityPlayerMP, so this cannot be an @Overwrite
+     *  (mixin apply would fail hard). Kept inert. See PLAN.md. */
+    @Unique
     public float getDefaultEyeHeight() {
         return 1.62F;
     }

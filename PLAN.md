@@ -84,7 +84,18 @@ MITE 删除了整套原版方块放置 API，改用：
 `quantityDropped`、`isValidSupportBlock`
 （`isValidSupportBlock` 原本还是带方法体的 `@Shadow`，本身即非法用法）
 
-共转换 20 处注解。校验结果：缺失项 **81 → 53**，方块放置 API 组已清零。
+共转换 20 处注解。
+
+除上述 9 个文件外，又核实并修正 4 处 `@Overwrite`：
+`BlockBaseRailLogic::updateRailMetadata`、`BlockDoor::isOpaqueCube`
+（MITE 改用 `isStandardFormCube`）、`BlockSand::canFallAbove`、
+`EntityPlayerMP::getDefaultEyeHeight`。
+
+校验结果：缺失项 **81 → 49**，**所有 `@Overwrite` 硬失败已清零**。
+剩余 49 项均为 `@Shadow`，同样会在 mixin 应用期失败，需后续逐项处理。
+
+> 校验命令：`bash tools/verify_overwrites.sh build/tmp/mite-named.jar`
+> （推荐用 named jar，它与 mixin 源码命名空间一致；用 intermediary jar 结果相同，但需依赖脚本内部翻译）
 
 > 更正：本分支早先曾把 `BlockCactus`/`BlockFlower`/`BlockReed`/`BlockCrops`
 > 的 `@Unique` 改成 `@Overwrite`（commit 92df71d），这是**错误**的——
@@ -114,9 +125,24 @@ MITE 删除了整套原版方块放置 API，改用：
 
 ## 编译现状（已实测）
 
-`./gradlew compileJava` 目前 **仍不通过**，剩 1094 条错误，分布于 24 个文件。
-这些全是**原有问题**，已通过 git stash 对比基线证实：
-有/无本分支改动，出错文件完全相同，**零回归**。
+`./gradlew compileJava` 目前 **仍不通过**，剩 **66** 条错误。
+
+演进过程（每一步都实测）：
+
+| 阶段 | 错误数 |
+|------|--------|
+| 初始（compileClasspath 是 official jar，全部无法解析） | 全量失败 |
+| 修好 official→intermediary→named 链路 | 2230 |
+| 加 `ignoreFieldDesc(true)` | 1094 |
+| 补全 fabric mappings 工具类 | 1082 |
+| 翻译 named.tiny 的 official 描述符 | **66** |
+
+最后一步是关键：named.tiny 的成员描述符存的是 official 命名空间，
+导致 tiny-remapper 的 name+desc 匹配几乎全部失效。翻译 8864 个描述符后
+错误数下降 94%。
+
+剩余 66 条分布于 19 个文件，全是**原有问题**（MITE API 与 vanilla Forge 分歧），
+已通过 git stash 对比基线证实：有/无本分支改动，出错文件完全相同，**零回归**。
 
 本分支所改文件的自身错误数（单独 javac 验证）：
 
@@ -132,17 +158,26 @@ MITE 删除了整套原版方块放置 API，改用：
 后三者的错误均在本分支**未触碰的方法体**内，属 MITE API 分歧：
 `World.setBlockMetadataWithNotify`、`World.getSavedLightValue`、`World.getBlockMaterial` 均不存在。
 
-### 剩余错误的两大类别
+### 剩余 66 条错误的分布
 
-1. **缺失源码包**（非 MITE 相关，仓库本身不完整）
-   - `net.xiaoyu233.fml.mapping.IntermediaryMappingProvider` — `fml/mapping/` 下只有
-     `CachedMappedJar` 和 `ObfuscationEnvironmentFish`
-   - `net.fabricmc.loader.impl.util.mappings` 整个包缺失（`MixinIntermediaryDevRemapper`、
-     `FilteringMappingVisitor`）
-2. **客户端 FML 类的 MITE API 分歧**（占绝大多数）
-   - `FMLClientHandler`（64）、`GuiModList`（34）、`FMLNetworkHandler`（26）等
+已解决：缺失源码包（`FilteringMappingVisitor`、`MixinIntermediaryDevRemapper`
+已补全，未使用的 `IntermediaryMappingProvider` import 已删）。
 
-这两类都超出本次 classloader / mixin 目标范围，归入下方待完成。
+剩余全部是 MITE API 与 vanilla Forge 1.6.4 的分歧，Top 文件：
+
+| 文件 | 错误 |
+|------|------|
+| `forge_compat/BlockTorchMixin` | 8 |
+| `cpw/.../network/FMLNetworkHandler` | 8 |
+| `net/minecraftforge/fluids/BlockFluidFinite` | 6 |
+| `net/minecraftforge/common/WorldSpecificSaveHandler` | 6 |
+| `net/minecraftforge/common/ForgeHooks` | 6 |
+| `net/minecraftforge/fluids/BlockFluidClassic` | 4 |
+| `cpw/.../network/NetworkRegistry` | 4 |
+
+典型缺失 API：`World.setBlockMetadataWithNotify`、`World.getSavedLightValue`、
+`World.getBlockMaterial`、`Block.idDropped`、`EntityItem.lifespan`。
+需逐个映射到 MITE 的对应写法，超出本次目标范围。
 
 ---
 
@@ -164,17 +199,18 @@ mixin 自建辅助方法（本就不该存在于 jar，属预期）。其余需�
 
 ### P0 — 必须（当前阻塞项）
 
-- [ ] **补齐缺失源码包**（阻塞编译，优先级最高）
-  - `net.xiaoyu233.fml.mapping.IntermediaryMappingProvider`
-  - `net.fabricmc.loader.impl.util.mappings.MixinIntermediaryDevRemapper`
-  - `net.fabricmc.loader.impl.util.mappings.FilteringMappingVisitor`
+- [x] ~~补齐缺失源码包~~ 已完成（`FilteringMappingVisitor`、
+  `MixinIntermediaryDevRemapper`）
 
-  前两者在 `Launch.java` / `FishModLoader.java` 里被 import 却从未使用，
-  可考虑直接删 import；`MappingConfiguration.java` 则真在用，需补实现。
+- [ ] **剩余 66 条 MITE API 分歧**（唯一编译阻塞项）
+  集中在 `net/minecraftforge/fluids/*`、`net/minecraftforge/common/ForgeHooks`、
+  `cpw/**/network/*` 和 `forge_compat/BlockTorchMixin`。
+  需把 vanilla 写法改为 MITE 对应 API，详见上方分布表。
 
-- [ ] **客户端 FML 类适配 MITE API**（~1000 条错误的主体）
-  `FMLClientHandler`、`GuiModList`、`FMLNetworkHandler`、`GuiScrollingList` 等。
-  建议先做服务端（少量错误），客户端可先用 `@SideOnly` 或暂时排除。
+- [ ] **49 处 `@Shadow` 目标缺失**
+  `@Shadow` 与 `@Overwrite` 一样会在 mixin 应用期硬失败。
+  `@Overwrite` 组已全部清零，`@Shadow` 组待逐项处理：
+  `bash tools/verify_overwrites.sh build/tmp/mite-named.jar`
 
 - [ ] **`LaunchClassLoader.findClass` 死变量清理**
   `untransformedName` 行的 `codeSource` 局部变量算完后没有传给 `defineClass`，
@@ -188,7 +224,7 @@ mixin 自建辅助方法（本就不该存在于 jar，属预期）。其余需�
 
 - [ ] **`ForgeAccessTransformerImporter` 实际应用**
   当前 `ForgeModDiscoverer` 已调用 `ForgeAccessTransformerImporter.importFrom(jarPath)`
-  但 `ForgeAccessTransformerImporter` 的实现需要验证能否正确扩展 AccessWidener。
+  但实现需要验证能否正确扩展 AccessWidener。
 
 ### P1 — 重要（影响常用 Forge API）
 

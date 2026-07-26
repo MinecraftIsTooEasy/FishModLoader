@@ -4,7 +4,6 @@ import net.minecraft.block.BlockBaseRailLogic;
 import net.minecraft.block.BlockRailBase;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 
@@ -34,7 +33,9 @@ public abstract class BlockBaseRailLogicMixin {
     /**
      * @reason Forge compat: simplify to just use metadata directly
      */
-    @Overwrite
+    /** NOTE: MITE has no updateRailMetadata on BlockBaseRailLogic, so this cannot be an @Overwrite
+     *  (mixin apply would fail hard). Kept inert. See PLAN.md. */
+    @Unique
     public void updateRailMetadata() {
         int l = this.logicWorld.getBlockId(this.railX, this.railY, this.railZ);
         BlockRailBase target = (BlockRailBase) BlockRailBase.blocksList[l];
