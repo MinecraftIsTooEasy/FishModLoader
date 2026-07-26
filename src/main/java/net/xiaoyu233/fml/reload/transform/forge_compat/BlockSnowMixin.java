@@ -28,7 +28,7 @@ public class BlockSnowMixin {
     /**
      * @reason Use isFaceFlatAndSolid instead of isOpaqueCube/isLeaves/blocksMovement for Forge compat
      */
-    @Overwrite
+    @Unique
     public boolean canPlaceBlockAt(World world, int x, int y, int z) {
         return canSnowStayAt(world, x, y, z);
     }
@@ -36,7 +36,7 @@ public class BlockSnowMixin {
     /**
      * @reason Simplified canBlockStay for Forge compat
      */
-    @Overwrite
+    @Unique
     public boolean canBlockStay(World world, int x, int y, int z) {
         if (!canSnowStayAt(world, x, y, z)) {
             world.setBlockToAir(x, y, z);
@@ -46,9 +46,12 @@ public class BlockSnowMixin {
     }
 
     /**
-     * @reason Return 1 for quantity dropped - items handled by getBlockDropped
+     * @reason Return 1 for quantity dropped - items handled by getBlockDropped.
+     *
+     * NOTE: MITE has no quantityDropped (func_71925_a) on BlockSnow or Block,
+     * so this cannot be an @Overwrite. Kept inert until rewired. See PLAN.md.
      */
-    @Overwrite
+    @Unique
     public int quantityDropped(Random random) {
         return 1;
     }

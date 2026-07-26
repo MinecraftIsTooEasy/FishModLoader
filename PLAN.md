@@ -11,7 +11,87 @@
 
 ## 已完成（本分支）
 
-### 1. classloader 完善
+### 0. 构建可验证性（新增，前置条件）
+
+| 文件 | 改动 |
+|------|------|
+| `tools/main/java/.../RemapToIntermediary.java` | **新建**：`tasks.gradle` 的 `remapMiteToIntermediary` 任务一直引用这个类，但 tools/ 里从未存在，导致该任务必然失败、整条验证链断掉。按 `LoaderRemapper` 的写法补全（official → intermediary，v1 tiny）。注意不能加 `ignoreFieldDesc(true)`，否则 `st` 类同名字段冲突报 `duplicate field` |
+| `tools/verify_overwrites.sh` | **新建**：静态校验 forge_compat 里所有 `@Overwrite`/`@Shadow` 目标是否真实存在于 MITE 类上（含父类链） |
+| `tools/main/java/.../RemapIntermediaryToNamed.java` | **新建**：产出编译所需的 **named** 命名空间 jar（intermediary → named，v2 tiny） |
+| `tasks.gradle` | 新增 `remapMiteToNamed` 任务；`applyAccessWidener` 改为消费 named jar 而非原始 official jar；提高 javac 错误上限到 2000（默认 100 会饱和、掩盖真实进展） |
+
+> `libs/1.6.4-MITE.jar` 就是 official 命名空间的 MITE-HDS.jar（默认包 `a.class` 等）。
+> 该文件被 .gitignore 忽略，不入库。
+
+### 关键修复：编译类路径命名空间错误
+
+原 `applyAccessWidener` 直接吃 **official** jar 产出 `widen.jar` 作为 compileClasspath，
+但源码和 `fishmodloader.accesswidener` 都是 **named** 名 —— 结果 widen 了 **0** 个类，
+且编译器无法解析任何 `net.minecraft.*`。
+
+正确的命名空间链路：
+
+```
+libs/1.6.4-MITE.jar        official（a.class ...）
+  → mite-intermediary.jar  via intermediary.tiny  (official → intermediary)
+  → mite-named.jar         via named.tiny         (intermediary → named)
+  → widen.jar              via fishmodloader.accesswidener
+```
+
+修好后 AW 正常加载 86 个目标，编译错误数从「全部无法解析」降到可量化的 1094 条。
+
+`RemapIntermediaryToNamed` 需要两个特殊处理：
+
+1. **`ignoreFieldDesc(true)`** —— `named.tiny` 存的是 *official* 字段描述符（`[Laqz;`），
+   而输入 jar 已是 intermediary（`[Lnet/minecraft/block/Block;`）。描述符不匹配会
+   静默跳过 `Block.field_71973_m → blocksList` 等字段。
+   实测：不加 2230 条错误，加了 1094 条 —— 净收益明显，保留。
+2. **跳过冲突映射项** —— `named.tiny` 想把 `field_71322_p` 改名为 `playersOnline`，
+   但 MITE 的 `MinecraftServer` 本就有 `playersOnline` 字段，属 tinyremapper
+   不可修复冲突，会中断整个构建。已在生成编译用 jar 时过滤该条。
+
+### 重要：命名空间陷阱
+
+校验时必须注意三层命名空间，否则会产生大量误报：
+
+- Mixin 源码写的是 **named**（`blockID`、`canBlockStay`）
+- 重映射后的游戏 jar 是 **intermediary**，其中多数成员仍是 SRG 名（`field_71990_ca`、`func_71854_d`）
+- `named.tiny` 提供 intermediary → named 映射
+
+直接用 named 名去 jar 里 grep 会误报约 298 项；先经 `named.tiny` 翻译再比对后降到 81 项。
+
+### 关键发现：`named.tiny` 不等于 MITE 实际 API
+
+`named.tiny` 描述的是**原版 1.6.4**。它声称 BlockCactus/BlockFlower/BlockReed 有
+`canBlockStay`（映射为 `func_71854_d`），但在实际 MITE jar 中，
+`func_71854_d` 在**所有** block 类里都不存在。
+
+MITE 删除了整套原版方块放置 API，改用：
+`isLegalAt` / `isLegalOn` / `onNotLegal` / `dropBlockAsEntityItem(BlockBreakInfo)`
+
+**以实际 jar 为准，不能以 `named.tiny` 为准。**
+
+### 1. forge_compat Mixin：@Overwrite 目标缺失修复
+
+`@Overwrite`/`@Shadow` 在目标成员缺失时会在 mixin 应用期**硬失败**。
+经 `verify_overwrites.sh` 核实，以下 9 个 Mixin（来自原 commit f78f589，非本分支引入）
+用 `@Overwrite`/`@Shadow` 指向 MITE 已删除的 API，已全部降级为惰性的 `@Unique`：
+
+`BlockButton`、`BlockLadder`、`BlockLever`、`BlockMushroom`、`BlockSnow`、
+`BlockTorch`、`BlockTripWireSource`、`BlockPumpkin`、`BlockTrapDoor`
+
+涉及方法：`canBlockStay`、`canPlaceBlockAt`、`canPlaceBlockOnSide`、
+`quantityDropped`、`isValidSupportBlock`
+（`isValidSupportBlock` 原本还是带方法体的 `@Shadow`，本身即非法用法）
+
+共转换 20 处注解。校验结果：缺失项 **81 → 53**，方块放置 API 组已清零。
+
+> 更正：本分支早先曾把 `BlockCactus`/`BlockFlower`/`BlockReed`/`BlockCrops`
+> 的 `@Unique` 改成 `@Overwrite`（commit 92df71d），这是**错误**的——
+> 经 remapped jar 核实，这些方法在 MITE 中同样不存在，`@Overwrite` 会导致
+> 运行时失败。已回滚为 `@Unique`。
+
+### 2. classloader 完善
 
 | 文件 | 改动 |
 |------|------|
@@ -32,11 +112,69 @@
 | `BlockReedMixin` | `canBlockStay` | Forge patch：甘蔗允许在相邻水格旁的土/草/沙地上生长，null-safe 检查 |
 | `BlockCropsMixin` | `getBlockDropped` | Forge patch：成熟作物的幸运附魔额外掉种子 |
 
+## 编译现状（已实测）
+
+`./gradlew compileJava` 目前 **仍不通过**，剩 1094 条错误，分布于 24 个文件。
+这些全是**原有问题**，已通过 git stash 对比基线证实：
+有/无本分支改动，出错文件完全相同，**零回归**。
+
+本分支所改文件的自身错误数（单独 javac 验证）：
+
+| 文件 | 自身错误 |
+|------|---------|
+| `LaunchwrapperBridge.java` | 0 |
+| `KnotClassDelegate.java` | 0 |
+| `BlockButton/Lever/Ladder/TripWireSource/Pumpkin/TrapDoor/Mushroom/Cactus/Flower/Crops` Mixin | 0 |
+| `BlockTorch` Mixin | 4（基线也是 4）|
+| `BlockSnow` Mixin | 1（基线也是 1）|
+| `BlockReed` Mixin | 1（基线也是 1）|
+
+后三者的错误均在本分支**未触碰的方法体**内，属 MITE API 分歧：
+`World.setBlockMetadataWithNotify`、`World.getSavedLightValue`、`World.getBlockMaterial` 均不存在。
+
+### 剩余错误的两大类别
+
+1. **缺失源码包**（非 MITE 相关，仓库本身不完整）
+   - `net.xiaoyu233.fml.mapping.IntermediaryMappingProvider` — `fml/mapping/` 下只有
+     `CachedMappedJar` 和 `ObfuscationEnvironmentFish`
+   - `net.fabricmc.loader.impl.util.mappings` 整个包缺失（`MixinIntermediaryDevRemapper`、
+     `FilteringMappingVisitor`）
+2. **客户端 FML 类的 MITE API 分歧**（占绝大多数）
+   - `FMLClientHandler`（64）、`GuiModList`（34）、`FMLNetworkHandler`（26）等
+
+这两类都超出本次 classloader / mixin 目标范围，归入下方待完成。
+
+---
+
+### 3. 其余待核实项（verify_overwrites.sh 报告）
+
+脚本仍报 81 项缺失，其中 6 项是 `fmlForge*`/`fmlPacket*` 前缀的
+mixin 自建辅助方法（本就不该存在于 jar，属预期）。其余需逐项人工确认，
+典型分组：
+
+- `idDropped`（BlockOre / BlockRedstoneOre）— MITE 改用 `dropBlockAsEntityItem`
+- `Packet51MapChunk` / `Packet56MapChunks` / `PlayerInstance` 字段 — 类本身在 jar 中，字段名已变
+- `WorldServer::isRaining` / `resetRainAndThunder`、`FurnaceRecipes::metaSmeltingList` 等
+
+完整清单：`bash tools/verify_overwrites.sh`
+
 ---
 
 ## 待完成（后续优先级排序）
 
-### P0 — 必须（影响 mod 能否运行）
+### P0 — 必须（当前阻塞项）
+
+- [ ] **补齐缺失源码包**（阻塞编译，优先级最高）
+  - `net.xiaoyu233.fml.mapping.IntermediaryMappingProvider`
+  - `net.fabricmc.loader.impl.util.mappings.MixinIntermediaryDevRemapper`
+  - `net.fabricmc.loader.impl.util.mappings.FilteringMappingVisitor`
+
+  前两者在 `Launch.java` / `FishModLoader.java` 里被 import 却从未使用，
+  可考虑直接删 import；`MappingConfiguration.java` 则真在用，需补实现。
+
+- [ ] **客户端 FML 类适配 MITE API**（~1000 条错误的主体）
+  `FMLClientHandler`、`GuiModList`、`FMLNetworkHandler`、`GuiScrollingList` 等。
+  建议先做服务端（少量错误），客户端可先用 `@SideOnly` 或暂时排除。
 
 - [ ] **`LaunchClassLoader.findClass` 死变量清理**
   `untransformedName` 行的 `codeSource` 局部变量算完后没有传给 `defineClass`，

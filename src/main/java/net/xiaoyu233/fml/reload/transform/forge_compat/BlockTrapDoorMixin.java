@@ -5,7 +5,6 @@ import net.minecraft.block.BlockTrapDoor;
 import net.minecraft.util.EnumFace;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 
@@ -14,7 +13,11 @@ public class BlockTrapDoorMixin {
     @Unique
     public static boolean disableValidation = false;
 
-    @Shadow
+    /**
+     * NOTE: was @Shadow, but MITE has no isValidSupportBlock on BlockTrapDoor
+     * and a @Shadow with a body is invalid anyway. Kept as a @Unique helper.
+     */
+    @Unique
     private static boolean isValidSupportBlock(int id) {
         if (id <= 0) return false;
         return true;
@@ -30,9 +33,12 @@ public class BlockTrapDoorMixin {
     }
 
     /**
-     * @reason Add disableValidation support and isBlockSolidOnSide check
+     * @reason Add disableValidation support and isBlockSolidOnSide check.
+     *
+     * NOTE: MITE removed the vanilla canPlaceBlockOnSide API, so this cannot
+     * be an @Overwrite -- mixin application would fail hard. See PLAN.md.
      */
-    @Overwrite
+    @Unique
     public boolean canPlaceBlockOnSide(World world, int x, int y, int z, int side) {
         if (disableValidation) return true;
         if (side == 0) return false;

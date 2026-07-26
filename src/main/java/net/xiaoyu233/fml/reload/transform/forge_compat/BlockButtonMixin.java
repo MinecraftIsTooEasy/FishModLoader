@@ -5,7 +5,6 @@ import net.minecraft.block.BlockButton;
 import net.minecraft.util.EnumFace;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 
@@ -21,7 +20,7 @@ public abstract class BlockButtonMixin {
         return block.isFaceFlatAndSolid(meta, face);
     }
 
-    @Overwrite
+    @Unique
     public boolean canPlaceBlockOnSide(World world, int x, int y, int z, int side) {
         EnumFace dir = EnumFace.get(side);
         return (dir == EnumFace.NORTH && isBlockSolidOnSide(world, x, y, z + 1, EnumFace.NORTH)) ||
@@ -30,7 +29,7 @@ public abstract class BlockButtonMixin {
                (dir == EnumFace.EAST  && isBlockSolidOnSide(world, x - 1, y, z, EnumFace.EAST));
     }
 
-    @Overwrite
+    @Unique
     public boolean canPlaceBlockAt(World world, int x, int y, int z) {
         return isBlockSolidOnSide(world, x - 1, y, z, EnumFace.EAST) ||
                isBlockSolidOnSide(world, x + 1, y, z, EnumFace.WEST) ||
@@ -41,7 +40,7 @@ public abstract class BlockButtonMixin {
     @Shadow
     public void dropBlockAsItem(World world, int x, int y, int z, int meta, int fortune) {}
 
-    @Overwrite
+    @Unique
     public boolean canBlockStay(World world, int x, int y, int z) {
         int meta = world.getBlockMetadata(x, y, z);
         int i1 = meta & 7;

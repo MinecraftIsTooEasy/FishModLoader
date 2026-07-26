@@ -158,6 +158,18 @@ tasks.register('copyLogConfig', Copy) {
 
 def widenJar = file("${buildDir}/tmp/widen.jar")
 
+// Namespace chain for the compile classpath:
+//   libs/1.6.4-MITE.jar   (official / obfuscated: a.class, ...)
+//     -> mite-intermediary.jar  via intermediary.tiny  (official -> intermediary)
+//     -> mite-named.jar         via named.tiny         (intermediary -> named)
+//     -> widen.jar              via fishmodloader.accesswidener
+// FishModLoader sources and the accesswidener are written against *named*
+// names, so the jar handed to javac must be named-namespace. Feeding the raw
+// official jar here silently widens 0 classes and makes every net.minecraft.*
+// import unresolvable.
+def miteIntermediaryJarPath = file("${buildDir}/tmp/mite-intermediary.jar")
+def miteNamedJar = file("${buildDir}/tmp/mite-named.jar")
+
 configurations {
     widen {
         canBeResolved = true
@@ -166,14 +178,33 @@ configurations {
     }
 }
 
+tasks.register('remapMiteToNamed', JavaExec) {
+    dependsOn project(':tools').tasks.named('compileJava')
+    dependsOn 'remapMiteToIntermediary'
+    group = 'forge-patching'
+
+    classpath = project(':tools').sourceSets.main.runtimeClasspath
+    mainClass = 'org.moddedmite.fish.faloom.RemapIntermediaryToNamed'
+    args = [
+            miteIntermediaryJarPath.path,
+            miteNamedJar.path,
+            "${projectDir}/src/main/resources/named.tiny"
+    ]
+
+    doFirst {
+        file("${buildDir}/tmp").mkdirs()
+    }
+}
+
 tasks.register('applyAccessWidener', JavaExec) {
     dependsOn project(':tools').tasks.named('compileJava')
+    dependsOn 'remapMiteToNamed'
     group = 'fishmodloader'
 
     classpath = project(':tools').sourceSets.main.runtimeClasspath + configurations.shaded
     mainClass = 'org.moddedmite.fish.faloom.ApplyAccessWidener'
     args = [
-            file('libs/1.6.4-MITE.jar').path,
+            miteNamedJar.path,
             widenJar.path,
             "${projectDir}/src/main/resources/fishmodloader.accesswidener"
     ]
@@ -424,4 +455,10 @@ tasks.register('packagePatchedJar', Jar) {
     doLast {
         println "Patched MITE jar: ${archiveFile.get().asFile.path}"
     }
+}
+
+// Raise javac's error cap so verification runs report true totals
+// (default is 100, which saturates and hides real progress).
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ['-Xmaxerrs', '2000']
 }

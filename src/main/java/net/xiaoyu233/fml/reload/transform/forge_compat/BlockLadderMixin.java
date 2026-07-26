@@ -6,7 +6,6 @@ import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.util.EnumFace;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 
@@ -22,7 +21,7 @@ public abstract class BlockLadderMixin {
         return block.isFaceFlatAndSolid(meta, face);
     }
 
-    @Overwrite
+    @Unique
     public boolean canPlaceBlockAt(World world, int x, int y, int z) {
         return isBlockSolidOnSide(world, x - 1, y, z, EnumFace.EAST) ||
                isBlockSolidOnSide(world, x + 1, y, z, EnumFace.WEST) ||
@@ -30,7 +29,7 @@ public abstract class BlockLadderMixin {
                isBlockSolidOnSide(world, x, y, z + 1, EnumFace.NORTH);
     }
 
-    @Overwrite
+    @Unique
     public int onBlockPlaced(World world, int x, int y, int z, int side, float hitX, float hitY, float hitZ, int meta) {
         int j1 = meta;
 
@@ -45,7 +44,7 @@ public abstract class BlockLadderMixin {
     @Shadow
     public void dropBlockAsItem(World world, int x, int y, int z, int meta, int fortune) {}
 
-    @Overwrite
+    @Unique
     public boolean canBlockStay(World world, int x, int y, int z) {
         int i1 = world.getBlockMetadata(x, y, z);
         boolean flag = false;

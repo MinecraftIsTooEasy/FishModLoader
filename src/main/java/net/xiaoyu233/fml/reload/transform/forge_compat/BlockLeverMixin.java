@@ -5,7 +5,6 @@ import net.minecraft.block.BlockLever;
 import net.minecraft.util.EnumFace;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 
@@ -21,7 +20,7 @@ public abstract class BlockLeverMixin {
         return block.isFaceFlatAndSolid(meta, face);
     }
 
-    @Overwrite
+    @Unique
     public boolean canPlaceBlockOnSide(World world, int x, int y, int z, int side) {
         EnumFace dir = EnumFace.get(side);
         return (dir == EnumFace.BOTTOM && isBlockSolidOnSide(world, x, y + 1, z, EnumFace.BOTTOM)) ||
@@ -32,7 +31,7 @@ public abstract class BlockLeverMixin {
                (dir == EnumFace.EAST   && isBlockSolidOnSide(world, x - 1, y, z, EnumFace.EAST));
     }
 
-    @Overwrite
+    @Unique
     public boolean canPlaceBlockAt(World world, int x, int y, int z) {
         return isBlockSolidOnSide(world, x - 1, y, z, EnumFace.EAST) ||
                isBlockSolidOnSide(world, x + 1, y, z, EnumFace.WEST) ||
@@ -42,7 +41,7 @@ public abstract class BlockLeverMixin {
                isBlockSolidOnSide(world, x, y + 1, z, EnumFace.BOTTOM);
     }
 
-    @Overwrite
+    @Unique
     public int onBlockPlaced(World world, int x, int y, int z, int side, float hitX, float hitY, float hitZ, int meta) {
         int k1 = meta & 7;
         byte b0 = -1;
@@ -63,7 +62,7 @@ public abstract class BlockLeverMixin {
     @Shadow
     public void dropBlockAsItem(World world, int x, int y, int z, int meta, int fortune) {}
 
-    @Overwrite
+    @Unique
     public boolean canBlockStay(World world, int x, int y, int z) {
         int i1 = world.getBlockMetadata(x, y, z) & 7;
         boolean flag = false;

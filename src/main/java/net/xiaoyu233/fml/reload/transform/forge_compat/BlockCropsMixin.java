@@ -4,8 +4,8 @@ import net.minecraft.block.BlockCrops;
 import net.minecraft.item.ItemStack;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 
 import java.util.ArrayList;
 
@@ -14,11 +14,7 @@ public abstract class BlockCropsMixin {
     @Shadow
     public abstract net.minecraft.item.Item getSeedItem();
 
-    /**
-     * @reason Forge patch: fortune-based extra seed drops for fully-grown crops.
-     * (converted from source patch to Mixin)
-     */
-    @Overwrite
+    @Unique
     public ArrayList<ItemStack> getBlockDropped(World world, int x, int y, int z, int metadata, int fortune) {
         ArrayList<ItemStack> ret = new ArrayList<ItemStack>();
 
