@@ -15,7 +15,6 @@ import net.xiaoyu233.fml.FishModLoader;
 import net.xiaoyu233.fml.classloading.KnotClassLoaderInterface;
 import net.xiaoyu233.fml.classloading.LaunchwrapperBridge;
 import net.xiaoyu233.fml.mapping.CachedMappedJar;
-import net.xiaoyu233.fml.mapping.IntermediaryMappingProvider;
 import net.xiaoyu233.fml.util.EnumExtends;
 import net.xiaoyu233.fml.util.LogProxy;
 import org.spongepowered.asm.launch.MixinBootstrap;
