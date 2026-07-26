@@ -484,7 +484,7 @@ public class ForgeHooks
             Packet53BlockChange packet = new Packet53BlockChange(x, y, z, world);
             packet.type = 0;
             packet.metadata = 0;
-            entityPlayer.playerNetServerHandler.sendPacketToPlayer(packet);
+            entityPlayer.playerNetServerHandler.sendPacket(packet);
         }
 
         // Post the block break event
@@ -498,7 +498,7 @@ public class ForgeHooks
         if (event.isCanceled())
         {
             // Let the client know the block still exists
-            entityPlayer.playerNetServerHandler.sendPacketToPlayer(new Packet53BlockChange(x, y, z, world));
+            entityPlayer.playerNetServerHandler.sendPacket(new Packet53BlockChange(x, y, z, world));
             
             // Update any tile entity data for this block
             TileEntity tileentity = world.getBlockTileEntity(x, y, z);
@@ -507,7 +507,7 @@ public class ForgeHooks
                 Packet pkt = tileentity.getDescriptionPacket();
                 if (pkt != null)
                 {
-                    entityPlayer.playerNetServerHandler.sendPacketToPlayer(pkt);
+                    entityPlayer.playerNetServerHandler.sendPacket(pkt);
                 }
             }
         }

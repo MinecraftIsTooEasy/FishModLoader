@@ -71,7 +71,7 @@ public class BlockFluidFinite extends BlockFluidBase
             changed = true;
             if (quantaRemaining == 1)
             {
-                world.setBlockMetadataWithNotify(x, y, z, quantaRemaining - 1, 2);
+                world.setBlockMetadata(x, y, z, quantaRemaining - 1, 2);
                 return changed;
             }
         }
@@ -121,7 +121,7 @@ public class BlockFluidFinite extends BlockFluidBase
         {
             if (changed)
             {
-                world.setBlockMetadataWithNotify(x, y, z, quantaRemaining - 1, 2);
+                world.setBlockMetadata(x, y, z, quantaRemaining - 1, 2);
             }
             return changed;
         }
@@ -227,7 +227,7 @@ public class BlockFluidFinite extends BlockFluidBase
         {
             ++each;
         }
-        world.setBlockMetadataWithNotify(x, y, z, each - 1, 2);
+        world.setBlockMetadata(x, y, z, each - 1, 2);
         return true;
     }
 

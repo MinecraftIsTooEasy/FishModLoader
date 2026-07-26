@@ -26,7 +26,7 @@ public abstract class BlockLeavesMixin {
 
     @Unique
     public void beginLeavesDecay(World world, int x, int y, int z) {
-        world.setBlockMetadataWithNotify(x, y, z, world.getBlockMetadata(x, y, z) | 8, 4);
+        world.setBlockMetadata(x, y, z, world.getBlockMetadata(x, y, z) | 8, 4);
     }
 
     @Unique

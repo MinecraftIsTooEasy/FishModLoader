@@ -121,7 +121,7 @@ public class BlockFluidClassic extends BlockFluidBase
                 }
                 else
                 {
-                    world.setBlockMetadataWithNotify(x, y, z, quantaPerBlock - expQuanta, 3);
+                    world.setBlockMetadata(x, y, z, quantaPerBlock - expQuanta, 3);
                     world.scheduleBlockUpdate(x, y, z, blockID, tickRate);
                     world.notifyBlocksOfNeighborChange(x, y, z, blockID);
                 }
@@ -130,7 +130,7 @@ public class BlockFluidClassic extends BlockFluidBase
         // This is a "source" block, set meta to zero, and send a server only update
         else if (quantaRemaining >= quantaPerBlock)
         {
-            world.setBlockMetadataWithNotify(x, y, z, 0, 2);
+            world.setBlockMetadata(x, y, z, 0, 2);
         }
 
         // Flow vertically if possible

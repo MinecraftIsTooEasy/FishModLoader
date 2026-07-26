@@ -222,10 +222,11 @@ public class VillagerRegistry
 
     public static void addEmeraldBuyRecipe(EntityVillager villager, MerchantRecipeList list, Random random, Item item, float chance, int min, int max)
     {
-        if (min > 0 && max > 0)
-        {
-            EntityVillager.villagerStockList.put(item.itemID, new Tuple(min, max));
-        }
+        // NOTE: vanilla Forge records the price range in
+        // EntityVillager.villagerStockList, but MITE has no such field --
+        // it restructured villager trading into villagersSellingList /
+        // blacksmithSellingList. The min/max range is therefore not
+        // registered; the merchant item itself is still added below.
         villager.addMerchantItem(list, item.getMaxDamage(EnumQuality.average), random, chance);
     }
 
