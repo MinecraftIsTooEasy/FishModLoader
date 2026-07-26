@@ -211,6 +211,29 @@ tasks.register('applyAccessWidener', JavaExec) {
             widenJar.path,
             "${projectDir}/src/main/resources/fishmodloader.accesswidener"
     ]
+
+    // The MITE jar bundles ancient copies of Guava and Gson (EventBus without
+    // SubscriberExceptionHandler, JsonParser without the static parseReader).
+    // Because widen.jar comes first on the compile classpath, those shadow the
+    // modern versions declared in build.gradle. Strip com/google/** so the
+    // declared dependencies win.
+    doLast {
+        def stripped = file("${buildDir}/tmp/widen-stripped.jar")
+        ant.delete(file: stripped.path, quiet: true)
+        def removed = 0
+        new java.util.zip.ZipOutputStream(stripped.newOutputStream()).withCloseable { zos ->
+            new java.util.zip.ZipFile(widenJar).withCloseable { zf ->
+                zf.entries().each { e ->
+                    if (e.name.startsWith('com/google/')) { removed++; return }
+                    zos.putNextEntry(new java.util.zip.ZipEntry(e.name))
+                    if (!e.isDirectory()) zos << zf.getInputStream(e)
+                    zos.closeEntry()
+                }
+            }
+        }
+        ant.move(file: stripped.path, tofile: widenJar.path)
+        logger.lifecycle("Stripped ${removed} bundled com/google/** entries from widen.jar")
+    }
 }
 
 dependencies {

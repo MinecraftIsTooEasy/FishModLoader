@@ -26,7 +26,9 @@ public class MinecraftMixin implements IMixinMinecraft {
     @Override
     public void continueWorldLoading() {
         this.integratedServerIsRunning = true;
-        this.loadingScreen.displayProgressMessage(StringTranslate.getInstance().translateKey("menu.loadingLevel"));
+        // MITE renamed LoadingScreenRenderer.displayProgressMessage()
+        // to resetProgressAndMessage()
+        this.loadingScreen.resetProgressAndMessage(StringTranslate.getInstance().translateKey("menu.loadingLevel"));
     }
 
     @Inject(method = "<init>", at = @At("RETURN"))
