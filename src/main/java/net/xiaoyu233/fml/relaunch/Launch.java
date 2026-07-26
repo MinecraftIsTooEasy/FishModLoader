@@ -13,6 +13,7 @@ import net.fabricmc.tinyremapper.IMappingProvider;
 import net.fabricmc.tinyremapper.TinyUtils;
 import net.xiaoyu233.fml.FishModLoader;
 import net.xiaoyu233.fml.classloading.KnotClassLoaderInterface;
+import net.xiaoyu233.fml.classloading.LaunchwrapperBridge;
 import net.xiaoyu233.fml.mapping.CachedMappedJar;
 import net.xiaoyu233.fml.mapping.IntermediaryMappingProvider;
 import net.xiaoyu233.fml.util.EnumExtends;
@@ -55,6 +56,7 @@ public class Launch {
 
       ClassLoader knotLoader = knotInterface.getClassLoader();
       Thread.currentThread().setContextClassLoader(knotLoader);
+      initLaunchwrapperBridge(knotLoader);
       FishModLoader.setup(remappedGameJarPath);
       onEnvironmentChanged();
       FishModLoader.freeze();
@@ -126,6 +128,45 @@ public class Launch {
       MixinEnvironment currentEnvironment = MixinEnvironment.getCurrentEnvironment();
       currentEnvironment.setSide(FishModLoader.getSide());
       currentEnvironment.setOption(MixinEnvironment.Option.DEBUG_VERBOSE,true);
+   }
+
+   /**
+    * Populate {@code net.minecraft.launchwrapper.Launch.blackboard} and
+    * {@code .classLoader} so Forge mods that reference those fields at runtime
+    * get a working bridge instead of NPEs.
+    */
+   private static void initLaunchwrapperBridge(ClassLoader knotClassLoader) {
+      try {
+         Class<?> lwLaunch = Class.forName(
+               "net.minecraft.launchwrapper.Launch",
+               true,
+               Launch.class.getClassLoader()   // AppClassLoader – avoid circular load
+         );
+         // Share our blackboard so Forge tweaker/coremod code sees the same map.
+         java.lang.reflect.Field bbField = lwLaunch.getField("blackboard");
+         if (bbField.get(null) == null) {
+            bbField.set(null, Launch.blackboard);
+         } else {
+            // If launchwrapper already created its own map, merge ours into it.
+            @SuppressWarnings("unchecked")
+            java.util.Map<String, Object> lwBlackboard =
+                  (java.util.Map<String, Object>) bbField.get(null);
+            lwBlackboard.putAll(Launch.blackboard);
+            Launch.blackboard = lwBlackboard;
+         }
+         // Wire classLoader to our KnotClassLoader bridge.
+         java.lang.reflect.Field clField = lwLaunch.getField("classLoader");
+         if (clField.get(null) == null) {
+            clField.set(null, new LaunchwrapperBridge(knotClassLoader));
+         }
+         FishModLoader.LOGGER.info(
+               "[LW-Bridge] net.minecraft.launchwrapper.Launch bridged to KnotClassLoader");
+      } catch (ClassNotFoundException ignored) {
+         // launchwrapper not on classpath – safe to ignore.
+      } catch (Throwable t) {
+         // Non-fatal: some Forge mods may NPE on Launch.classLoader but most don't use it.
+         FishModLoader.LOGGER.warn("[LW-Bridge] Failed to initialise launchwrapper bridge", t);
+      }
    }
 
    private static void seekGameDir(String[] args){

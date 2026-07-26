@@ -5,11 +5,16 @@ import net.minecraft.block.BlockReed;
 import net.minecraft.block.material.Material;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Unique;
+import org.spongepowered.asm.mixin.Overwrite;
 
 @Mixin(BlockReed.class)
 public abstract class BlockReedMixin {
-    @Unique
+    /**
+     * @reason Forge patch: sugar cane can grow on grass/dirt/sand adjacent to water,
+     * or on top of another reed; uses null-safe block lookup.
+     * (converted from source patch to Mixin)
+     */
+    @Overwrite
     public boolean canBlockStay(World world, int x, int y, int z) {
         int l = world.getBlockId(x, y - 1, z);
         Block soil = Block.blocksList[l];

@@ -362,12 +362,31 @@ public final class KnotClassDelegate<T extends ClassLoader & KnotClassDelegate.C
 		int pkgDelimiterPos = name.lastIndexOf('.');
 
 		if (pkgDelimiterPos > 0) {
-			// TODO: package definition stub
 			String pkgString = name.substring(0, pkgDelimiterPos);
 
 			if (classLoader.getPackageFwd(pkgString) == null) {
 				try {
-					classLoader.definePackageFwd(pkgString, null, null, null, null, null, null, null);
+					// Read sealed / spec attributes from the Manifest so that
+					// sealed packages are detected correctly (e.g. signed Forge jars).
+					Metadata meta = getMetadata(name);
+					Manifest mf = meta.manifest;
+					if (mf != null) {
+						java.util.jar.Attributes pkgAttr = mf.getAttributes(pkgString.replace('.', '/') + '/');
+						java.util.jar.Attributes mainAttr = mf.getMainAttributes();
+						String specTitle   = attr(pkgAttr, mainAttr, java.util.jar.Attributes.Name.SPECIFICATION_TITLE);
+						String specVersion = attr(pkgAttr, mainAttr, java.util.jar.Attributes.Name.SPECIFICATION_VERSION);
+						String specVendor  = attr(pkgAttr, mainAttr, java.util.jar.Attributes.Name.SPECIFICATION_VENDOR);
+						String implTitle   = attr(pkgAttr, mainAttr, java.util.jar.Attributes.Name.IMPLEMENTATION_TITLE);
+						String implVersion = attr(pkgAttr, mainAttr, java.util.jar.Attributes.Name.IMPLEMENTATION_VERSION);
+						String implVendor  = attr(pkgAttr, mainAttr, java.util.jar.Attributes.Name.IMPLEMENTATION_VENDOR);
+						String sealedStr   = attr(pkgAttr, mainAttr, java.util.jar.Attributes.Name.SEALED);
+						java.net.URL sealBase = "true".equalsIgnoreCase(sealedStr) && meta.codeSource != null
+								? meta.codeSource.getLocation() : null;
+						classLoader.definePackageFwd(pkgString, specTitle, specVersion, specVendor,
+								implTitle, implVersion, implVendor, sealBase);
+					} else {
+						classLoader.definePackageFwd(pkgString, null, null, null, null, null, null, null);
+					}
 				} catch (IllegalArgumentException e) { // presumably concurrent package definition
 					if (classLoader.getPackageFwd(pkgString) == null) throw e; // still not defined?
 				}
@@ -553,6 +572,14 @@ public final class KnotClassDelegate<T extends ClassLoader & KnotClassDelegate.C
 		Class<?> findLoadedClassFwd(String name);
 		Class<?> defineClassFwd(String name, byte[] b, int off, int len, CodeSource cs);
 		void resolveClassFwd(Class<?> cls);
+	}
+
+	/** Helper: read a JAR manifest attribute, falling back to main attributes. */
+	private static String attr(java.util.jar.Attributes section,
+			                   java.util.jar.Attributes main,
+			                   java.util.jar.Attributes.Name name) {
+		String v = section != null ? section.getValue(name) : null;
+		return v != null ? v : (main != null ? main.getValue(name) : null);
 	}
 
 	static final class Metadata {
