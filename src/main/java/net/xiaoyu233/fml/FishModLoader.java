@@ -30,8 +30,6 @@ import net.fabricmc.mappingio.tree.MappingTree;
 import net.xiaoyu233.fml.config.ConfigRegistry;
 import net.xiaoyu233.fml.config.Configs;
 import net.xiaoyu233.fml.config.InjectionConfig;
-import net.xiaoyu233.fml.modfixer.ForgeModDiscoverer;
-import net.xiaoyu233.fml.modfixer.LegacyModLifecycle;
 import net.xiaoyu233.fml.relaunch.Launch;
 import net.xiaoyu233.fml.reload.transform.MinecraftServerTrans;
 import net.xiaoyu233.fml.util.Constants;
@@ -169,11 +167,14 @@ public class FishModLoader {
       // Forge mod discovery: scan mods/ for jars with mcmod.info / @Mod / forge_at.cfg.
       // Adds them to the class loader, applies their AT to FML's AccessWidener,
       // and queues their @Mod classes for the lifecycle dispatcher (stage 4).
-      try {
-         ForgeModDiscoverer.discoverIn(MOD_DIR.toPath());
-      } catch (Throwable t) {
-         LOGGER.warn("Forge mod discovery threw", t);
-      }
+      //
+      // Must go through the KnotClassLoader copy: net.xiaoyu233.fml.modfixer is
+      // whitelisted out of the "block" list (LaunchClassBlocker) because it has to
+      // see game classes, so it exists twice -- once per loader. A static call from
+      // here would fill the AppClassLoader copy's discovered list while
+      // LegacyModLifecycle.constructAll reads the Knot one, and no mod would ever
+      // be constructed.
+      invokeInKnot("net.xiaoyu233.fml.modfixer.ForgeModDiscoverer", "discoverIn", MOD_DIR.toPath());
 
       // NOTE: Forge mod CONSTRUCTION (LegacyModLifecycle.constructAll) is intentionally
       // deferred until after the mixin platform has been injected — see Launch.java.
@@ -198,10 +199,13 @@ public class FishModLoader {
     * reaches each phase.
     */
    public static void constructForgeMods() {
-      try {
-         LegacyModLifecycle.constructAll();
-      } catch (Throwable t) {
-         LOGGER.warn("Forge mod construction threw", t);
+      // Go through the KnotClassLoader copy of LegacyModLifecycle, the same one
+      // the fireForge* hooks reach. Calling it statically from here binds the
+      // AppClassLoader copy instead, so construction and dispatch would land on
+      // two different classes with two separate loadedMods lists -- mods get
+      // constructed but never receive a single lifecycle event.
+      if (!invokeForgeLifecycle("constructAll")) {
+         LOGGER.error("Forge mod construction did not run; Forge mods will receive no lifecycle events");
       }
    }
 
@@ -494,16 +498,62 @@ public class FishModLoader {
    public static void fireForgeServerStopping() { invokeForgeLifecycle("fireServerStopping"); }
    public static void fireForgeServerStopped()  { invokeForgeLifecycle("fireServerStopped"); }
 
-   private static void invokeForgeLifecycle(String methodName, Object... args) {
+   private static boolean invokeForgeLifecycle(String methodName, Object... args) {
+      return invokeInKnot("net.xiaoyu233.fml.modfixer.LegacyModLifecycle", methodName, args);
+   }
+
+   /**
+    * Invoke a static method on the KnotClassLoader-side copy of a class.
+    *
+    * <p>Matching is by name and runtime argument assignability, not by exact
+    * declared type: the Forge server hooks declare {@code MinecraftServer}
+    * parameters, so looking them up with {@code Object.class} never matched and
+    * every server-phase dispatch failed with NoSuchMethodException. Ambiguity is
+    * reported rather than resolved by declaration order.
+    *
+    * @return true when the target method ran without throwing
+    */
+   private static boolean invokeInKnot(String className, String methodName, Object... args) {
       try {
          ClassLoader knotCL = Launch.knotLoader.getClassLoader();
-         Class<?>[] paramTypes = new Class<?>[args.length];
-         for (int i = 0; i < args.length; i++) paramTypes[i] = Object.class;
-         Class.forName("net.xiaoyu233.fml.modfixer.LegacyModLifecycle", true, knotCL)
-            .getMethod(methodName, paramTypes).invoke(null, (Object[]) args);
+         Class<?> target = Class.forName(className, true, knotCL);
+         List<java.lang.reflect.Method> candidates = new ArrayList<>();
+         for (java.lang.reflect.Method candidate : target.getDeclaredMethods()) {
+            if (!candidate.getName().equals(methodName)) continue;
+            if (candidate.getParameterCount() != args.length) continue;
+            if (!argumentsFit(candidate.getParameterTypes(), args)) continue;
+            candidates.add(candidate);
+         }
+         if (candidates.isEmpty()) {
+            LOGGER.warn("{}.{} (arity {}) not found", className, methodName, args.length);
+            return false;
+         }
+         if (candidates.size() > 1) {
+            LOGGER.warn("{}.{} is ambiguous ({} candidates); refusing to guess",
+                  className, methodName, candidates.size());
+            return false;
+         }
+         java.lang.reflect.Method method = candidates.get(0);
+         method.setAccessible(true);
+         method.invoke(null, args);
+         return true;
       } catch (Throwable t) {
-         LOGGER.warn("Forge mod lifecycle {} threw", methodName, t);
+         LOGGER.warn("{}.{} threw", className, methodName, t);
+         return false;
       }
+   }
+
+   /** True when every non-null argument is assignable to its parameter slot. */
+   private static boolean argumentsFit(Class<?>[] paramTypes, Object[] args) {
+      for (int i = 0; i < paramTypes.length; i++) {
+         if (args[i] == null) {
+            if (paramTypes[i].isPrimitive()) return false;
+            continue;
+         }
+         if (paramTypes[i].isPrimitive()) continue; // boxing: let invoke() decide
+         if (!paramTypes[i].isInstance(args[i])) return false;
+      }
+      return true;
    }
 
    public static MixinEnvironment.Side getSide(){

@@ -490,11 +490,18 @@ public class FMLCommonHandler
 
     public void addModToResourcePack(ModContainer container)
     {
+        // Under FishModLoader the sided delegate is wired lazily (see
+        // LegacyModLifecycle.ensureFMLCommonHandler), so mod bus construction can
+        // legitimately run before it exists. Skipping the resource registration is
+        // harmless; throwing here would abort LoadController.buildModList halfway
+        // and leave activeModList incomplete.
+        if (sidedDelegate == null) return;
         sidedDelegate.addModAsResource(container);
     }
 
     public void updateResourcePackList()
     {
+        if (sidedDelegate == null) return;
         sidedDelegate.updateResourcePackList();
     }
 

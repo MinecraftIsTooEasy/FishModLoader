@@ -89,7 +89,20 @@ public class LoadController
                 activeModList.add(mod);
                 modStates.put(mod.getModId(), ModState.UNLOADED);
                 eventBus.put(mod.getModId(), bus);
-                FMLCommonHandler.instance().addModToResourcePack(mod);
+                // Resource-pack registration is cosmetic (en_US.lang injection) and
+                // needs the sided delegate plus game classes. Under FishModLoader the
+                // mod bus is built before either is guaranteed to be loadable, and an
+                // exception here would abort buildModList halfway, leaving
+                // activeModList/eventChannels inconsistent and silencing every mod.
+                try
+                {
+                    FMLCommonHandler.instance().addModToResourcePack(mod);
+                }
+                catch (Throwable thrown)
+                {
+                    FMLLog.log(mod.getModId(), Level.FINE, "Skipped resource pack registration for %s: %s",
+                            mod.getModId(), thrown);
+                }
             }
             else
             {
@@ -100,7 +113,14 @@ public class LoadController
         }
 
         eventChannels = eventBus.build();
-        FMLCommonHandler.instance().updateResourcePackList();
+        try
+        {
+            FMLCommonHandler.instance().updateResourcePackList();
+        }
+        catch (Throwable thrown)
+        {
+            FMLLog.log(Level.FINE, thrown, "Skipped resource pack list update");
+        }
     }
 
     public void distributeStateMessage(LoaderState state, Object... eventData)
@@ -290,6 +310,58 @@ public class LoadController
     public boolean isInState(LoaderState state)
     {
         return this.state == state;
+    }
+
+    public LoaderState getState()
+    {
+        return this.state;
+    }
+
+    /**
+     * Step the state machine forward one state at a time until {@code desired}
+     * is reached.
+     *
+     * <p>Vanilla FML always walks the states in order, so {@link #transition}
+     * only ever accepts the immediate successor of the current state. Under
+     * FishModLoader the lifecycle is driven externally and phases can be
+     * entered without the intermediate ones having been requested explicitly
+     * (e.g. jumping straight to PREINITIALIZATION from NOINIT), which made
+     * {@code transition} blow up with "the state engine is invalid". Walking
+     * the chain keeps the engine's invariants intact.
+     *
+     * @return true when the machine ended up in {@code desired}
+     */
+    public boolean advanceTo(LoaderState desired)
+    {
+        // ERRORED has the highest ordinal, so without this guard the loop below is
+        // skipped and forceState() would quietly rewrite a failed run back into a
+        // healthy-looking state.
+        if (this.state == LoaderState.ERRORED)
+        {
+            return false;
+        }
+        while (this.state.ordinal() < desired.ordinal())
+        {
+            LoaderState next = LoaderState.values()[this.state.ordinal() + 1];
+            transition(next, false);
+            if (this.state == LoaderState.ERRORED)
+            {
+                return false;
+            }
+        }
+        if (this.state != desired)
+        {
+            // Only legal way to be past the target: a world unload cycled the machine
+            // through SERVER_STOPPED, whose transition() wraps back to AVAILABLE, and
+            // a new world load walks the server states again.
+            if (desired.ordinal() < LoaderState.SERVER_ABOUT_TO_START.ordinal())
+            {
+                FMLLog.warning("Refusing to rewind loader state from %s back to %s", this.state, desired);
+                return false;
+            }
+            forceState(desired);
+        }
+        return true;
     }
 
 	boolean hasReachedState(LoaderState state) {

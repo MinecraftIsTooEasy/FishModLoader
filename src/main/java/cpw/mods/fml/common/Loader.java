@@ -467,7 +467,27 @@ public class Loader
      * object table so {@link FMLCommonHandler#findContainerFor(Object)}
      * resolves correctly.
      */
-    public void registerFMLMod(ModContainer container, Object modInstance) {
+    public synchronized void registerFMLMod(ModContainer container, Object modInstance) {
+        ensureModController();
+        mods.add(container);
+        namedMods.put(container.getModId(), container);
+        // activeModList is populated later by LoadController.buildModList(FMLLoadEvent)
+    }
+
+    /**
+     * Make sure the mod list and {@link LoadController} exist even though
+     * {@link #loadMods()} was never called.
+     *
+     * <p>FishModLoader drives the Forge lifecycle itself (see
+     * {@code LegacyModLifecycle}), so {@code loadMods()} - the only place
+     * vanilla FML builds the controller - never runs. Without a controller
+     * every {@code distributeStateMessage} / {@code transition} call is a
+     * silent no-op and no mod lifecycle event is ever delivered.
+     *
+     * <p>Directory setup is best-effort: it only feeds {@link #getConfigDir()}
+     * and the logging properties, neither of which is fatal.
+     */
+    public synchronized LoadController ensureModController() {
         if (mods == null) {
             mods = Lists.newArrayList();
         }
@@ -475,11 +495,21 @@ public class Loader
             namedMods = Maps.newHashMap();
         }
         if (modController == null) {
+            if (minecraftDir == null) {
+                minecraftDir = new File(".");
+            }
+            try {
+                initializeLoader();
+            } catch (Throwable thrown) {
+                // Non-fatal on purpose: initializeLoader only resolves the mods/config
+                // directories and reloads logging properties. getConfigDir() may then
+                // return null, which callers already tolerate; refusing to build the
+                // controller here would instead silence the whole mod lifecycle.
+                FMLLog.log(Level.WARNING, thrown, "Loader directory setup failed; config dir will be unavailable");
+            }
             modController = new LoadController(this);
         }
-        mods.add(container);
-        namedMods.put(container.getModId(), container);
-        // activeModList is populated later by LoadController.buildModList(FMLLoadEvent)
+        return modController;
     }
 
     /**

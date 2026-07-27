@@ -91,20 +91,28 @@ public final class ForgeModContainer implements ModContainer {
     public void onEvent(FMLStateEvent event) {
         String eventClassName = event.getClass().getName();
         List<Method> handlers = handlerMethods.get(eventClassName);
-        if (handlers == null || handlers.isEmpty()) return;
+        if (handlers == null || handlers.isEmpty()) {
+            net.xiaoyu233.fml.FishModLoader.LOGGER.debug("Mod {} has no handler for {}",
+                    metadata.modId, eventClassName);
+            return;
+        }
 
+        net.xiaoyu233.fml.FishModLoader.LOGGER.info("Dispatching {} to {} handler(s) on Forge mod {}",
+                eventClassName, handlers.size(), metadata.modId);
         for (Method handler : handlers) {
             try {
                 handler.invoke(modInstance, event);
             } catch (InvocationTargetException ite) {
-                FMLLog.log(metadata.modId, Level.SEVERE, ite.getCause(),
-                        "Mod %s threw during %s", metadata.modId, eventClassName);
+                // FMLLog routes through java.util.logging, which is not wired to the
+                // game's log4j appenders here -- mod crashes would vanish entirely.
+                net.xiaoyu233.fml.FishModLoader.LOGGER.error("Mod {} threw during {}",
+                        metadata.modId, eventClassName, ite.getCause());
                 if (controller != null) {
                     controller.errorOccurred(this, ite.getCause());
                 }
             } catch (Throwable thrown) {
-                FMLLog.log(metadata.modId, Level.SEVERE, thrown,
-                        "Failed to invoke handler %s on mod %s", handler.getName(), metadata.modId);
+                net.xiaoyu233.fml.FishModLoader.LOGGER.error("Failed to invoke handler {} on mod {}",
+                        handler.getName(), metadata.modId, thrown);
                 if (controller != null) {
                     controller.errorOccurred(this, thrown);
                 }
