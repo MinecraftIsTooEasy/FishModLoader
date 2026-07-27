@@ -226,19 +226,19 @@ public class FMLNetworkHandler
         {
             if (login.dimension == PROTOCOL_VERSION)
             {
-                FMLLog.finest("Received valid FML login packet from %s", handler.myTCPConnection.getRemoteAddress());
+                FMLLog.finest("Received valid FML login packet from %s", handler.myTCPConnection.getSocketAddress());
                 instance().loginStates.put(handler, LOGIN_RECEIVED);
             }
             else if (login.dimension != PROTOCOL_VERSION)
             {
-                FMLLog.finest("Received incorrect FML (%x) login packet from %s", login.dimension, handler.myTCPConnection.getRemoteAddress());
+                FMLLog.finest("Received incorrect FML (%x) login packet from %s", login.dimension, handler.myTCPConnection.getSocketAddress());
                 instance().loginStates.put(handler, FML_OUT_OF_DATE);
             }
         }
         else
         {
             FMLLog.fine("Received invalid login packet (%x, %x) from %s", login.clientEntityId, login.dimension,
-                    handler.myTCPConnection.getRemoteAddress());
+                    handler.myTCPConnection.getSocketAddress());
         }
     }
 
@@ -397,7 +397,7 @@ public class FMLNetworkHandler
     public static void makeEntitySpawnAdjustment(int entityId, EntityPlayerMP player, int serverX, int serverY, int serverZ)
     {
         Packet250CustomPayload pkt = PacketDispatcher.getPacket("FML", FMLPacket.makePacket(Type.ENTITYSPAWNADJUSTMENT, entityId, serverX, serverY, serverZ));
-        player.playerNetServerHandler.sendPacket(pkt);
+        player.playerNetServerHandler.sendPacketToPlayer(pkt);
     }
 
     public static InetAddress computeLocalHost() throws IOException

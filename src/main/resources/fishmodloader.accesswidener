@@ -233,7 +233,7 @@ accessible field net/minecraft/entity/passive/EntityVillager blacksmithSellingLi
 accessible method net/minecraft/entity/passive/EntityVillager addMerchantItem (Lnet/minecraft/village/MerchantRecipeList;ILjava/util/Random;F)V
 accessible method net/minecraft/entity/passive/EntityVillager addBlacksmithItem (Lnet/minecraft/village/MerchantRecipeList;ILjava/util/Random;F)V
 accessible field net/minecraft/entity/player/EntityPlayerMP currentWindowId I
-accessible method net/minecraft/entity/player/EntityPlayerMP getNextWindowId ()V
+accessible method net/minecraft/entity/player/EntityPlayerMP incrementWindowID ()V
 accessible method net/minecraft/tileentity/TileEntity addMapping (Ljava/lang/Class;Ljava/lang/String;)V
 accessible field net/minecraft/util/WeightedRandomItem itemWeight I
 accessible method net/minecraft/network/NetLoginHandler getClientUsername (Lnet/minecraft/network/NetLoginHandler;)Ljava/lang/String;

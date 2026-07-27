@@ -179,7 +179,7 @@ public class RotationHelper {
         {
             return false;
         }
-        worldObj.setBlockMetadata(x, y, z, meta & mask | masked, 3);
+        worldObj.setBlockMetadataWithNotify(x, y, z, meta & mask | masked, 3);
         return true;
     }
 

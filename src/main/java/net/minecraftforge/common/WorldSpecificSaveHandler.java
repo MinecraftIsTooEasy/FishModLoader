@@ -34,8 +34,7 @@ public class WorldSpecificSaveHandler implements ISaveHandler
     @Override public IChunkLoader getChunkLoader(WorldProvider var1) { return parent.getChunkLoader(var1); }
     @Override public void saveWorldInfoWithPlayer(WorldInfo var1, NBTTagCompound var2) { parent.saveWorldInfoWithPlayer(var1, var2); }
     @Override public void saveWorldInfo(WorldInfo var1){ parent.saveWorldInfo(var1); }
-    /* MITE renamed ISaveHandler.getSaveHandler() to getPlayerNBTManager() */
-    @Override public IPlayerFileData getPlayerNBTManager() { return parent.getPlayerNBTManager(); }
+    @Override public IPlayerFileData getSaveHandler() { return parent.getSaveHandler(); }
     @Override public void flush() { parent.flush(); }
     @Override public String getWorldDirectoryName() { return parent.getWorldDirectoryName(); }
 
