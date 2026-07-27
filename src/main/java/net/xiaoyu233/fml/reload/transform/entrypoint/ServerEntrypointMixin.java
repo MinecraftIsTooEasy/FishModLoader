@@ -11,7 +11,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(MinecraftServer.class)
 public class ServerEntrypointMixin {
-    @Inject(method = "main", at = @At(value = "INVOKE", target = "Lnet/minecraft/stats/StatList;nopInit()V", shift = At.Shift.BEFORE), require = 1)
+    // Explicit descriptor on the target selector: with the bare name "main"
+    // Mixin resolves 0 targets against MITE's MinecraftServer, the injection
+    // fails its require=1 check and server startup aborts.
+    @Inject(method = "main([Ljava/lang/String;)V", at = @At(value = "INVOKE", target = "Lnet/minecraft/stats/StatList;func_75919_a()V", shift = At.Shift.BEFORE), require = 1)
     private static void injectMain(CallbackInfo callbackInfo){
         // Forge PreInit fires before any other mod-loaded code runs, matching
         // dedicated-server semantics in Forge 1.6.4.

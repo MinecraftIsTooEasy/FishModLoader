@@ -168,6 +168,22 @@ public final class MixinRefmapGenerator {
 
                 String mapped = resolveMethod(methodName, methodDesc,
                         Collections.singletonList(ownerClass), namedMethodIndex);
+
+                // ReferenceMapper does an EXACT lookup on the whole reference
+                // string, so the key must be the full @At target as written in
+                // the annotation (e.g. "Lnet/minecraft/stats/StatList;nopInit()V").
+                // Emitting only the bare method name never matches and the
+                // injection silently resolves 0 targets.
+                String mappedOwner = namedToIntermediaryClass.getOrDefault(ownerClass, ownerClass);
+                String mappedDesc = remapDescriptorTypes(methodDesc, namedToIntermediaryClass);
+                String fullMapped = "L" + mappedOwner + ";" + mapped + mappedDesc;
+
+                if (!fullMapped.equals(targetRef)) {
+                    mixinMappings.put(targetRef, fullMapped);
+                    mixinData.put(targetRef, fullMapped);
+                }
+                // Keep the bare-name entry too: some injectors look up the
+                // member name on its own.
                 if (!mapped.equals(methodName)) {
                     mixinMappings.put(methodName, mapped);
                     mixinData.put(methodName, mapped);
@@ -204,6 +220,35 @@ public final class MixinRefmapGenerator {
             if (mapped != null) return mapped;
         }
         return name;
+    }
+
+    /**
+     * Rewrite every {@code L<class>;} occurrence in a method descriptor using
+     * the named-&gt;intermediary class table. Primitives and array prefixes are
+     * left untouched.
+     */
+    private static String remapDescriptorTypes(String desc, Map<String, String> classMap) {
+        if (desc == null || desc.indexOf('L') < 0) return desc == null ? "" : desc;
+
+        StringBuilder out = new StringBuilder(desc.length());
+        int pos = 0;
+        while (pos < desc.length()) {
+            char c = desc.charAt(pos);
+            if (c != 'L') {
+                out.append(c);
+                pos++;
+                continue;
+            }
+            int end = desc.indexOf(';', pos);
+            if (end < 0) {
+                out.append(desc, pos, desc.length());
+                break;
+            }
+            String internal = desc.substring(pos + 1, end);
+            out.append('L').append(classMap.getOrDefault(internal, internal)).append(';');
+            pos = end + 1;
+        }
+        return out.toString();
     }
 
     private static String resolveMethod(String name, String desc, List<String> targets, Map<String, Map<String, Map<String, String>>> methodIndex) {

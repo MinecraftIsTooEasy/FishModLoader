@@ -45,7 +45,11 @@ public class Launch {
       //Use parent to prevent preloading
       Path remappedGameJarPath;
       try {
-         IMappingProvider tinyMappingProvider = TinyUtils.createTinyMappingProvider(new BufferedReader(new InputStreamReader(Objects.requireNonNull(Launch.class.getResourceAsStream("/intermediary.tiny")))), "official", "named");
+         // intermediary.tiny is tiny v1 declaring "official" then "intermediary".
+         // Requesting a "named" destination yields an EMPTY mapping set, which
+         // silently leaves the game jar obfuscated (a.class, default package) and
+         // makes every net.minecraft.* mixin target unresolvable at runtime.
+         IMappingProvider tinyMappingProvider = TinyUtils.createTinyMappingProvider(new BufferedReader(new InputStreamReader(Objects.requireNonNull(Launch.class.getResourceAsStream("/intermediary.tiny")))), "official", "intermediary");
          CachedMappedJar cachedMappedJar = new CachedMappedJar(gameJarPath, tinyMappingProvider, new File(minecraftHome));
          remappedGameJarPath = cachedMappedJar.ensureJarMapped();
          knotInterface.addCodeSource(remappedGameJarPath);

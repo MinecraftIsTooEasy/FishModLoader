@@ -116,10 +116,22 @@ public final class NamedToIntermediaryTinyGenerator {
     private static void processMember(TinyFileReader.MemberKey key, String dstName, Map<String, String> officialToNamed, Map<String, String> intermediaryToNamed,
                                       Map<String, String> namedToIntermediary, boolean isMethod, Map<String, List<MemberMapping>> membersByNamedClass) {
         String ownerDesc = key.getOwnerDesc();
-        int descStart = findDescriptorStart(ownerDesc);
-        int slashIdx = descStart > 0 ? ownerDesc.lastIndexOf('/', descStart) : -1;
-        String intermediaryOwner = slashIdx > 0 ? ownerDesc.substring(0, slashIdx) : ownerDesc;
-        String intermediaryDesc = slashIdx > 0 ? ownerDesc.substring(slashIdx + 1) : ownerDesc;
+        // The key is built as owner + "/" + descriptor. Splitting it by pattern
+        // matching is genuinely ambiguous -- "LongHashMapEntry/Ljava/lang/Object;"
+        // is itself a syntactically valid object descriptor -- so instead split
+        // on a KNOWN owner: try each "/" boundary and accept the prefix that is
+        // an actual class in the mapping table.
+        int slashIdx = -1;
+        for (int i = ownerDesc.indexOf('/'); i >= 0; i = ownerDesc.indexOf('/', i + 1)) {
+            if (intermediaryToNamed.containsKey(ownerDesc.substring(0, i))) {
+                slashIdx = i;   // keep scanning: prefer the longest known owner
+            }
+        }
+        if (slashIdx < 0) {
+            return; // owner not in the mapping table
+        }
+        String intermediaryOwner = ownerDesc.substring(0, slashIdx);
+        String intermediaryDesc = ownerDesc.substring(slashIdx + 1);
 
         String intermediaryName = key.getName();
 	    
@@ -129,6 +141,15 @@ public final class NamedToIntermediaryTinyGenerator {
         }
         String namedDesc = transformDescriptor(intermediaryDesc, officialToNamed, intermediaryToNamed);
         if (!namedToIntermediary.containsKey(namedOwner)) {
+            return;
+        }
+
+        // Skip entries whose target name already exists as a distinct member on
+        // the same MITE class. named.tiny is vanilla 1.6.4 metadata: it wants
+        // MinecraftServer.playersOnline -> field_71322_p, but MITE declares BOTH
+        // fields, so the rename collides and tiny-remapper aborts the whole jar
+        // with "unfixable conflicts".
+        if (!isMethod && isCollidingRename(namedOwner, dstName, intermediaryName)) {
             return;
         }
 
@@ -175,32 +196,17 @@ public final class NamedToIntermediaryTinyGenerator {
      * the string is assumed to be the separator — this works because
      * primitives are single-character descriptors.
      */
-    private static int findDescriptorStart(String ownerDesc) {
-        int lastSlash = -1;
-        // Iterate from the end so we find the LAST /<descriptor-start> pair,
-        // not the first one (class paths like "LongHashMap" can contain 'L'
-        // which falsely looks like a descriptor-start character).
-        for (int i = ownerDesc.length() - 2; i >= 0; i--) {
-            if (ownerDesc.charAt(i) == '/') {
-                char next = ownerDesc.charAt(i + 1);
-                if (next == '(' || next == 'L' || next == '[') {
-                    return i + 1;
-                }
-                if (lastSlash == -1) {
-                    lastSlash = i;
-                }
-            }
-        }
-        // No definitive descriptor start found.
-        // If we have a slash at the end (primitive field descriptor),
-        // and the char after lastSlash is a primitive, return it.
-        if (lastSlash > 0 && lastSlash < ownerDesc.length() - 1) {
-            char c = ownerDesc.charAt(lastSlash + 1);
-            if ("IZVBCDFJS".indexOf(c) >= 0) {
-                return lastSlash + 1;
-            }
-        }
-        return -1;
+    /**
+     * Known named-&gt;intermediary field renames that collide with a member MITE
+     * already declares under the target name. Keyed by owner class.
+     */
+    private static final Map<String, Set<String>> COLLIDING_FIELD_RENAMES = Map.of(
+            "net/minecraft/server/MinecraftServer", Set.of("playersOnline")
+    );
+
+    private static boolean isCollidingRename(String namedOwner, String namedName, String intermediaryName) {
+        Set<String> blocked = COLLIDING_FIELD_RENAMES.get(namedOwner);
+        return blocked != null && blocked.contains(namedName);
     }
 
     private static final class MemberMapping {

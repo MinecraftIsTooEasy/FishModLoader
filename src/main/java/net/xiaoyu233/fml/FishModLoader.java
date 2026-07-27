@@ -446,7 +446,12 @@ public class FishModLoader {
          if (path == null) throw new RuntimeException(String.format("Missing accessWidener file %s from mod %s", accessWidener, modContainer.getMetadata().getId()));
 
          try (BufferedReader reader = Files.newBufferedReader(path)) {
-            accessWidenerReader.read(reader, "named");
+            // The runtime game jar is in the *intermediary* namespace, and the
+            // build remaps fishmodloader.accesswidener to match (see
+            // RemapAccessWidener). AccessWidener matches members by name, so
+            // reading a namespace that disagrees with the jar widens nothing and
+            // MITE's cross-package accesses fail with IllegalAccessError.
+            accessWidenerReader.read(reader, "intermediary");
          } catch (Exception e) {
             throw new RuntimeException("Failed to read accessWidener file from mod " + modMetadata.getId(), e);
          }

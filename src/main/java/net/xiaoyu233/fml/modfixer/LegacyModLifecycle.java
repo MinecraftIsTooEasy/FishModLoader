@@ -96,8 +96,14 @@ public final class LegacyModLifecycle {
             FishModLoader.LOGGER.warn("LegacyModLifecycle.constructAll called twice; skipping");
             return;
         }
-        // Initialize FMLCommonHandler's sidedDelegate so Forge mods can access client/server APIs.
-        initFMLCommonHandler();
+        // NOTE: FMLCommonHandler's sidedDelegate is deliberately NOT initialised
+        // here. FMLServerHandler / FMLClientHandler declare a MinecraftServer /
+        // Minecraft field, so loading them force-loads the game's main class while
+        // we are still constructing mods -- i.e. before MinecraftServer.main has
+        // run. ServerEntrypointMixin would then be applied at that moment and its
+        // require=1 injection (which targets an instruction *inside* main) resolves
+        // 0 targets, aborting startup. Initialise it lazily instead, on the first
+        // lifecycle dispatch, once the game class is legitimately loaded.
         currentState = LoaderState.LOADING;
         for (ForgeModDiscoverer.DiscoveredForgeMod discovered : ForgeModDiscoverer.getDiscovered()) {
             for (LegacyModInfo modInfo : discovered.modAnnotations) {
@@ -112,7 +118,14 @@ public final class LegacyModLifecycle {
         currentState = LoaderState.CONSTRUCTING;
 
         // Route through FML LoadController: FMLLoadEvent builds EventBus infrastructure.
+        // The controller is absent when Loader never initialised (e.g. no Forge
+        // mods present), so every use here must be null-guarded -- otherwise the
+        // NPE escapes into MinecraftServer and aborts world creation.
         LoadController ctrl = Loader.instance().getModController();
+        if (ctrl == null) {
+            FishModLoader.LOGGER.debug("No FML LoadController; skipping Forge state distribution");
+            return;
+        }
         ctrl.distributeStateMessage(FMLLoadEvent.class);
         // Transition is best-effort: the state machine doesn't track our custom lifecycle.
         try {
@@ -319,6 +332,9 @@ public final class LegacyModLifecycle {
     }
 
     public static void firePreInit() {
+        // MinecraftServer/Minecraft is loaded by now, so wiring the sided
+        // delegate here cannot trigger a premature mixin application.
+        ensureFMLCommonHandler();
         currentState = LoaderState.PREINITIALIZATION;
 
         // Event dispatch through LoadController is best-effort; the state machine
@@ -329,10 +345,11 @@ public final class LegacyModLifecycle {
         } catch (Throwable t) {
             FishModLoader.LOGGER.warn("LoadController transition to PREINIT failed (non-fatal): {}", t.getMessage());
         }
-        ctrl.distributeStateMessage(LoaderState.PREINITIALIZATION, null, FishModLoader.CONFIG_DIR);
+        if (ctrl != null) ctrl.distributeStateMessage(LoaderState.PREINITIALIZATION, null, FishModLoader.CONFIG_DIR);
     }
 
     public static void fireInit() {
+        ensureFMLCommonHandler();
         currentState = LoaderState.INITIALIZATION;
         LoadController ctrl = Loader.instance().getModController();
         // Best-effort transitions; event distribution is the important part.
@@ -344,7 +361,7 @@ public final class LegacyModLifecycle {
         } catch (Throwable t) {
             FishModLoader.LOGGER.warn("LoadController INIT phase transition (non-fatal): {}", t.getMessage());
         }
-        ctrl.distributeStateMessage(LoaderState.AVAILABLE);
+        if (ctrl != null) ctrl.distributeStateMessage(LoaderState.AVAILABLE);
         currentState = LoaderState.AVAILABLE;
     }
 
@@ -354,6 +371,7 @@ public final class LegacyModLifecycle {
     }
 
     public static void fireServerAboutToStart(MinecraftServer server) {
+        ensureFMLCommonHandler();
         currentState = LoaderState.SERVER_ABOUT_TO_START;
         rememberServer(server);
         FishModLoader.LOGGER.info("Firing Forge FMLServerAboutToStartEvent");
@@ -712,6 +730,19 @@ public final class LegacyModLifecycle {
      * from {@code FMLCommonHandler.beginLoading()} which calls
      * {@code MinecraftForge.initialize()}.
      */
+    private static boolean commonHandlerInitialised = false;
+
+    /**
+     * Lazily initialise FMLCommonHandler's sided delegate. Safe to call
+     * repeatedly; only the first call does work. Must not be called before
+     * the game's main class has started loading -- see constructAll().
+     */
+    static synchronized void ensureFMLCommonHandler() {
+        if (commonHandlerInitialised) return;
+        commonHandlerInitialised = true;
+        initFMLCommonHandler();
+    }
+
     private static void initFMLCommonHandler() {
         try {
             Class<?> commonHandlerClass = Class.forName("cpw.mods.fml.common.FMLCommonHandler", true, Launch.knotLoader.getClassLoader());

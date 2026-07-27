@@ -316,6 +316,7 @@ tasks.register('remapLoaderJar', JavaExec) {
     group = 'fishmodloader'
 
     dependsOn genNamed2IntermediaryTiny
+    dependsOn 'remapMiteToNamed'
 
     classpath = project(':tools').sourceSets.main.runtimeClasspath
     mainClass = 'org.moddedmite.fish.faloom.LoaderRemapper'
@@ -323,8 +324,62 @@ tasks.register('remapLoaderJar', JavaExec) {
             shadowJar.archiveFile.get().asFile.path,
             mappingFile.path,
             shadowJar.archiveFile.get().asFile.path.replace('-all.jar', '-all-intermediary.jar'),
+            mappingFile.path,
+            // Game jar in the *named* namespace: the loader's own bytecode is
+            // compiled against named names, so this is what lets tiny-remapper
+            // resolve member owners and actually apply the renames.
+            miteNamedJar.path
+    ]
+}
+
+// Remap fishmodloader.accesswidener named -> intermediary and replace the copy
+// embedded in the intermediary loader jar. AccessWidener matches members by
+// name, so shipping the named-namespace file widens nothing at runtime and
+// MITE's cross-package accesses fail with IllegalAccessError.
+def remappedAwFile = file("${buildDir}/tmp/fishmodloader-intermediary.accesswidener")
+
+tasks.register('remapAccessWidener', JavaExec) {
+    group = 'fishmodloader'
+
+    dependsOn genNamed2IntermediaryTiny
+
+    classpath = project(':tools').sourceSets.main.runtimeClasspath
+    mainClass = 'org.moddedmite.fish.faloom.RemapAccessWidener'
+    args = [
+            "${projectDir}/src/main/resources/fishmodloader.accesswidener",
+            remappedAwFile.path,
             mappingFile.path
     ]
+}
+
+tasks.register('embedRemappedAccessWidener') {
+    group = 'fishmodloader'
+
+    dependsOn remapAccessWidener
+    dependsOn remapLoaderJar
+    // genMixinRefmap rewrites the same jar; must not interleave with this task.
+    mustRunAfter genMixinRefmap
+
+    doLast {
+        def jar = file(shadowJar.archiveFile.get().asFile.path.replace('-all.jar', '-all-intermediary.jar'))
+        def tmp = new File(jar.parentFile, jar.name + '.aw.tmp')
+        def awBytes = remappedAwFile.bytes
+        new java.util.zip.ZipOutputStream(tmp.newOutputStream()).withCloseable { zos ->
+            new java.util.zip.ZipFile(jar).withCloseable { zf ->
+                zf.entries().each { e ->
+                    if (e.name == 'fishmodloader.accesswidener') return
+                    zos.putNextEntry(new java.util.zip.ZipEntry(e.name))
+                    if (!e.isDirectory()) zos << zf.getInputStream(e)
+                    zos.closeEntry()
+                }
+            }
+            zos.putNextEntry(new java.util.zip.ZipEntry('fishmodloader.accesswidener'))
+            zos.write(awBytes)
+            zos.closeEntry()
+        }
+        ant.move(file: tmp.path, tofile: jar.path)
+        logger.lifecycle("Embedded intermediary accessWidener into ${jar.name}")
+    }
 }
 
 tasks.register('buildJar') {
@@ -334,6 +389,7 @@ tasks.register('buildJar') {
     dependsOn genNamed2IntermediaryTiny
     dependsOn remapLoaderJar
     dependsOn genMixinRefmap
+    dependsOn embedRemappedAccessWidener
 }
 
 tasks.withType(JavaExec).configureEach { task ->
