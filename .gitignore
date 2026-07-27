@@ -43,3 +43,6 @@ run/
 
 # macos
 *.DS_Store
+
+# pi-subagents run artifacts
+.pi-subagents/
