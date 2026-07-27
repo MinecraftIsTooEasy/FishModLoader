@@ -102,23 +102,73 @@ for f in "$MIXIN_DIR"/*.java; do
   fi
 
   names="$(awk '
+    function strip(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+
     function emit(line) {
       if (match(line, /([A-Za-z_$][A-Za-z0-9_$]*)[ \t]*\(/, m)) { print m[1]; return }
       if (match(line, /([A-Za-z_$][A-Za-z0-9_$]*)[ \t]*[;=]/, m)) { print m[1]; return }
     }
-    # Only real annotations count: the line must *start* with @Overwrite or
-    # @Shadow. This avoids matching those words inside doc comments, and avoids
-    # treating @Unique members (intentionally absent from the jar) as errors.
-    # NOTE: gawk ERE has no \b, so match the delimiter explicitly.
-    /^[ \t]*@(Overwrite|Shadow)([ \t(]|$)/ { pending = 1; next }
-    pending {
-      s = $0
-      gsub(/^[ \t]+|[ \t]+$/, "", s)
+
+    # Consume balanced "(...)" starting at the head of s. Returns the text
+    # after the closing paren, or sets depth>0 and returns "" when the args
+    # continue on following lines (@Inject/@Redirect often wrap).
+    function args(s,   i, n, c) {
+      depth = 0; n = length(s)
+      for (i = 1; i <= n; i++) {
+        c = substr(s, i, 1)
+        if (c == "(") depth++
+        else if (c == ")") { depth--; if (depth == 0) return strip(substr(s, i + 1)) }
+      }
+      return ""
+    }
+
+    # Peel every leading annotation off a line. Sets sawSO when one of them is
+    # @Shadow/@Overwrite, and returns whatever declaration text remains.
+    #
+    # Peeling (rather than matching the annotation and skipping the line) is
+    # what makes "@Shadow public int x;" work: annotation and member share a
+    # line here, so a rule that consumed the whole line dropped the member and
+    # left its pending flag set, which then mis-attributed the *next* member
+    # (typically a @Unique one) as a @Shadow target.
+    function peel(s,   name) {
+      sawSO = 0
+      s = strip(s)
+      while (substr(s, 1, 1) == "@") {
+        if (!match(s, /^@([A-Za-z_$][A-Za-z0-9_$.]*)/, m)) return s
+        name = m[1]
+        if (name == "Shadow" || name == "Overwrite") sawSO = 1
+        s = strip(substr(s, RSTART + RLENGTH))
+        if (substr(s, 1, 1) == "(") {
+          s = args(s)
+          if (depth != 0) return ""
+        }
+      }
+      return s
+    }
+
+    # Still inside annotation arguments opened on an earlier line.
+    depth > 0 {
+      rest = args("(" $0)
+      if (depth != 0) next
+      rest = strip(rest)
+      if (rest != "") { if (pending) { emit(rest); pending = 0 } }
+      next
+    }
+
+    {
+      s = strip($0)
       if (s == "") next
       if (s ~ /^\/\// || s ~ /^\/\*/ || s ~ /^\*/) next
-      if (s ~ /^@/) next
-      emit(s)
-      pending = 0
+
+      rest = peel(s)
+      if (depth != 0) next          # annotation args continue next line
+
+      if (rest != "") {             # line carries a declaration
+        if (sawSO || pending) emit(rest)
+        pending = 0
+      } else if (sawSO) {
+        pending = 1                 # bare @Shadow/@Overwrite; member follows
+      }
     }
   ' "$f" 2>/dev/null | sort -u)"
 
