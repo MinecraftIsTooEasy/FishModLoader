@@ -22,19 +22,24 @@ import java.util.Map;
  * and MITE's many cross-package accesses then blow up at runtime with
  * {@code IllegalAccessError}.
  *
- * <p>Usage: {@code RemapAccessWidener <inputAw> <outputAw> <named2intermediary.tiny>}
+ * <p>Usage: {@code RemapAccessWidener <inputAw> <outputAw> <named2intermediary.tiny> [namedJar]}
+ *
+ * <p>The optional {@code namedJar} supplies the class hierarchy so that an
+ * entry naming a subclass as owner can still be resolved against the
+ * superclass that actually declares the member -- see {@link #resolveMember}.
  */
 public final class RemapAccessWidener {
 
     public static void main(String[] args) throws IOException {
         if (args.length < 3) {
-            System.err.println("Usage: RemapAccessWidener <inputAw> <outputAw> <named2intermediaryTiny>");
+            System.err.println("Usage: RemapAccessWidener <inputAw> <outputAw> <named2intermediaryTiny> [namedJar]");
             System.exit(1);
         }
 
         Path inputAw = Path.of(args[0]);
         Path outputAw = Path.of(args[1]);
         Path mappingsFile = Path.of(args[2]);
+        Path namedJar = args.length >= 4 ? Path.of(args[3]) : null;
 
         for (Path required : new Path[]{inputAw, mappingsFile}) {
             if (!Files.exists(required)) {
@@ -49,8 +54,19 @@ public final class RemapAccessWidener {
         Map<String, Map<String, String>> methods = new HashMap<>();
         readMappings(mappingsFile, fields, methods);
 
+        // owner -> direct supertypes (superclass first, then interfaces)
+        Map<String, List<String>> supers = namedJar != null && Files.exists(namedJar)
+                ? readHierarchy(namedJar)
+                : Map.of();
+        if (supers.isEmpty() && namedJar != null) {
+            System.out.println("WARNING: no class hierarchy available (" + namedJar
+                    + "); AW entries whose owner does not itself declare the member cannot be remapped");
+        }
+
         List<String> out = new ArrayList<>();
         int rewritten = 0;
+        int viaSupertype = 0;
+        List<String> unresolved = new ArrayList<>();
 
         try (BufferedReader r = Files.newBufferedReader(inputAw, StandardCharsets.UTF_8)) {
             String line;
@@ -74,15 +90,23 @@ public final class RemapAccessWidener {
                 if (parts.length >= 5 && (parts[1].equals("field") || parts[1].equals("method"))) {
                     String owner = parts[2];
                     String member = parts[3];
-                    Map<String, String> table =
-                            parts[1].equals("field") ? fields.getOrDefault(owner, Map.of())
-                                                     : methods.getOrDefault(owner, Map.of());
-                    String mapped = table.get(member);
-                    if (mapped != null && !mapped.equals(member)) {
-                        parts[3] = mapped;
+                    Map<String, Map<String, String>> tables =
+                            parts[1].equals("field") ? fields : methods;
+
+                    Resolved resolved = resolveMember(owner, member, tables, supers);
+                    if (resolved != null && !resolved.mapped.equals(member)) {
+                        parts[3] = resolved.mapped;
                         out.add(String.join("\t", parts));
                         rewritten++;
+                        if (resolved.fromSupertype) viaSupertype++;
                         continue;
+                    }
+                    if (resolved == null) {
+                        // Neither the owner nor any supertype maps this member. The
+                        // entry ships in named form and will silently widen nothing
+                        // at runtime, which is how EntityMob.canDespawn stayed a
+                        // no-op and let a VerifyError through.
+                        unresolved.add(parts[1] + " " + owner + " " + member);
                     }
                 }
                 out.add(line);
@@ -94,7 +118,87 @@ public final class RemapAccessWidener {
         }
         Files.write(outputAw, out, StandardCharsets.UTF_8);
         System.out.println("Remapped accessWidener: " + rewritten
-                + " member entries named -> intermediary (" + outputAw + ")");
+                + " member entries named -> intermediary (" + viaSupertype
+                + " via supertype) (" + outputAw + ")");
+        if (!unresolved.isEmpty()) {
+            // Not fatal: many MITE-only members are spelled identically in both
+            // namespaces, so passing through unchanged is correct for them.
+            System.out.println("NOTE: " + unresolved.size()
+                    + " entries had no mapping in owner or supertypes (kept verbatim):");
+            for (String entry : unresolved) {
+                System.out.println("  " + entry);
+            }
+        }
+    }
+
+    /** A member name resolved through the hierarchy. */
+    private static final class Resolved {
+        final String mapped;
+        final boolean fromSupertype;
+
+        Resolved(String mapped, boolean fromSupertype) {
+            this.mapped = mapped;
+            this.fromSupertype = fromSupertype;
+        }
+    }
+
+    /**
+     * Look up {@code member} on {@code owner}, then walk the supertype chain.
+     *
+     * <p>An AW entry may legitimately name a subclass as owner while the
+     * mappings only carry the member under the declaring superclass: MITE
+     * overrides methods that vanilla declares higher up, and {@code named.tiny}
+     * is vanilla-derived. Owner-exact lookup alone therefore misses them and
+     * the entry silently degrades to a no-op.
+     */
+    private static Resolved resolveMember(String owner,
+                                          String member,
+                                          Map<String, Map<String, String>> tables,
+                                          Map<String, List<String>> supers) {
+        String direct = tables.getOrDefault(owner, Map.of()).get(member);
+        if (direct != null) {
+            return new Resolved(direct, false);
+        }
+
+        // Breadth-first over supertypes; guard against cycles in malformed input.
+        List<String> queue = new ArrayList<>(supers.getOrDefault(owner, List.of()));
+        java.util.Set<String> seen = new java.util.HashSet<>(queue);
+        for (int i = 0; i < queue.size(); i++) {
+            String superName = queue.get(i);
+            String mapped = tables.getOrDefault(superName, Map.of()).get(member);
+            if (mapped != null) {
+                return new Resolved(mapped, true);
+            }
+            for (String next : supers.getOrDefault(superName, List.of())) {
+                if (seen.add(next)) queue.add(next);
+            }
+        }
+        return null;
+    }
+
+    /** Read {@code owner -> direct supertypes} from a jar, superclass first. */
+    private static Map<String, List<String>> readHierarchy(Path jar) throws IOException {
+        Map<String, List<String>> supers = new HashMap<>();
+        try (java.util.jar.JarFile jf = new java.util.jar.JarFile(jar.toFile())) {
+            java.util.Enumeration<java.util.jar.JarEntry> entries = jf.entries();
+            while (entries.hasMoreElements()) {
+                java.util.jar.JarEntry entry = entries.nextElement();
+                if (entry.isDirectory() || !entry.getName().endsWith(".class")) continue;
+                try (java.io.InputStream in = jf.getInputStream(entry)) {
+                    org.objectweb.asm.ClassReader reader = new org.objectweb.asm.ClassReader(in);
+                    List<String> parents = new ArrayList<>();
+                    if (reader.getSuperName() != null) parents.add(reader.getSuperName());
+                    String[] interfaces = reader.getInterfaces();
+                    if (interfaces != null) {
+                        for (String iface : interfaces) parents.add(iface);
+                    }
+                    supers.put(reader.getClassName(), parents);
+                } catch (Exception ignored) {
+                    // A single unreadable class must not abort the whole build step.
+                }
+            }
+        }
+        return supers;
     }
 
     /** Read a tiny v2 {@code named -> intermediary} file into per-class member tables. */

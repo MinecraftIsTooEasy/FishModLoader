@@ -342,13 +342,19 @@ tasks.register('remapAccessWidener', JavaExec) {
     group = 'fishmodloader'
 
     dependsOn genNamed2IntermediaryTiny
+    // The named jar supplies the class hierarchy: an AW entry may name a
+    // subclass as owner while named.tiny only carries the member under the
+    // superclass that vanilla declares it on. Without the hierarchy those
+    // entries pass through in named form and widen nothing at runtime.
+    dependsOn 'remapMiteToNamed'
 
     classpath = project(':tools').sourceSets.main.runtimeClasspath
     mainClass = 'org.moddedmite.fish.faloom.RemapAccessWidener'
     args = [
             "${projectDir}/src/main/resources/fishmodloader.accesswidener",
             remappedAwFile.path,
-            mappingFile.path
+            mappingFile.path,
+            miteNamedJar.path
     ]
 }
 
@@ -543,4 +549,32 @@ tasks.register('packagePatchedJar', Jar) {
 // (default is 100, which saturates and hides real progress).
 tasks.withType(JavaCompile).configureEach {
     options.compilerArgs += ['-Xmaxerrs', '2000']
+}
+
+// Run the JVM verifier over every class of the runtime game jar with the
+// remapped accessWidener applied. Catches VerifyError/IllegalAccessError that
+// only surface at class-definition time -- the MITE namespace splits classes
+// that shared the default package into separate packages, which turns legal
+// protected accesses illegal. tiny-remapper's fixPackageAccess does NOT cover
+// this: it implements JVMS 5.4.4 (resolution) but not 4.10.1.8 (verification).
+//
+//   ./gradlew verifyGameJar -PgameJar=<path to remapped jar>
+tasks.register('verifyGameJar', JavaExec) {
+    group = 'fishmodloader'
+    description = 'Verify every class in the remapped game jar with the AW applied'
+
+    dependsOn remapAccessWidener
+
+    classpath = project(':tools').sourceSets.main.runtimeClasspath
+    mainClass = 'org.moddedmite.fish.faloom.VerifyGameJar'
+    args = [
+            project.findProperty('gameJar') ?: miteIntermediaryJar.path,
+            project.findProperty('awFile') ?: remappedAwFile.path
+    ]
+    // -Ptrace=<substring> prints the full throwable for matching classes,
+    // which is how you tell a real VerifyError apart from a missing-dependency
+    // cascade in the supertype chain.
+    if (project.hasProperty('trace')) {
+        systemProperty 'verify.trace', project.property('trace')
+    }
 }
