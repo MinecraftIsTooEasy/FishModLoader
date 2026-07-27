@@ -16,168 +16,293 @@
 
 package net.fabricmc.loader.impl.util.mappings;
 
+import java.util.ArrayDeque;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
+
+import org.spongepowered.asm.mixin.transformer.ClassInfo;
+
 import net.fabricmc.mappingio.tree.MappingTree;
-import org.spongepowered.asm.mixin.extensibility.IRemapper;
 
-import java.util.Objects;
+public class MixinIntermediaryDevRemapper extends MixinRemapper {
+	private static final String ambiguousName = "<ambiguous>"; // dummy value for ambiguous mappings - needs querying with additional owner and/or desc info
 
-/**
- * Mixin {@link IRemapper} backed by a mapping-io {@link MappingTree}.
- *
- * <p>In a development environment mods ship refmaps written against one
- * namespace (typically {@code intermediary}) while the game actually runs in
- * another (typically {@code named}). Mixin resolves its {@code @At}/{@code @Inject}
- * targets through the registered remappers, so this class bridges the two.
- *
- * <p>Lookups are descriptor-aware where possible and fall back to a
- * name-only search, because refmap descriptors are themselves written in the
- * source namespace and may not match after partial remapping.
- */
-public final class MixinIntermediaryDevRemapper implements IRemapper {
-	private final MappingTree mappings;
-	private final int fromId;
-	private final int toId;
+	private final Set<String> allPossibleClassNames = new HashSet<>();
+	private final Map<String, String> nameFieldLookup = new HashMap<>();
+	private final Map<String, String> nameMethodLookup = new HashMap<>();
+	private final Map<String, String> nameDescFieldLookup = new HashMap<>();
+	private final Map<String, String> nameDescMethodLookup = new HashMap<>();
+	// Owner-specific maps: className -> (memberName -> mappedName)
+	// These do NOT use descriptors, so they work correctly even when
+	// named.tiny stores descriptors in notch format while runtime
+	// class files use named-format descriptors.
+	private final Map<String, Map<String, String>> ownerFieldMappings = new HashMap<>();
+	private final Map<String, Map<String, String>> ownerMethodMappings = new HashMap<>();
 
 	public MixinIntermediaryDevRemapper(MappingTree mappings, String from, String to) {
-		this.mappings = Objects.requireNonNull(mappings, "mappings");
-		this.fromId = namespaceId(mappings, Objects.requireNonNull(from, "from"));
-		this.toId = namespaceId(mappings, Objects.requireNonNull(to, "to"));
+		super(mappings, mappings.getNamespaceId(from), mappings.getNamespaceId(to));
+
+		for (MappingTree.ClassMapping classDef : mappings.getClasses()) {
+			allPossibleClassNames.add(classDef.getName(from));
+			allPossibleClassNames.add(classDef.getName(to));
+
+			String fromName = classDef.getName(from);
+
+			// Build owner-specific field map
+			Map<String, String> fieldMap = new HashMap<>();
+			for (MappingTree.FieldMapping field : classDef.getFields()) {
+				String srcName = field.getName(from);
+				String dstName = field.getName(to);
+				fieldMap.put(srcName, dstName);
+			}
+			ownerFieldMappings.put(fromName, fieldMap);
+
+			// Build owner-specific method map
+			Map<String, String> methodMap = new HashMap<>();
+			for (MappingTree.MethodMapping method : classDef.getMethods()) {
+				String srcName = method.getName(from);
+				String dstName = method.getName(to);
+				methodMap.put(srcName, dstName);
+			}
+			ownerMethodMappings.put(fromName, methodMap);
+
+			putMemberInLookup(fromId, toId, classDef.getFields(), nameFieldLookup, nameDescFieldLookup);
+			putMemberInLookup(fromId, toId, classDef.getMethods(), nameMethodLookup, nameDescMethodLookup);
+		}
 	}
 
-	private static int namespaceId(MappingTree tree, String namespace) {
-		if (namespace.equals(tree.getSrcNamespace())) return MappingTree.SRC_NAMESPACE_ID;
+	private <T extends MappingTree.MemberMapping> void putMemberInLookup(int from, int to, Collection<T> descriptored, Map<String, String> nameMap, Map<String, String> nameDescMap) {
+		for (T field : descriptored) {
+			String nameFrom = field.getName(from);
+			String descFrom = field.getDesc(from);
+			String nameTo = field.getName(to);
 
-		int id = tree.getDstNamespaces().indexOf(namespace);
-		if (id < 0) throw new IllegalArgumentException("Unknown namespace: " + namespace);
-		return id;
+			String prev = nameMap.putIfAbsent(nameFrom, nameTo);
+
+			if (prev != null && prev != ambiguousName && !prev.equals(nameTo)) {
+				nameDescMap.put(nameFrom, ambiguousName);
+			}
+
+			String key = getNameDescKey(nameFrom, descFrom);
+			prev = nameDescMap.putIfAbsent(key, nameTo);
+
+			if (prev != null && prev != ambiguousName && !prev.equals(nameTo)) {
+				nameDescMap.put(key, ambiguousName);
+			}
+		}
 	}
 
-	private String name(MappingTree.ElementMapping element) {
-		if (element == null) return null;
-		String mapped = element.getName(toId);
-		return mapped != null && !mapped.isEmpty() ? mapped : null;
+	private void throwAmbiguousLookup(String type, String name, String desc) {
+		throw new RuntimeException("Ambiguous Mixin: " + type + " lookup " + name + " " + desc+" is not unique");
 	}
 
-	/** Resolve the source-namespace internal name of a class given in the 'from' namespace. */
-	private String srcClassName(String owner) {
-		if (owner == null) return null;
-		if (fromId == MappingTree.SRC_NAMESPACE_ID) return owner;
+	private String mapMethodNameInner(String owner, String name, String desc) {
+		String result = super.mapMethodName(owner, name, desc);
 
-		MappingTree.ClassMapping cls = mappings.getClass(owner, fromId);
-		return cls != null ? cls.getSrcName() : owner;
+		if (result.equals(name)) {
+			String otherClass = unmap(owner);
+			return super.mapMethodName(otherClass, name, unmapDesc(desc));
+		} else {
+			return result;
+		}
+	}
+
+	private String mapFieldNameInner(String owner, String name, String desc) {
+		String result = super.mapFieldName(owner, name, desc);
+
+		if (result.equals(name)) {
+			String otherClass = unmap(owner);
+			return super.mapFieldName(otherClass, name, unmapDesc(desc));
+		} else {
+			return result;
+		}
+	}
+
+	/**
+	 * Try to resolve a field name using the owner-specific map (no descriptor needed).
+	 * Returns {@code name} if no mapping is found.
+	 */
+	private String mapFieldNameByOwner(String owner, String name) {
+		if (owner == null) return name;
+		Map<String, String> fieldMap = ownerFieldMappings.get(owner);
+		if (fieldMap != null) {
+			String mapped = fieldMap.get(name);
+			if (mapped != null && !mapped.equals(name)) {
+				return mapped;
+			}
+		}
+		return name;
+	}
+
+	/**
+	 * Try to resolve a method name using the owner-specific map (no descriptor needed).
+	 * Returns {@code name} if no mapping is found.
+	 */
+	private String mapMethodNameByOwner(String owner, String name) {
+		if (owner == null) return name;
+		Map<String, String> methodMap = ownerMethodMappings.get(owner);
+		if (methodMap != null) {
+			String mapped = methodMap.get(name);
+			if (mapped != null && !mapped.equals(name)) {
+				return mapped;
+			}
+		}
+		return name;
 	}
 
 	@Override
 	public String mapMethodName(String owner, String name, String desc) {
-		if (owner == null || name == null) return name;
+		// handle unambiguous values early
+		if (owner == null || allPossibleClassNames.contains(owner)) {
+			String newName;
 
-		String srcOwner = srcClassName(owner);
-		MappingTree.ClassMapping cls = mappings.getClass(srcOwner);
-		if (cls == null) return name;
+			if (desc == null) {
+				newName = nameMethodLookup.get(name);
+			} else {
+				newName = nameDescMethodLookup.get(getNameDescKey(name, desc));
+			}
 
-		// Descriptor-aware lookup first.
-		if (desc != null) {
-			MappingTree.MethodMapping exact = cls.getMethod(name, desc, fromId);
-			String mapped = name(exact);
-			if (mapped != null) return mapped;
-		}
+			if (newName != null) {
+				if (newName == ambiguousName) {
+					if (owner == null) {
+						throwAmbiguousLookup("method", name, desc);
+					}
+					// Fall through to owner-specific lookup
+				} else {
+					return newName;
+				}
+			}
 
-		// Fall back to matching on name alone -- refmap descriptors are in the
-		// source namespace and may not line up.
-		for (MappingTree.MethodMapping method : cls.getMethods()) {
-			if (name.equals(method.getName(fromId))) {
-				String mapped = name(method);
-				if (mapped != null) return mapped;
+			// Owner-specific lookup (no descriptor needed, handles notch/named mismatch)
+			if (owner != null) {
+				String mapped = mapMethodNameByOwner(owner, name);
+				if (!mapped.equals(name)) {
+					return mapped;
+				}
+			}
+
+			if (owner == null) {
+				return name;
+			} else {
+				// FIXME: this kind of namespace mixing shouldn't happen..
+				// TODO: this should not repeat more than once
+				String unmapOwner = unmap(owner);
+				String unmapDesc = unmapDesc(desc);
+
+				if (!unmapOwner.equals(owner) || !unmapDesc.equals(desc)) {
+					return mapMethodName(unmapOwner, name, unmapDesc);
+				}
+				// else: fall through to ClassInfo hierarchy walk below
+				// (handles inherited methods from parent classes)
 			}
 		}
+
+		ClassInfo classInfo = ClassInfo.forName(map(owner));
+
+		if (classInfo == null) { // unknown class?
+			return name;
+		}
+
+		Queue<ClassInfo> queue = new ArrayDeque<>();
+
+		do {
+			String ownerO = unmap(classInfo.getName());
+			String s;
+
+			if (!(s = mapMethodNameInner(ownerO, name, desc)).equals(name)) {
+				return s;
+			}
+
+			if (classInfo.getSuperName() != null && !classInfo.getSuperName().startsWith("java/")) {
+				ClassInfo cSuper = classInfo.getSuperClass();
+
+				if (cSuper != null) {
+					queue.add(cSuper);
+				}
+			}
+
+			for (String itf : classInfo.getInterfaces()) {
+				if (itf.startsWith("java/")) {
+					continue;
+				}
+
+				ClassInfo cItf = ClassInfo.forName(itf);
+
+				if (cItf != null) {
+					queue.add(cItf);
+				}
+			}
+		} while ((classInfo = queue.poll()) != null);
 
 		return name;
 	}
 
 	@Override
 	public String mapFieldName(String owner, String name, String desc) {
-		if (owner == null || name == null) return name;
+		// handle unambiguous values early
+		if (owner == null || allPossibleClassNames.contains(owner)) {
+			String newName = nameDescFieldLookup.get(getNameDescKey(name, desc));
 
-		String srcOwner = srcClassName(owner);
-		MappingTree.ClassMapping cls = mappings.getClass(srcOwner);
-		if (cls == null) return name;
+			if (newName != null) {
+				if (newName == ambiguousName) {
+					if (owner == null) {
+						throwAmbiguousLookup("field", name, desc);
+					}
+					// Fall through to owner-specific lookup
+				} else {
+					return newName;
+				}
+			}
 
-		if (desc != null) {
-			MappingTree.FieldMapping exact = cls.getField(name, desc, fromId);
-			String mapped = name(exact);
-			if (mapped != null) return mapped;
+			// Owner-specific lookup (no descriptor needed, handles notch/named mismatch)
+			if (owner != null) {
+				String mapped = mapFieldNameByOwner(owner, name);
+				if (!mapped.equals(name)) {
+					return mapped;
+				}
+			}
+
+			if (owner == null) {
+				return name;
+			} else {
+				// FIXME: this kind of namespace mixing shouldn't happen..
+				// TODO: this should not repeat more than once
+				String unmapOwner = unmap(owner);
+				String unmapDesc = unmapDesc(desc);
+
+				if (!unmapOwner.equals(owner) || !unmapDesc.equals(desc)) {
+					return mapFieldName(unmapOwner, name, unmapDesc);
+				}
+				// else: fall through to ClassInfo hierarchy walk below
+				// (handles inherited fields like fontRenderer from GuiScreen)
+			}
 		}
 
-		for (MappingTree.FieldMapping field : cls.getFields()) {
-			if (name.equals(field.getName(fromId))) {
-				String mapped = name(field);
-				if (mapped != null) return mapped;
+		ClassInfo c = ClassInfo.forName(map(owner));
+
+		while (c != null) {
+			String nextOwner = unmap(c.getName());
+			String s = mapFieldNameInner(nextOwner, name, desc);
+
+			if (!s.equals(name)) {
+				return s;
 			}
+
+			if (c.getSuperName() == null || c.getSuperName().startsWith("java/")) {
+				break;
+			}
+
+			c = c.getSuperClass();
 		}
 
 		return name;
 	}
 
-	@Override
-	public String map(String typeName) {
-		return mapClass(typeName, fromId, toId);
-	}
-
-	@Override
-	public String unmap(String typeName) {
-		return mapClass(typeName, toId, fromId);
-	}
-
-	private String mapClass(String typeName, int srcId, int dstId) {
-		if (typeName == null) return null;
-
-		MappingTree.ClassMapping cls = mappings.getClass(typeName, srcId);
-		if (cls == null) return typeName;
-
-		String mapped = cls.getName(dstId);
-		return mapped != null && !mapped.isEmpty() ? mapped : typeName;
-	}
-
-	@Override
-	public String mapDesc(String desc) {
-		return mapDescriptor(desc, fromId, toId);
-	}
-
-	@Override
-	public String unmapDesc(String desc) {
-		return mapDescriptor(desc, toId, fromId);
-	}
-
-	/**
-	 * Rewrite every {@code L<internal-name>;} occurrence in a type descriptor.
-	 * Primitives, array prefixes and parentheses pass through untouched.
-	 */
-	private String mapDescriptor(String desc, int srcId, int dstId) {
-		if (desc == null || desc.indexOf('L') < 0) return desc;
-
-		StringBuilder out = new StringBuilder(desc.length());
-		int pos = 0;
-
-		while (pos < desc.length()) {
-			char c = desc.charAt(pos);
-
-			if (c != 'L') {
-				out.append(c);
-				pos++;
-				continue;
-			}
-
-			int end = desc.indexOf(';', pos);
-			if (end < 0) { // malformed; emit the remainder verbatim
-				out.append(desc, pos, desc.length());
-				break;
-			}
-
-			String internal = desc.substring(pos + 1, end);
-			out.append('L').append(mapClass(internal, srcId, dstId)).append(';');
-			pos = end + 1;
-		}
-
-		return out.toString();
+	private static String getNameDescKey(String name, String descriptor) {
+		return name+ ";;" + descriptor;
 	}
 }

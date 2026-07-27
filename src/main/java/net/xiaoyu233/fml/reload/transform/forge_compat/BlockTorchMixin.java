@@ -50,10 +50,10 @@ public abstract class BlockTorchMixin {
     @Unique
     public boolean canBlockStay(World world, int x, int y, int z) {
         if (world.getBlockMetadata(x, y, z) == 0) {
-            if (isBlockSolidOnSide(world, x - 1, y, z, EnumFace.EAST)) world.setBlockMetadata(x, y, z, 1, 2);
-            else if (isBlockSolidOnSide(world, x + 1, y, z, EnumFace.WEST)) world.setBlockMetadata(x, y, z, 2, 2);
-            else if (isBlockSolidOnSide(world, x, y, z - 1, EnumFace.SOUTH)) world.setBlockMetadata(x, y, z, 3, 2);
-            else if (isBlockSolidOnSide(world, x, y, z + 1, EnumFace.NORTH)) world.setBlockMetadata(x, y, z, 4, 2);
+            if (isBlockSolidOnSide(world, x - 1, y, z, EnumFace.EAST)) world.setBlockMetadataWithNotify(x, y, z, 1, 2);
+            else if (isBlockSolidOnSide(world, x + 1, y, z, EnumFace.WEST)) world.setBlockMetadataWithNotify(x, y, z, 2, 2);
+            else if (isBlockSolidOnSide(world, x, y, z - 1, EnumFace.SOUTH)) world.setBlockMetadataWithNotify(x, y, z, 3, 2);
+            else if (isBlockSolidOnSide(world, x, y, z + 1, EnumFace.NORTH)) world.setBlockMetadataWithNotify(x, y, z, 4, 2);
         }
 
         int i1 = world.getBlockMetadata(x, y, z);

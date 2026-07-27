@@ -29,7 +29,7 @@ public final class PacketDispatcher {
     /** Send {@code packet} to a single server-side player. */
     public static void sendPacketToPlayer(Packet packet, EntityPlayerMP player) {
         if (player != null && player.playerNetServerHandler != null) {
-            player.playerNetServerHandler.sendPacket(packet);
+            player.playerNetServerHandler.sendPacketToPlayer(packet);
         }
     }
 

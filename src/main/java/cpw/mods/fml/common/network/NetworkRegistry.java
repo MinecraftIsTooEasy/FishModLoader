@@ -318,14 +318,14 @@ public class NetworkRegistry
             Container container = (Container)handler.getServerGuiElement(modGuiId, player, world, x, y, z);
             if (container != null)
             {
-                player.getNextWindowId();
+                player.incrementWindowID();
                 player.closeContainer();
                 int windowId = player.currentWindowId;
                 Packet250CustomPayload pkt = new Packet250CustomPayload();
                 pkt.channel = "FML";
                 pkt.data = FMLPacket.makePacket(Type.GUIOPEN, windowId, nmh.getNetworkId(), modGuiId, x, y, z);
                 pkt.length = pkt.data.length;
-                player.playerNetServerHandler.sendPacket(pkt);
+                player.playerNetServerHandler.sendPacketToPlayer(pkt);
                 player.openContainer = container;
                 player.openContainer.windowId = windowId;
                 player.openContainer.canInteractWith(player);

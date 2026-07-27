@@ -33,7 +33,7 @@ public abstract class FixLongHashMapWorld implements IBlockAccess {
 
     @ModifyVariable(method = "getBlockId", at = @At(value = "STORE", ordinal = 0), name = "var4_1")
     public LongHashMapEntry injectedServer(LongHashMapEntry var4_1) {
-        LongHashMap lhm = ((ChunkProviderServer) this.chunkProvider).id2ChunkMap;
+        LongHashMap lhm = ((ChunkProviderServer) this.chunkProvider).loadedChunkHashMap;
         return lhm.hashArray[getHashedKey(this.key) & lhm.hashArray.length - 1];
     }
 

@@ -5,53 +5,32 @@ import net.fabricmc.tinyremapper.OutputConsumerPath;
 import net.fabricmc.tinyremapper.TinyRemapper;
 import net.fabricmc.tinyremapper.TinyUtils;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
-/**
- * Remaps the raw (official/obfuscated namespace) MITE game jar into the
- * {@code intermediary} namespace that FishModLoader's sources are written
- * against.
- *
- * <p>The bundled {@code intermediary.tiny} is a tiny v1 file declaring
- * {@code official} then {@code intermediary}, so the remap direction is
- * official -> intermediary.
- *
- * <p>Usage: {@code RemapToIntermediary <inputJar> <outputJar> <intermediary.tiny>}
- */
 public final class RemapToIntermediary {
-
     public static void main(String[] args) throws IOException {
         if (args.length < 3) {
-            System.err.println("Usage: RemapToIntermediary <inputJar> <outputJar> <intermediaryTiny>");
+            System.err.println("Usage: RemapToIntermediary <input.jar> <output.jar> <intermediary.tiny>");
             System.exit(1);
         }
+        Path inputJar = Paths.get(args[0]);
+        Path outputJar = Paths.get(args[1]);
+        Path mappingsFile = Paths.get(args[2]);
 
-        Path inputJar = Path.of(args[0]);
-        Path outputJar = Path.of(args[1]);
-        Path mappingsFile = Path.of(args[2]);
-
-        if (!Files.exists(inputJar)) {
-            System.err.println("Input jar not found: " + inputJar);
-            System.exit(1);
-        }
-        if (!Files.exists(mappingsFile)) {
-            System.err.println("Mapping file not found: " + mappingsFile);
-            System.exit(1);
-        }
-
-        if (outputJar.getParent() != null) {
-            Files.createDirectories(outputJar.getParent());
-        }
-        Files.deleteIfExists(outputJar);
+        System.out.println("Remapping " + inputJar + " -> " + outputJar);
+        System.out.println("  Source namespace: official");
+        System.out.println("  Target namespace: intermediary");
+        System.out.println("  Mappings: " + mappingsFile);
 
         TinyRemapper remapper = TinyRemapper.newRemapper()
                 .withMappings(TinyUtils.createTinyMappingProvider(
                         Files.newBufferedReader(mappingsFile), "official", "intermediary"))
                 .ignoreConflicts(true)
-                .fixPackageAccess(true)
-                .rebuildSourceFilenames(true)
+                .threads(Runtime.getRuntime().availableProcessors())
                 .build();
 
         try {
@@ -61,12 +40,11 @@ public final class RemapToIntermediary {
                 remapper.apply(outputConsumer);
             }
         } catch (IOException e) {
-            throw new RuntimeException("Failed to remap MITE jar to intermediary", e);
+            throw new RuntimeException("Failed to remap jar", e);
         } finally {
             remapper.finish();
         }
 
-        System.out.println("Remapped " + inputJar.getFileName()
-                + " (official) -> " + outputJar + " (intermediary)");
+        System.out.println("Done. Remapped jar written to " + outputJar);
     }
 }
