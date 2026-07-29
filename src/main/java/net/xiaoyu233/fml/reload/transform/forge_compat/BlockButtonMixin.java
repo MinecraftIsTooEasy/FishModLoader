@@ -37,8 +37,8 @@ public abstract class BlockButtonMixin {
                isBlockSolidOnSide(world, x, y, z + 1, EnumFace.NORTH);
     }
 
-    @Shadow
-    public abstract boolean onNotLegal(World world, int x, int y, int z, int metadata);
+    @Unique
+    public boolean onNotLegal(World world, int x, int y, int z, int metadata) { return false; }
 
     @Unique
     public boolean canBlockStay(World world, int x, int y, int z) {

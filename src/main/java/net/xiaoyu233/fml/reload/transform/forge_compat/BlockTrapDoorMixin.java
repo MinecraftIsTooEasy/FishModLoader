@@ -10,8 +10,10 @@ import org.spongepowered.asm.mixin.Unique;
 
 @Mixin(BlockTrapDoor.class)
 public class BlockTrapDoorMixin {
+    // Mixin forbids the public static Forge field API on a mixin class. Keep
+    // the state private so the placement hook remains active.
     @Unique
-    public static boolean disableValidation = false;
+    private static boolean disableValidation = false;
 
     /**
      * NOTE: was @Shadow, but MITE has no isValidSupportBlock on BlockTrapDoor

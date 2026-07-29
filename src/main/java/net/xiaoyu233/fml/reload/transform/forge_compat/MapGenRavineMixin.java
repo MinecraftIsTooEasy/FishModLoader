@@ -5,14 +5,11 @@ import net.minecraft.world.World;
 import net.minecraft.world.biome.BiomeGenBase;
 import net.minecraft.world.gen.MapGenRavine;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
+import net.xiaoyu233.fml.reload.transform.forge_compat.api.IMapGenBaseAccessor;
 import org.spongepowered.asm.mixin.Unique;
 
 @Mixin(MapGenRavine.class)
 public abstract class MapGenRavineMixin {
-
-    @Shadow
-    protected World worldObj;
 
     @Unique
     protected boolean isOceanBlock(byte[] data, int index, int x, int y, int z, int chunkX, int chunkZ) {
@@ -28,13 +25,13 @@ public abstract class MapGenRavineMixin {
 
     @Unique
     private boolean isTopBlock(byte[] data, int index, int x, int y, int z, int chunkX, int chunkZ) {
-        BiomeGenBase biome = worldObj.getBiomeGenForCoords(x + chunkX * 16, z + chunkZ * 16);
+        BiomeGenBase biome = ((IMapGenBaseAccessor)this).fmlGetWorld().getBiomeGenForCoords(x + chunkX * 16, z + chunkZ * 16);
         return (isExceptionBiome(biome) ? data[index] == Block.grass.blockID : data[index] == biome.topBlock);
     }
 
     @Unique
     protected void digBlock(byte[] data, int index, int x, int y, int z, int chunkX, int chunkZ, boolean foundTop) {
-        BiomeGenBase biome = worldObj.getBiomeGenForCoords(x + chunkX * 16, z + chunkZ * 16);
+        BiomeGenBase biome = ((IMapGenBaseAccessor)this).fmlGetWorld().getBiomeGenForCoords(x + chunkX * 16, z + chunkZ * 16);
         int top = (isExceptionBiome(biome) ? Block.grass.blockID : biome.topBlock);
         int filler = (isExceptionBiome(biome) ? Block.dirt.blockID : biome.fillerBlock);
         int block = data[index];

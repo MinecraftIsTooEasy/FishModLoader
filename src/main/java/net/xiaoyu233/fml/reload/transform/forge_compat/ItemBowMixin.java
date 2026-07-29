@@ -11,7 +11,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import java.util.Random;
 
 @Mixin(ItemBow.class)
 public abstract class ItemBowMixin {
@@ -19,8 +18,6 @@ public abstract class ItemBowMixin {
     @Shadow
     public abstract int getMaxItemUseDuration(ItemStack par1ItemStack);
 
-    @Shadow
-    private Random itemRand;
 
     /**
      * Injects at HEAD of onItemRightClick to fire ArrowNockEvent.

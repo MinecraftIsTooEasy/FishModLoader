@@ -47,7 +47,7 @@ public abstract class ChunkProviderHellMixin {
     @Shadow
     private net.minecraft.world.gen.structure.MapGenNetherBridge genNetherBridge;
     @Shadow
-    private MapGenRavine netherCaveGenerator;
+    private net.minecraft.world.gen.MapGenBase netherCaveGenerator;
 
     @Inject(method = "<init>(Lnet/minecraft/world/World;J)V", at = @At("RETURN"))
     private void fmlForgeInit(World par1World, long par2, CallbackInfo ci) {

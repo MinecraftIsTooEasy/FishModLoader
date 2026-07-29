@@ -18,7 +18,9 @@ import net.minecraft.world.storage.WorldInfo;
 import net.minecraftforge.client.IRenderHandler;
 import net.minecraftforge.common.DimensionManager;
 import net.xiaoyu233.fml.util.ReflectHelper;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Mutable;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -28,12 +30,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(WorldProvider.class)
 public class WorldProviderMixin {
     @Shadow
+    @Final
+    @Mutable
     public int dimensionId;
     @Shadow
     public World worldObj;
     @Shadow
     private net.minecraft.world.WorldType terrainType;
     @Shadow
+    @Final
     protected boolean hasNoSky;
 
     @Unique

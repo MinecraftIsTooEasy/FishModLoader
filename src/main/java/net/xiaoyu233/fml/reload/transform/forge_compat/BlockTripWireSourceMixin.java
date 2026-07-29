@@ -53,8 +53,8 @@ public abstract class BlockTripWireSourceMixin {
         return b0;
     }
 
-    @Shadow
-    public abstract boolean onNotLegal(World world, int x, int y, int z, int metadata);
+    @Unique
+    public boolean onNotLegal(World world, int x, int y, int z, int metadata) { return false; }
 
     @Unique
     public boolean canBlockStay(World world, int x, int y, int z) {

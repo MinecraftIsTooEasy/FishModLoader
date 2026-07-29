@@ -8,16 +8,16 @@ import net.minecraftforge.event.Event.Result;
 import net.xiaoyu233.fml.util.ReflectHelper;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(EntityLiving.class)
 public abstract class EntityLivingMixin {
-    @Shadow public int despawn_counter;
+    @Unique private int forgeDespawnCounter;
     @Shadow private boolean persistenceRequired;
 
-    @Shadow public abstract void setDead();
 
     @Inject(method = "setAttackTarget(Lnet/minecraft/entity/EntityLivingBase;)V", at = @At("RETURN"))
     private void onSetAttackTarget(EntityLivingBase par1EntityLivingBase, CallbackInfo ci) {
@@ -26,13 +26,13 @@ public abstract class EntityLivingMixin {
 
     @Inject(method = "tryDespawnEntity()V", at = @At("HEAD"), cancellable = true)
     private void onDespawnEntity(CallbackInfo ci) {
-        if (!this.persistenceRequired && (this.despawn_counter & 0x1F) == 0x1F) {
+        if (!this.persistenceRequired && (this.forgeDespawnCounter & 0x1F) == 0x1F) {
             Result result = ForgeEventFactory.canEntityDespawn(ReflectHelper.dyCast(this));
             if (result == Result.DENY) {
-                this.despawn_counter = 0;
+                this.forgeDespawnCounter = 0;
                 ci.cancel();
             } else if (result == Result.ALLOW) {
-                this.setDead();
+                ((net.minecraft.entity.EntityLiving)(Object)this).setDead();
                 ci.cancel();
             }
         }

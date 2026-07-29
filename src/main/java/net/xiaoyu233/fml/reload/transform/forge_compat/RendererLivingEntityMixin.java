@@ -24,11 +24,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(RendererLivingEntity.class)
 public class RendererLivingEntityMixin {
 
+    // Mixin forbids public static fields in mixin classes. The Forge field API
+    // is therefore unavailable; event hooks take precedence over inert mixin.
     @Unique
-    public static float NAME_TAG_RANGE = 64.0f;
+    private static float NAME_TAG_RANGE = 64.0f;
 
     @Unique
-    public static float NAME_TAG_RANGE_SNEAK = 32.0f;
+    private static float NAME_TAG_RANGE_SNEAK = 32.0f;
 
     /**
      * Fires {@link RenderLivingEvent.Pre} at the top of

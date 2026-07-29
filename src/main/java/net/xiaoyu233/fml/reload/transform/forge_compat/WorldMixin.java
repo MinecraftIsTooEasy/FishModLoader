@@ -16,6 +16,7 @@ import net.minecraftforge.common.ForgeDirection;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.entity.EntityJoinWorldEvent;
 import net.minecraftforge.event.entity.PlaySoundAtEntityEvent;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -28,6 +29,7 @@ import java.util.List;
 @Mixin(World.class)
 public class WorldMixin {
     @Shadow
+    @Final
     public WorldProvider provider;
 
     @Shadow
@@ -48,8 +50,10 @@ public class WorldMixin {
     // ========================================================================
     // Forge-added fields
     // ========================================================================
+    // Mixin cannot safely contribute Forge's public static
+    // World.MAX_ENTITY_RADIUS field; keep the compatibility default private.
     @Unique
-    public static double MAX_ENTITY_RADIUS = 2.0D;
+    private static double MAX_ENTITY_RADIUS = 2.0D;
 
     @Unique
     public final MapStorage perWorldStorage = null;
@@ -58,7 +62,7 @@ public class WorldMixin {
     // Event hook injections
     // ========================================================================
 
-    @Inject(method = "playSoundAtEntity", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "playSoundAtEntity(Lnet/minecraft/entity/Entity;Ljava/lang/String;FF)V", at = @At("HEAD"), cancellable = true)
     private void fmlForgeOnPlaySoundAtEntity(Entity par1Entity, String par2Str, float par3, float par4, CallbackInfo ci) {
         PlaySoundAtEntityEvent event = new PlaySoundAtEntityEvent(par1Entity, par2Str, par3, par4);
         if (MinecraftForge.EVENT_BUS.post(event)) {
@@ -66,7 +70,7 @@ public class WorldMixin {
         }
     }
 
-    @Inject(method = "playSoundToNearExcept", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "playSoundToNearExcept(Lnet/minecraft/entity/player/EntityPlayer;Ljava/lang/String;FF)V", at = @At("HEAD"), cancellable = true)
     private void fmlForgeOnPlaySoundToNearExcept(EntityPlayer par1EntityPlayer, String par2Str, float par3, float par4, CallbackInfo ci) {
         PlaySoundAtEntityEvent event = new PlaySoundAtEntityEvent(par1EntityPlayer, par2Str, par3, par4);
         if (MinecraftForge.EVENT_BUS.post(event)) {

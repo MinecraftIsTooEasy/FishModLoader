@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.Unique;
 public class GenLayerMixin {
 
     @Unique
-    public static byte getModdedBiomeSize(WorldType worldType, byte original) {
+    private static byte getModdedBiomeSize(WorldType worldType, byte original) {
         WorldTypeEvent.BiomeSize event = new WorldTypeEvent.BiomeSize(worldType, original);
         MinecraftForge.TERRAIN_GEN_BUS.post(event);
         return event.newSize;

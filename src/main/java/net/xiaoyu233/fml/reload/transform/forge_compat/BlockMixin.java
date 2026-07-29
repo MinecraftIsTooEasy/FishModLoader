@@ -15,6 +15,7 @@ import net.minecraft.world.World;
 import net.minecraftforge.common.ForgeDirection;
 import net.minecraftforge.common.ForgeHooks;
 import net.minecraftforge.event.ForgeEventFactory;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -28,16 +29,21 @@ import java.util.ArrayList;
 @Mixin(Block.class)
 public class BlockMixin {
     @Shadow
+    @Final
     public int blockID;
 
     @Shadow
+    @Final
     public Material blockMaterial;
 
+    // Mixin forbids non-private static fields in mixin classes. Forge's public
+    // Block.blockFireSpreadSpeed/blockFlammability field API cannot be exposed
+    // safely here; retain the functional setBurnProperties/method API instead.
     @Unique
-    protected static int[] blockFireSpreadSpeed = new int[4096];
+    private static int[] blockFireSpreadSpeed = new int[4096];
 
     @Unique
-    protected static int[] blockFlammability = new int[4096];
+    private static int[] blockFlammability = new int[4096];
 
     @Unique
     private ThreadLocal<Object> tileEntityCache = new ThreadLocal<>();
@@ -271,7 +277,7 @@ public class BlockMixin {
     }
 
     @Unique
-    public static void setBurnProperties(int id, int encouragement, int flammability) {
+    private static void setBurnProperties(int id, int encouragement, int flammability) {
         blockFireSpreadSpeed[id] = encouragement;
         blockFlammability[id] = flammability;
     }

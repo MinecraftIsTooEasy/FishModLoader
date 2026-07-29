@@ -68,8 +68,10 @@ public abstract class TileEntityMixin {
         return pass == 0;
     }
 
+    // The public static Forge constant cannot be added from a mixin class;
+    // keep the shared render bound private and expose it through the method.
     @Unique
-    public static final AxisAlignedBB INFINITE_EXTENT_AABB = AxisAlignedBB.getBoundingBox(
+    private static final AxisAlignedBB INFINITE_EXTENT_AABB = AxisAlignedBB.getBoundingBox(
             Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY,
             Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY);
 

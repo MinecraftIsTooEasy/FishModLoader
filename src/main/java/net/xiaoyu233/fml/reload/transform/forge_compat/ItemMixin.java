@@ -38,17 +38,12 @@ public class ItemMixin {
         return false;
     }
 
-    @Unique
-    public float getStrVsBlock(Block block, int metadata) {
-        // Forge added 3-arg version getStrVsBlock(ItemStack, Block, int)
-        // MITE uses getStrVsBlock(Block, int)
-        return ((Item)(Object)this).getStrVsBlock(block, metadata);
-    }
-
-    @Unique
-    public boolean isRepairable() {
-        return canRepair && ((Item)(Object)this).isDamageable();
-    }
+    // getStrVsBlock(Block, int) / isRepairable() are NOT added here.
+    // MITE declares both on Item itself, so Mixin discards any @Unique copy
+    // ("already exists in net.minecraft.item.Item"). The former also called
+    // itself, which would have been an infinite recursion had it ever applied.
+    // MITE's getStrVsBlock already resolves efficiency per block+metadata and
+    // its isRepairable() is the real implementation, so both are left alone.
 
     @Unique
     public Item setNoRepair() {
@@ -208,11 +203,10 @@ public class ItemMixin {
         return stack.getItemDamage();
     }
 
-    @Unique
-    public int getMaxDamage(ItemStack stack) {
-        // MITE's getMaxDamage may require EnumQuality
-        return 0;
-    }
+    // getMaxDamage(ItemStack) is NOT added here: MITE already declares it
+    // (verified via javap), so Mixin discards the @Unique copy. The old body
+    // returned a hardcoded 0, which would have reported every item as
+    // indestructible had it ever replaced MITE's implementation.
 
     @Unique
     public boolean isDamaged(ItemStack stack) {

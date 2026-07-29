@@ -5,6 +5,7 @@ import net.minecraft.profiler.Profiler;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.management.ServerConfigurationManager;
 import net.minecraft.world.WorldServer;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -30,6 +31,7 @@ public abstract class MinecraftServerMixin {
     public abstract boolean isDemo();
 
     @Shadow
+    @Final
     public Profiler theProfiler;
 
     @Shadow

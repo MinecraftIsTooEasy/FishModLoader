@@ -1,5 +1,6 @@
 package net.xiaoyu233.fml.reload.transform.forge_compat;
 
+import net.minecraft.entity.EntityDamageResult;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.item.ItemStack;
@@ -25,8 +26,7 @@ import java.util.Iterator;
 @Mixin(EntityLivingBase.class)
 public abstract class EntityLivingBaseMixin {
     @Shadow
-    public net.minecraft.world.World worldObj;
-    @Shadow
+    @org.spongepowered.asm.mixin.Final
     private HashMap activePotionsMap;
     @Shadow
     public int recentlyHit;
@@ -68,7 +68,7 @@ public abstract class EntityLivingBaseMixin {
     @Inject(method = "attackEntityFromHelper(Lnet/minecraft/util/Damage;Lnet/minecraft/entity/EntityDamageResult;)Lnet/minecraft/entity/EntityDamageResult;",
             at = @At("HEAD"),
             cancellable = true)
-    private void fmlForgeOnLivingHurt(Damage damage, Object result, CallbackInfoReturnable<Object> cir) {
+    private void fmlForgeOnLivingHurt(Damage damage, EntityDamageResult result, CallbackInfoReturnable<EntityDamageResult> cir) {
         float amount1 = ForgeHooks.onLivingHurt(ReflectHelper.dyCast(this), damage.getSource(), damage.getAmount());
         if (amount1 <= 0) {
             damage.setAmount(0.0F);
@@ -169,10 +169,10 @@ public abstract class EntityLivingBaseMixin {
     private void fmlForgeOnDeathReleaseDrops(DamageSource par1DamageSource, CallbackInfo ci) {
         IForgeEntityDrops drops = (IForgeEntityDrops) (Object) this;
         drops.fmlSetCapturingDrops(false);
-        if (!this.worldObj.isRemote) {
+        if (!((EntityLivingBase)(Object)this).worldObj.isRemote) {
             if (!ForgeHooks.onLivingDrops(ReflectHelper.dyCast(this), par1DamageSource, drops.fmlGetCapturedDrops(), 0, this.recentlyHit > 0, 0)) {
                 for (EntityItem item : drops.fmlGetCapturedDrops()) {
-                    this.worldObj.spawnEntityInWorld(item);
+                    ((EntityLivingBase)(Object)this).worldObj.spawnEntityInWorld(item);
                 }
             }
         }
@@ -184,7 +184,7 @@ public abstract class EntityLivingBaseMixin {
      */
     @Unique
     public void curePotionEffects(ItemStack curativeItem) {
-        if (this.worldObj.isRemote) {
+        if (((EntityLivingBase)(Object)this).worldObj.isRemote) {
             return;
         }
         // Remove all potion effects (Forge's default isCurativeItem returns true for all)

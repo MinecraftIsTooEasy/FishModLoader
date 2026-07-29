@@ -11,6 +11,7 @@ import net.minecraftforge.event.Event;
 import net.minecraftforge.event.terraingen.ChunkProviderEvent;
 import net.minecraftforge.event.terraingen.PopulateChunkEvent;
 import net.minecraftforge.event.terraingen.TerrainGen;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -43,7 +44,7 @@ public abstract class ChunkProviderGenerateMixin {
     private NoiseGeneratorOctaves mobSpawnerNoise;
 
     @Shadow
-    private MapGenCaves caveGenerator;
+    private MapGenBase caveGenerator;
     @Shadow
     private MapGenStronghold strongholdGenerator;
     @Shadow
@@ -53,12 +54,13 @@ public abstract class ChunkProviderGenerateMixin {
     @Shadow
     private MapGenScatteredFeature scatteredFeatureGenerator;
     @Shadow
-    private MapGenRavine ravineGenerator;
+    private MapGenBase ravineGenerator;
 
     @Shadow
     private World worldObj;
 
     @Shadow
+    @Final
     private boolean mapFeaturesEnabled;
 
     @Inject(method = "<init>(Lnet/minecraft/world/World;JZ)V", at = @At("RETURN"))

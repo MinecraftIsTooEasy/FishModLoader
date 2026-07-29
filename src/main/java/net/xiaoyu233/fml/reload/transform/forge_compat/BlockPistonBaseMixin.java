@@ -12,7 +12,7 @@ public class BlockPistonBaseMixin {
      * @reason Use getBlockHardness(metadata) and blockHasTileEntity for Forge compat
      */
     @Overwrite
-    public boolean canPushBlock(int blockId, World world, int x, int y, int z, boolean requireHardness) {
+    private static boolean canPushBlock(int blockId, World world, int x, int y, int z, boolean requireHardness) {
         if (blockId == 0) return true;
         Block block = Block.blocksList[blockId];
         if (block == null) return true;

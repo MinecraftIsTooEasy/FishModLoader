@@ -23,11 +23,13 @@ public class OpenGlHelperMixin {
      * Adding static fields and modifying an existing method's body
      * requires direct patching.
      */
+    // Public static Forge fields cannot be contributed by a mixin; keep the
+    // placeholders private so this client mixin can still apply.
     @Unique
-    public static float lastBrightnessX = 0.0f;
+    private static float lastBrightnessX = 0.0f;
 
     @Unique
-    public static float lastBrightnessY = 0.0f;
+    private static float lastBrightnessY = 0.0f;
 
     @Unique
     private static void fmlForgeSetLightmapTextureCoords() {

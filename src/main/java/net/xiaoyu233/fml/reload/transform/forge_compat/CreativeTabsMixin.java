@@ -3,6 +3,7 @@ package net.xiaoyu233.fml.reload.transform.forge_compat;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -11,16 +12,19 @@ import org.spongepowered.asm.mixin.Unique;
 public abstract class CreativeTabsMixin {
 
     @Shadow
+    @Final
     private int tabIndex;
 
     @Shadow
+    @Final
     private static CreativeTabs[] creativeTabArray;
 
     @Shadow
     public abstract Item getTabIconItem();
 
     @Shadow
-    public static CreativeTabs tabAllSearch;
+    @Final
+    private static CreativeTabs tabAllSearch;
 
     @Unique
     public int getTabPage() {
@@ -36,7 +40,7 @@ public abstract class CreativeTabsMixin {
     }
 
     @Unique
-    public static int getNextID() {
+    private static int getNextID() {
         return creativeTabArray.length;
     }
 

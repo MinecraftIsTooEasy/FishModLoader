@@ -11,12 +11,14 @@ import org.spongepowered.asm.mixin.Unique;
 public abstract class EntityMinecartBaseMixin {
     @Shadow public abstract int getMinecartType();
 
+    // Forge exposed these defaults as public static fields. Mixin rejects such
+    // fields, so keep private defaults and preserve the per-cart accessors.
     @Unique
-    public static float defaultMaxSpeedAirLateral = 0.4f;
+    private static float defaultMaxSpeedAirLateral = 0.4f;
     @Unique
-    public static float defaultMaxSpeedAirVertical = -1f;
+    private static float defaultMaxSpeedAirVertical = -1f;
     @Unique
-    public static double defaultDragAir = 0.94999998807907104D;
+    private static double defaultDragAir = 0.94999998807907104D;
     @Unique
     protected boolean canUseRail = true;
     @Unique
@@ -51,12 +53,12 @@ public abstract class EntityMinecartBaseMixin {
     }
 
     @Unique
-    public static IMinecartCollisionHandler getCollisionHandler() {
+    private static IMinecartCollisionHandler getCollisionHandler() {
         return collisionHandler;
     }
 
     @Unique
-    public static void setCollisionHandler(IMinecartCollisionHandler handler) {
+    private static void setCollisionHandler(IMinecartCollisionHandler handler) {
         collisionHandler = handler;
     }
 

@@ -4,6 +4,7 @@ import net.minecraft.block.BlockRailBase;
 import net.minecraft.entity.item.EntityMinecart;
 import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -11,6 +12,7 @@ import org.spongepowered.asm.mixin.Unique;
 @Mixin(BlockRailBase.class)
 public abstract class BlockRailBaseMixin {
     @Shadow
+    @Final
     public boolean isPowered;
 
     @Unique

@@ -5,7 +5,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.ChunkCoordIntPair;
 import net.minecraft.world.Teleporter;
 import net.minecraft.world.WorldServer;
-import net.minecraft.world.chunk.Chunk;
+import net.minecraft.world.chunk.IChunkProvider;
 import net.minecraft.world.gen.ChunkProviderServer;
 import net.minecraft.world.storage.MapStorage;
 import net.minecraft.world.storage.WorldInfo;
@@ -31,69 +31,10 @@ import java.util.Set;
 @Mixin(WorldServer.class)
 public abstract class WorldServerMixin {
 
-    @Shadow
-    private MinecraftServer mcServer;
-
-    @Shadow
-    public net.minecraft.world.chunk.IChunkProvider theChunkProviderServer;
-
-    @Shadow
-    protected net.minecraft.world.storage.ISaveHandler saveHandler;
-
-    @Shadow
-    public net.minecraft.world.storage.MapStorage mapStorage;
-
-    @Shadow
-    protected net.minecraft.village.VillageCollection villageCollectionObj;
-
-    @Shadow
-    protected net.minecraft.village.VillageSiege villageSiegeObj;
-
-    @Shadow
-    public net.minecraft.world.Teleporter worldTeleporter;
-
-    @Shadow
-    public net.minecraft.world.WorldProvider provider;
-
-    @Shadow
-    public net.minecraft.world.chunk.IChunkProvider chunkProvider;
-
-    @Shadow
-    public java.util.Random rand;
-
-    @Shadow
-    public java.util.List loadedEntityList;
-
-    @Shadow
-    public java.util.List loadedTileEntityList;
-
-    @Shadow
-    public java.util.List playerEntities;
-
-    @Shadow
-    public java.util.Set activeChunkSet;
-
-    @Shadow
-    public int skylightSubtracted;
-
-    @Shadow
-    public net.minecraft.world.storage.WorldInfo worldInfo;
-
-    @Shadow
-    private int updateEntityTick;
-
-    @Shadow
-    public abstract ChunkProviderServer getChunkProvider();
-
-    @Shadow
-    public abstract void sendAndApplyBlockEvents();
-
-    @Shadow
-    public abstract long getTotalWorldTime();
-
-    @Shadow
-    public abstract int getHeight();
-
+    // Only shadow what this mixin actually uses. Every unused @Shadow is a
+    // hard mixin-apply failure waiting to happen: MITE renames or removes
+    // members freely, and a single unresolvable @Shadow aborts the whole
+    // mixin, silently disabling every Forge hook in this file.
     @Unique
     protected Set<ChunkCoordIntPair> doneChunks = new HashSet<ChunkCoordIntPair>();
 
@@ -102,6 +43,11 @@ public abstract class WorldServerMixin {
 
     @Unique
     public MapStorage perWorldStorage;
+
+    // World.updateEntityTick is private, so a subclass mixin cannot @Shadow it.
+    // This mixin only needs its own idle counter, so keep one locally.
+    @Unique
+    private int fmlForgeIdleTicks;
 
     @Redirect(method = "<init>(Lnet/minecraft/server/MinecraftServer;Lnet/minecraft/world/storage/ISaveHandler;Ljava/lang/String;ILnet/minecraft/world/WorldSettings;Lnet/minecraft/util/Profiler;Lnet/minecraft/util/ILogAgent;)V",
               at = @At(value = "INVOKE",
@@ -113,26 +59,20 @@ public abstract class WorldServerMixin {
     @Inject(method = "tick", at = @At("TAIL"))
     private void fmlForgeTickCustomTeleporters(CallbackInfo ci) {
         for (Teleporter tele : customTeleporters) {
-            tele.removeStalePortalLocations(getTotalWorldTime());
+            tele.removeStalePortalLocations(((WorldServer)(Object)this).getTotalWorldTime());
         }
     }
 
-    @Inject(method = "spawnRandomCreature", at = @At("HEAD"), cancellable = true)
-    private void fmlForgeSpawnRandomCreature(EnumCreatureType par1EnumCreatureType,
-                                              int par2, int par3, int par4, CallbackInfoReturnable<net.minecraft.world.biome.SpawnListEntry> cir) {
-        List list = getChunkProvider().getPossibleCreatures(par1EnumCreatureType, par2, par3, par4);
-        list = ForgeEventFactory.getPotentialSpawns((WorldServer)(Object)this, par1EnumCreatureType, par2, par3, par4, list);
-        if (list != null && !list.isEmpty()) {
-            cir.setReturnValue((net.minecraft.world.biome.SpawnListEntry)net.minecraft.util.WeightedRandom.getRandomItem(this.rand, list));
-        } else {
-            cir.setReturnValue(null);
-        }
-    }
+    // MITE has no spawnRandomCreature method; the Forge hook cannot be wired
+    // at this target without replacing MITE's different spawn pipeline.
 
     @Inject(method = "updateEntities", at = @At("HEAD"), cancellable = true)
     private void fmlForgeUpdateEntities(CallbackInfo ci) {
-        if (playerEntities.isEmpty() && perWorldStorage == null) {
-            if (updateEntityTick++ >= 1200) {
+        // Mixin @Shadow does not search superclasses for FIELDS (only methods),
+        // and playerEntities is declared on World, not WorldServer. Read it
+        // through the target type instead of shadowing it.
+        if (((WorldServer)(Object)this).playerEntities.isEmpty() && perWorldStorage == null) {
+            if (fmlForgeIdleTicks++ >= 1200) {
                 ci.cancel();
             }
         }
@@ -143,7 +83,7 @@ public abstract class WorldServerMixin {
         MinecraftForge.EVENT_BUS.post(new WorldEvent.Save((WorldServer)(Object)this));
     }
 
-    @Inject(method = "saveAllData", at = @At("TAIL"))
+    @Inject(method = "saveChunkData()V", at = @At("TAIL"))
     private void fmlForgeSaveAllData(CallbackInfo ci) {
         if (perWorldStorage != null) {
             perWorldStorage.saveAllData();

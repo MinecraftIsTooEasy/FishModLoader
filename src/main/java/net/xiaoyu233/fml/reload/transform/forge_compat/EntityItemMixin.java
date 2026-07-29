@@ -29,12 +29,8 @@ public abstract class EntityItemMixin {
     @Shadow private int health;
     @Shadow public float hoverStart;
     @Shadow public int delayBeforeCanPickup;
-    @Shadow public Random rand;
-    @Shadow public World worldObj;
 
     @Shadow public abstract ItemStack getEntityItem();
-    @Shadow public abstract void setDead();
-    @Shadow protected void playSound(String par1Str, float par2, float par3) {}
 
     @Unique
     public int lifespan = 6000;
@@ -58,16 +54,16 @@ public abstract class EntityItemMixin {
     @Inject(method = "onUpdate", at = @At(value = "FIELD", target = "Lnet/minecraft/entity/item/EntityItem;age:I", opcode = 181, ordinal = 1))
     private void fmlForgeCheckLifespan(CallbackInfo ci) {
         ItemStack item = ((EntityItem)(Object)this).getDataWatcher().getWatchableObjectItemStack(10);
-        if (!this.worldObj.isRemote && this.age >= this.lifespan) {
+        if (!((EntityItem)(Object)this).worldObj.isRemote && this.age >= this.lifespan) {
             if (item != null) {
                 ItemExpireEvent event = new ItemExpireEvent((EntityItem)(Object)this, 6000);
                 if (MinecraftForge.EVENT_BUS.post(event)) {
                     this.lifespan += event.extraLife;
                 } else {
-                    this.setDead();
+                    ((EntityItem)(Object)this).setDead();
                 }
             } else {
-                this.setDead();
+                ((EntityItem)(Object)this).setDead();
             }
         }
     }
@@ -76,7 +72,7 @@ public abstract class EntityItemMixin {
     private void fmlForgeCheckStackSize(CallbackInfo ci) {
         ItemStack item = ((EntityItem)(Object)this).getDataWatcher().getWatchableObjectItemStack(10);
         if (item != null && item.stackSize <= 0) {
-            this.setDead();
+            ((EntityItem)(Object)this).setDead();
         }
     }
 
@@ -97,7 +93,7 @@ public abstract class EntityItemMixin {
      */
     @Overwrite
     public void onCollideWithPlayer(EntityPlayer par1EntityPlayer) {
-        if (!this.worldObj.isRemote) {
+        if (!((EntityItem)(Object)this).worldObj.isRemote) {
             if (this.delayBeforeCanPickup > 0) {
                 return;
             }
@@ -127,11 +123,11 @@ public abstract class EntityItemMixin {
                     par1EntityPlayer.triggerAchievement(AchievementList.acquireIron);
                 }
 
-                this.playSound("random.pop", 0.2F, ((this.rand.nextFloat() - this.rand.nextFloat()) * 0.7F + 1.0F) * 2.0F);
+                ((EntityItem)(Object)this).playSound("random.pop", 0.2F, ((((EntityItem)(Object)this).rand.nextFloat() - ((EntityItem)(Object)this).rand.nextFloat()) * 0.7F + 1.0F) * 2.0F);
                 par1EntityPlayer.onItemPickup((EntityItem)(Object)this, i);
 
                 if (itemstack.stackSize <= 0) {
-                    this.setDead();
+                    ((EntityItem)(Object)this).setDead();
                 }
             }
         }

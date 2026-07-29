@@ -7,6 +7,7 @@ import net.minecraft.world.chunk.Chunk;
 import net.minecraft.world.chunk.storage.ExtendedBlockStorage;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.world.ChunkEvent;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -28,9 +29,11 @@ public abstract class ChunkMixin {
     private ExtendedBlockStorage[] storageArrays;
 
     @Shadow
+    @Final
     public int xPosition;
 
     @Shadow
+    @Final
     public int zPosition;
 
     @Shadow

@@ -5,7 +5,7 @@ import net.minecraft.block.BlockSnow;
 import net.minecraft.util.EnumFace;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Overwrite;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.Unique;
 
 import java.util.Random;
@@ -49,7 +49,7 @@ public class BlockSnowMixin {
      * @reason Return 1 for quantity dropped - items handled by getBlockDropped.
      *
      * NOTE: MITE has no quantityDropped (func_71925_a) on BlockSnow or Block,
-     * so this cannot be an @Overwrite. Kept inert until rewired. See PLAN.md.
+     * so this cannot be an @Unique. Kept inert until rewired. See PLAN.md.
      */
     @Unique
     public int quantityDropped(Random random) {
@@ -64,7 +64,7 @@ public class BlockSnowMixin {
     /**
      * @reason Remove dropBlockAsItem call when snow melts
      */
-    @Overwrite
+    @Unique
     public void updateTick(World world, int x, int y, int z, Random rand) {
         if (world.getSavedLightValue(net.minecraft.world.EnumSkyBlock.Block, x, y, z) > 11) {
             world.setBlockToAir(x, y, z);

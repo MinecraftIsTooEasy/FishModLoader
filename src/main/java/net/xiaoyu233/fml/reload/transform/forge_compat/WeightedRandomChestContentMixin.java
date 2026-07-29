@@ -4,6 +4,7 @@ import net.minecraft.inventory.IInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.WeightedRandomChestContent;
 import net.minecraftforge.common.ChestGenHooks;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -14,6 +15,7 @@ import java.util.Random;
 public class WeightedRandomChestContentMixin {
 
     @Shadow
+    @Final
     private ItemStack theItemId;
 
     @Shadow

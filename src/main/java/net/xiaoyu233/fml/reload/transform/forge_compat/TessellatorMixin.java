@@ -28,8 +28,10 @@ public class TessellatorMixin {
     @Unique
     private static int trivertsInBuffer = (nativeBufferSize / 48) * 6;
 
+    // Forge's public Tessellator.renderingWorldRenderer field cannot be added
+    // by Mixin; keep private state so the mixin itself remains applicable.
     @Unique
-    public static boolean renderingWorldRenderer = false;
+    private static boolean renderingWorldRenderer = false;
 
     @Unique
     public boolean defaultTexture = false;

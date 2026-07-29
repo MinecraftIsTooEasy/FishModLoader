@@ -19,7 +19,7 @@ import static net.minecraft.enchantment.Enchantment.enchantmentsList;
 @Mixin(Enchantment.class)
 public class EnchantmentRegisterMixin {
     @Shadow @Final @Mutable
-    public static Enchantment[] enchantmentsBookList;
+    private static Enchantment[] enchantmentsBookList;
 
     @Inject(method = "<clinit>", at = @At("RETURN"))
     private static void injectRegister(CallbackInfo callbackInfo) {

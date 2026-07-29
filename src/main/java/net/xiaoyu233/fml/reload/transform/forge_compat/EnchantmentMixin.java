@@ -14,7 +14,7 @@ public class EnchantmentMixin {
     }
 
     @Unique
-    public static void addToBookList(Enchantment enchantment) {
+    private static void addToBookList(Enchantment enchantment) {
         // No-op: ObjectArrays.concat returns a new array, doesn't modify in place
     }
 

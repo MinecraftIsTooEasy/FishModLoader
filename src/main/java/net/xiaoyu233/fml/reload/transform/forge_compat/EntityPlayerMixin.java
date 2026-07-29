@@ -48,9 +48,7 @@ public abstract class EntityPlayerMixin {
     @Shadow private boolean spawnForced;
     @Shadow protected int itemInUseCount;
     @Shadow private ItemStack itemInUse;
-    @Shadow public int dimension;
-    @Shadow public String username;
-    @Shadow public int recentlyHit;
+    @Shadow @org.spongepowered.asm.mixin.Final public String username;
     @Shadow public PlayerCapabilities capabilities;
 
     @Shadow public abstract ItemStack getHeldItemStack();
@@ -63,8 +61,10 @@ public abstract class EntityPlayerMixin {
     // ===========================================================
     // Forge NBT tag
     // ===========================================================
+    // Compile-time constant uses are inlined, but Mixin cannot safely add the
+    // public static field itself to EntityPlayer.
     @Unique
-    public static final String PERSISTED_NBT_TAG = "PlayerPersisted";
+    private static final String PERSISTED_NBT_TAG = "PlayerPersisted";
     @Unique
     private HashMap<Integer, ChunkCoordinates> spawnChunkMap = new HashMap<Integer, ChunkCoordinates>();
     @Unique
@@ -226,10 +226,10 @@ public abstract class EntityPlayerMixin {
     // ===========================================================
     // attackEntityFrom - ForgeHooks.onLivingAttack
     // ===========================================================
-    @Inject(method = "attackEntityFrom", at = @At("HEAD"), cancellable = true)
-    private void fmlForgeOnLivingAttack(DamageSource par1DamageSource, float par2, CallbackInfoReturnable<Boolean> cir) {
-        if (ForgeHooks.onLivingAttack((EntityLivingBase)(Object)this, par1DamageSource, par2)) {
-            cir.setReturnValue(false);
+    @Inject(method = "attackEntityFrom(Lnet/minecraft/util/Damage;)Lnet/minecraft/entity/EntityDamageResult;", at = @At("HEAD"), cancellable = true)
+    private void fmlForgeOnLivingAttack(net.minecraft.util.Damage damage, CallbackInfoReturnable<net.minecraft.entity.EntityDamageResult> cir) {
+        if (ForgeHooks.onLivingAttack((EntityLivingBase)(Object)this, damage.getSource(), damage.getAmount())) {
+            cir.setReturnValue(null);
         }
     }
 
@@ -413,7 +413,7 @@ public abstract class EntityPlayerMixin {
         IForgeEntityDrops drops = (IForgeEntityDrops) (Object) this;
         drops.fmlSetCapturingDrops(false);
         if (!((EntityLivingBase)(Object)this).worldObj.isRemote) {
-            PlayerDropsEvent event = new PlayerDropsEvent((EntityPlayer)(Object)this, par1DamageSource, drops.fmlGetCapturedDrops(), this.recentlyHit > 0);
+            PlayerDropsEvent event = new PlayerDropsEvent((EntityPlayer)(Object)this, par1DamageSource, drops.fmlGetCapturedDrops(), ((EntityPlayer)(Object)this).recentlyHit > 0);
             if (!MinecraftForge.EVENT_BUS.post(event)) {
                 for (EntityItem item : drops.fmlGetCapturedDrops()) {
                     this.joinEntityItemWithWorld(item);

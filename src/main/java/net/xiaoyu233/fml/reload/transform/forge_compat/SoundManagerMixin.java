@@ -53,8 +53,10 @@ public class SoundManagerMixin implements IMixinSoundManager {
      * The Forge patch changes {@code this.rand.nextInt(12000)} to
      * {@code this.rand.nextInt(MUSIC_INTERVAL)}.
      */
+    // Mixin cannot expose Forge's public static field without rejecting this
+    // entire sound hook mixin.
     @Unique
-    public static int MUSIC_INTERVAL = 12000;
+    private static int MUSIC_INTERVAL = 12000;
 
     /**
      * Fires {@link SoundSetupEvent} after the SoundSystem library and codecs

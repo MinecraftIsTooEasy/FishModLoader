@@ -4,7 +4,7 @@ import net.minecraft.block.Block;
 import net.minecraft.block.BlockPortal;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Overwrite;
+import org.spongepowered.asm.mixin.Unique;
 
 import java.util.Random;
 
@@ -13,7 +13,7 @@ public class BlockPortalMixin {
     /**
      * @reason Use isAirBlock instead of getBlockId == 0 for Forge compat
      */
-    @Overwrite
+    @Unique
     public boolean tryToCreatePortal(World world, int x, int y, int z, int meta) {
         int l = world.getBlockId(x, y, z);
         if (l == 0) {

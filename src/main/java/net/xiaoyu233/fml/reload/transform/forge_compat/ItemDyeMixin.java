@@ -9,16 +9,12 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.Event;
 import net.minecraftforge.event.entity.player.BonemealEvent;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 
-import java.util.Random;
 
 @Mixin(ItemDye.class)
 public abstract class ItemDyeMixin {
 
-    @Shadow
-    private static Random itemRand;
 
     /**
      * Forge's expanded bonemeal application method that fires

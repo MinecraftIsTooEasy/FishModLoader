@@ -5,6 +5,7 @@ import net.minecraft.block.BlockStem;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.world.World;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -14,6 +15,7 @@ import java.util.ArrayList;
 @Mixin(BlockStem.class)
 public abstract class BlockStemMixin {
     @Shadow
+    @Final
     public Block fruitType;
 
     @Unique

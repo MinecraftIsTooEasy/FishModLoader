@@ -3,7 +3,7 @@ package net.xiaoyu233.fml.reload.transform.forge_compat;
 import net.minecraft.block.BlockFluid;
 import net.minecraft.world.IBlockAccess;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Overwrite;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.Unique;
 
 @Mixin(BlockFluid.class)
@@ -11,7 +11,7 @@ public abstract class BlockFluidMixin {
     /**
      * @reason Use waterColorMultiplier field instead of method call for Forge compat
      */
-    @Overwrite
+    @Unique
     public int colorMultiplier(IBlockAccess blockAccess, int x, int y, int z) {
         int l = 0;
         int i1 = 0;
