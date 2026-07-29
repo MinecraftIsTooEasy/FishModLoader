@@ -453,6 +453,12 @@ tasks.register('decompileMiteJar', JavaExec) {
     }
 }
 
+// ===========================================================================
+// DEPRECATED ForgeGradle source-patch pipeline — safe to delete
+// patches/minecraft/ has never been committed; these tasks always fail.
+// Kept here for reference only. Use Mixin-based patches instead.
+// ===========================================================================
+
 tasks.register('applyForgePatches') {
     dependsOn decompileMiteJar
     group = 'forge-patching'
