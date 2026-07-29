@@ -8,8 +8,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(EntityOcelot.class)
 public abstract class EntityOcelotMixin {
-    @Inject(method = "isSuitablePlaceToSpawn", at = @At("HEAD"))
-    private void fmlForgeIsSuitablePlaceToSpawn(CallbackInfoReturnable<Boolean> cir) {
+    @Inject(method = "getCanSpawnHere", at = @At("HEAD"))
+    private void fmlForgeIsSuitablePlaceToSpawn(boolean perform_light_check, CallbackInfoReturnable<Boolean> cir) {
         // Forge patch: replace Block.leaves check with block.isLeaves()
         // MITE may use a different check
     }

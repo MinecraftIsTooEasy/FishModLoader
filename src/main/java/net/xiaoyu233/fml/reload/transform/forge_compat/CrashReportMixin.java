@@ -35,10 +35,6 @@ public class CrashReportMixin {
         return Math.max(0, Math.min(depth, trace.length));
     }
 
-    @Inject(method = "getSuspiciousClasses", at = @At("HEAD"))
-    private void fmlForgeGetSuspiciousClasses(CallbackInfo ci) {
-        // The actual fix is in CallableSuspiciousClasses
-    }
 
     @Inject(method = "populateEnvironment", at = @At("RETURN"))
     private void fmlForgePopulateEnvironment(CallbackInfo ci) {

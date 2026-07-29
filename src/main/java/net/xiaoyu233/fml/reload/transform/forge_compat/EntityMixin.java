@@ -251,8 +251,8 @@ public class EntityMixin implements IForgeEntityDrops {
         }
     }
 
-    // 5. entityDropItem - intercept spawn to support captureDrops
-    @Redirect(method = "entityDropItem", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/World;spawnEntityInWorld(Lnet/minecraft/entity/Entity;)Z"))
+    // 5. dropItemStack - intercept spawn to support captureDrops
+    @Redirect(method = "dropItemStack", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/World;spawnEntityInWorld(Lnet/minecraft/entity/Entity;)Z"))
     private boolean onSpawnEntityInWorld(World world, Entity entity) {
         if (this.captureDrops) {
             this.capturedDrops.add((EntityItem) entity);
