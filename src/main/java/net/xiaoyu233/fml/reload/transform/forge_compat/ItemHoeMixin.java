@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(net.minecraft.item.ItemHoe.class)
 public abstract class ItemHoeMixin {
     @Inject(method = "tryTillSoil", at = @At("HEAD"), cancellable = true)
-    private void fmlForgeOnItemUseHoe(World world, int x, int y, int z, int face_hit, EntityPlayer player, ItemStack item_stack, CallbackInfoReturnable<Boolean> cir) {
+    private static void fmlForgeOnItemUseHoe(World world, int x, int y, int z, net.minecraft.util.EnumFace face, EntityPlayer player, ItemStack item_stack, CallbackInfoReturnable<Boolean> cir) {
         net.minecraftforge.event.entity.player.UseHoeEvent event = new net.minecraftforge.event.entity.player.UseHoeEvent(player, item_stack, world, x, y, z);
         if (net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(event)) {
             cir.setReturnValue(false);

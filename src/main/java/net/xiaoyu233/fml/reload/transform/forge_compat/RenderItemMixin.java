@@ -29,8 +29,7 @@ public class RenderItemMixin {
     @Shadow
     private Random random;
 
-    @Shadow
-    private RenderBlocks renderBlocks;
+    // renderBlocks was renamed to itemRenderBlocks in MITE and is unused here; removed to prevent mixin apply failure.
 
     @Shadow
     private boolean renderWithColor;
