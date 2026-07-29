@@ -50,7 +50,7 @@ public class PacketDispatcher
         MinecraftServer server = FMLCommonHandler.instance().getMinecraftServerInstance();
         if (server != null)
         {
-            server.getConfigurationManager().sendToAllNear(X, Y, Z, range, dimensionId, packet);
+            server.getConfigurationManager().sendPacketToPlayersAroundPoint(X, Y, Z, range, dimensionId, packet);
         }
         else
         {

@@ -355,7 +355,7 @@ public class EntityRegistry
         EntityRegistration er = lookupModSpawn(entity.getClass(), true);
         if (er != null)
         {
-            entityTracker.addEntityToTracker(entity, er.getTrackingRange(), er.getUpdateFrequency(), er.sendsVelocityUpdates());
+            entityTracker.trackEntity(entity, er.getTrackingRange(), er.getUpdateFrequency(), er.sendsVelocityUpdates());
             return true;
         }
         return false;
