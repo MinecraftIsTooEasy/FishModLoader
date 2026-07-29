@@ -171,7 +171,8 @@ public class LaunchClassLoader extends URLClassLoader {
             saveTransformedClass(transformedClass, transformedName);
          }
 
-         final CodeSource codeSource = urlConnection == null ? null : new CodeSource(urlConnection.getURL(), signers);
+         // codeSource is not passed to defineClass; always use getMetadata().codeSource
+         // so that sealed/spec/impl attributes from the jar manifest are respected.
          final Class<?> clazz = defineClass(transformedName, transformedClass, 0, transformedClass.length, getMetadata(transformedName).codeSource);
          cachedClasses.put(transformedName, clazz);
          return clazz;
