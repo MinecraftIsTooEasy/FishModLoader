@@ -11,7 +11,13 @@ import java.util.Random;
 @Mixin(BlockGrass.class)
 public abstract class BlockGrassMixin {
     /**
-     * @reason Use Block.lightOpacity array instead of getBlockLightOpacity for Forge compat
+     * DEAD METHOD: MITE's updateTick returns boolean; this mixin returns void.
+     * The JVM treats them as distinct methods (different descriptors), so both
+     * coexist in the class but MITE only calls its own boolean variant. This
+     * Forge-compat logic never executes.
+     *
+     * Originally intended @reason: Use Block.lightOpacity array instead of
+     * getBlockLightOpacity for Forge compat.
      */
     @Unique
     public void updateTick(World world, int x, int y, int z, Random rand) {

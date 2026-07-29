@@ -75,6 +75,11 @@ public abstract class WorldServerMixin {
             if (fmlForgeIdleTicks++ >= 1200) {
                 ci.cancel();
             }
+        } else {
+            // Without this reset the counter stays saturated, so the second
+            // and later idle periods would cancel updateEntities immediately
+            // instead of after the intended 1200-tick grace period.
+            fmlForgeIdleTicks = 0;
         }
     }
 
