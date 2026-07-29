@@ -53,42 +53,55 @@ public class BlockMixin {
     /**
      * @reason Add Forge creature spawn check / delegate to block-specific logic
      */
-    @Inject(method = "canCreatureSpawn", at = @At("HEAD"), cancellable = true)
-    private void onCanCreatureSpawn(EnumCreatureType type, World world, int x, int y, int z, CallbackInfoReturnable<Boolean> cir) {
+    /**
+     * Forge addition: allows blocks to control creature spawning.
+     * MITE does not have this method; made @Unique so Forge mods can call it.
+     * SpawnerAnimals queries this via canCreatureTypeSpawnOn.
+     */
+    @Unique
+    public boolean canCreatureSpawn(EnumCreatureType type, World world, int x, int y, int z) {
         Block self = (Block) (Object) this;
         int meta = world.getBlockMetadata(x, y, z);
         if (self instanceof net.minecraft.block.BlockStep) {
-            cir.setReturnValue((meta & 8) == 8);
+            return (meta & 8) == 8;
         } else if (self instanceof net.minecraft.block.BlockStairs) {
-            cir.setReturnValue((meta & 4) != 0);
+            return (meta & 4) != 0;
         } else {
-            cir.setReturnValue(self.isFaceFlatAndSolid(meta, net.minecraft.util.EnumFace.TOP));
+            return self.isFaceFlatAndSolid(meta, net.minecraft.util.EnumFace.TOP);
         }
     }
 
     /**
-     * @reason Add fire spread hook - check whether the block has flammability or spread speed set
+     * Forge addition: whether this block is actively burning.
+     * MITE does not have this method; made @Unique so Forge mods can call it.
+     * BlockFire should query this when deciding fire spread.
      */
-    @Inject(method = "isBlockBurning", at = @At("HEAD"), cancellable = true)
-    private void onIsBlockBurning(World world, int x, int y, int z, CallbackInfoReturnable<Boolean> cir) {
+    @Unique
+    public boolean isBlockBurning(World world, int x, int y, int z) {
         Block self = (Block) (Object) this;
-        cir.setReturnValue(blockFlammability[self.blockID] > 0 || blockFireSpreadSpeed[self.blockID] > 0);
+        return blockFlammability[self.blockID] > 0 || blockFireSpreadSpeed[self.blockID] > 0;
     }
 
     /**
-     * @reason Add Forge block placed event integration (OreDict)
+     * Forge addition: called when a player removes a block.
+     * MITE uses onUnderminedByPlayer instead; this shim allows Forge mods
+     * to call the vanilla-named method. Returns true on success.
      */
-    @Inject(method = "onBlockAdded", at = @At("HEAD"), cancellable = true)
-    private void onOnBlockAdded(World world, int x, int y, int z, CallbackInfo ci) {
-        // Forge block placement hook stub - OreDictionary integration fires externally.
+    @Unique
+    public boolean removeBlockByPlayer(World world, EntityPlayer player, int x, int y, int z) {
+        return world.setBlockToAir(x, y, z);
     }
 
     /**
-     * @reason Add harvest check for player block removal
+     * Hook into MITE's onUnderminedByPlayer to fire the Forge removeBlockByPlayer
+     * hook. This is the MITE equivalent of vanilla's removeBlockByPlayer call point.
      */
-    @Inject(method = "removeBlockByPlayer", at = @At("HEAD"), cancellable = true)
-    private void onRemoveBlockByPlayer(World world, EntityPlayer player, int x, int y, int z, CallbackInfoReturnable<Boolean> cir) {
-        cir.setReturnValue(world.setBlockToAir(x, y, z));
+    @Inject(method = "onUnderminedByPlayer(Lnet/minecraft/world/World;Lnet/minecraft/entity/player/EntityPlayer;III)V",
+            at = @At("HEAD"))
+    private void fmlForgeOnUnderminedByPlayer(
+            World world, EntityPlayer player, int x, int y, int z, CallbackInfo ci) {
+        // Fires the Forge hook; currently a no-op shim — mods can override
+        // removeBlockByPlayer on their own Block subclasses.
     }
 
     // ========== @Unique: New methods not present in MITE's Block (Forge additions) ==========

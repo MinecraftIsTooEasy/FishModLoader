@@ -23,8 +23,6 @@ public abstract class ItemHoeMixin {
         }
     }
 
-    @Inject(method = "onItemUse", at = @At(value = "FIELD", target = "Lnet/minecraft/world/World;isRemote:Z", shift = At.Shift.BEFORE))
-    private void fmlForgeFixAirCheck(ItemStack par1ItemStack, EntityPlayer par2EntityPlayer, World par3World, int par4, int par5, int par6, int par7, float par8, float par9, float par10, CallbackInfoReturnable<Boolean> cir) {
-        // The patch changes the block check at the end of onItemUse
-    }
+    // NOTE: MITE has no onItemUse; tilling logic is in the static tryTillSoil().
+    // The old @Inject at FIELD World.isRemote:Z had an empty body and was deleted.
 }

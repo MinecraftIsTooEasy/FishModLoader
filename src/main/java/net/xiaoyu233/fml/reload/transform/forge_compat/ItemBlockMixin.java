@@ -30,11 +30,10 @@ public abstract class ItemBlockMixin {
         return true;
     }
 
-    @Inject(method = "onItemUse", at = @At(value = "INVOKE", target = "Lnet/minecraft/item/ItemBlock;func_94580_a(Lnet/minecraft/item/ItemStack;Lnet/minecraft/entity/player/EntityPlayer;Lnet/minecraft/world/World;IIIIFFFFI)Z", shift = At.Shift.BEFORE))
-    private void fmlForgeRedirectToPlaceBlockAt(ItemStack par1ItemStack, EntityPlayer par2EntityPlayer, World par3World, int par4, int par5, int par6, int par7, float par8, float par9, float par10, CallbackInfoReturnable<Boolean> cir) {
-    }
-
-    @Inject(method = "onItemUse", at = @At(value = "INVOKE", target = "Lnet/minecraft/item/ItemBlock;placeBlockAt(Lnet/minecraft/item/ItemStack;Lnet/minecraft/entity/player/EntityPlayer;Lnet/minecraft/world/World;IIIIFFFFI)Z"), locals = org.spongepowered.asm.mixin.injection.callback.LocalCapture.CAPTURE_FAILSOFT)
-    private void fmlForgeOnItemUsePlace(ItemStack par1ItemStack, EntityPlayer par2EntityPlayer, World par3World, int par4, int par5, int par6, int par7, float par8, float par9, float par10, CallbackInfoReturnable<Boolean> cir) {
-    }
+    // NOTE: Both @Inject targets (func_94580_a / placeBlockAt inside onItemUse)
+    // do not exist in MITE's ItemBlock. MITE's placement flow is raycast-driven:
+    // ItemBlock.onItemRightClick → EntityPlayer.tryPlaceHeldItemAsBlock.
+    // The @Unique placeBlockAt shim above still exists for Forge mods that call it
+    // directly, but it is not wired into MITE's block-placement chain yet.
+    // TODO: redirect inside EntityPlayer.tryPlaceHeldItemAsBlock to call placeBlockAt.
 }

@@ -234,45 +234,61 @@ public abstract class EntityPlayerMixin {
     }
 
     // ===========================================================
-    // damageEntity - ArmorProperties.ApplyArmor
-    // ===========================================================
-    @Inject(method = "damageEntity", at = @At("HEAD"), cancellable = true)
-    private void fmlForgeDamageEntity(DamageSource par1DamageSource, float par2, CallbackInfo ci) {
-        if (this.isEntityInvulnerable()) return;
-        par2 = ForgeHooks.onLivingHurt((EntityLivingBase)(Object)this, par1DamageSource, par2);
-        if (par2 <= 0) {
-            ci.cancel();
-            return;
-        }
-        if (!par1DamageSource.isUnblockable() && this.isBlocking() && par2 > 0.0F) {
-            par2 = (1.0F + par2) * 0.5F;
-        }
-        par2 = ISpecialArmor.ArmorProperties.ApplyArmor((EntityLivingBase)(Object)this, this.inventory.armorInventory, par1DamageSource, par2);
-        if (par2 <= 0) {
-            ci.cancel();
-            return;
-        }
-    }
+    // damageEntity → attackEntityFromHelper (MITE renamed)
+    // NOTE: ForgeHooks.onLivingHurt is already handled in
+    // EntityLivingBaseMixin.attackEntityFromHelper. The only extra
+    // behaviour here was ISpecialArmor.ArmorProperties.ApplyArmor,
+    // which requires a separate injection into attackEntityFromHelper
+    // for EntityPlayer specifically. Removing the dead @Inject that
+    // targeted the non-existent damageEntity method.
+    // TODO: inject ISpecialArmor.ArmorProperties.ApplyArmor into
+    //       attackEntityFromHelper(Damage, EntityDamageResult) on EntityPlayer.
 
     // ===========================================================
-    // interactWith - EntityInteractEvent
+    // interactWith → checkForEntityInteraction (MITE renamed)
+    // EntityInteractEvent fires when a player right-clicks an entity.
+    // MITE merged the old interactWith path into the private
+    // checkForEntityInteraction(RaycastCollision) method; the entity
+    // is available via collision.getEntityHit().
     // ===========================================================
-    @Inject(method = "interactWith", at = @At("HEAD"), cancellable = true)
-    private void fmlForgeInteractWith(Entity par1Entity, CallbackInfoReturnable<Boolean> cir) {
-        if (MinecraftForge.EVENT_BUS.post(new EntityInteractEvent((EntityPlayer)(Object)this, par1Entity))) {
+    @Inject(
+        method = "checkForEntityInteraction(Lnet/minecraft/raycast/RaycastCollision;)Z",
+        at = @At("HEAD"), cancellable = true)
+    private void fmlForgeInteractWith(
+            net.minecraft.raycast.RaycastCollision collision,
+            CallbackInfoReturnable<Boolean> cir) {
+        Entity target = collision.getEntityHit();
+        if (target != null &&
+                MinecraftForge.EVENT_BUS.post(
+                    new EntityInteractEvent((EntityPlayer)(Object)this, target))) {
             cir.setReturnValue(false);
         }
     }
 
     // ===========================================================
-    // destroyCurrentEquippedItem - PlayerDestroyItemEvent
+    // destroyCurrentEquippedItem → tryDamageHeldItem redirect
+    // PlayerDestroyItemEvent fires when the held item is destroyed
+    // (reaches 0 durability). Redirect ItemStack.tryDamageItem INSIDE
+    // tryDamageHeldItem so we can check whether the item was actually
+    // destroyed and fire the event only then.
     // ===========================================================
-    @Inject(method = "destroyCurrentEquippedItem", at = @At("HEAD"))
-    private void fmlForgeDestroyCurrentEquippedItem(CallbackInfo ci) {
-        ItemStack orig = this.inventory.getCurrentItemStack();
-        if (orig != null) {
-            MinecraftForge.EVENT_BUS.post(new PlayerDestroyItemEvent((EntityPlayer)(Object)this, orig));
+    @Redirect(
+        method = "tryDamageHeldItem(Lnet/minecraft/util/DamageSource;I)Lnet/minecraft/item/ItemDamageResult;",
+        at = @At(value = "INVOKE",
+                 target = "Lnet/minecraft/item/ItemStack;tryDamageItem(Lnet/minecraft/util/DamageSource;ILnet/minecraft/entity/EntityLivingBase;)Lnet/minecraft/item/ItemDamageResult;"))
+    private net.minecraft.item.ItemDamageResult fmlForgeDestroyCurrentEquippedItem(
+            ItemStack stack,
+            net.minecraft.util.DamageSource source,
+            int amount,
+            net.minecraft.entity.EntityLivingBase entity) {
+        // Capture current item before damage (stack may change after tryDamageItem)
+        ItemStack heldBefore = this.inventory.getCurrentItemStack();
+        net.minecraft.item.ItemDamageResult result = stack.tryDamageItem(source, amount, entity);
+        if (result != null && result.itemWasDestroyed() && heldBefore != null) {
+            MinecraftForge.EVENT_BUS.post(
+                new PlayerDestroyItemEvent((EntityPlayer)(Object)this, heldBefore));
         }
+        return result;
     }
 
     // ===========================================================
