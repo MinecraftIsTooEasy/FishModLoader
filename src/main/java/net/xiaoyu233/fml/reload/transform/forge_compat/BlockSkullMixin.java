@@ -7,7 +7,6 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntitySkull;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 
 import java.util.ArrayList;
@@ -18,8 +17,10 @@ public class BlockSkullMixin {
     public ArrayList<ItemStack> getBlockDropped(World world, int x, int y, int z, int metadata, int fortune) {
         ArrayList<ItemStack> drops = new ArrayList<ItemStack>();
         if ((metadata & 8) == 0) {
-            ItemStack itemstack = new ItemStack(Item.skull.itemID, 1, this.getDamageValue(world, x, y, z));
-            TileEntitySkull tileentityskull = (TileEntitySkull) world.getBlockTileEntity(x, y, z);
+            Object tileEntity = world.getBlockTileEntity(x, y, z);
+            TileEntitySkull tileentityskull = tileEntity instanceof TileEntitySkull ? (TileEntitySkull) tileEntity : null;
+            int skullType = tileentityskull == null ? 0 : tileentityskull.getSkullType();
+            ItemStack itemstack = new ItemStack(Item.skull.itemID, 1, skullType);
 
             if (tileentityskull == null) {
                 return drops;
@@ -31,10 +32,5 @@ public class BlockSkullMixin {
             drops.add(itemstack);
         }
         return drops;
-    }
-
-    @Shadow
-    public int getDamageValue(World world, int x, int y, int z) {
-        return 0;
     }
 }

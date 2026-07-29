@@ -38,7 +38,7 @@ public abstract class BlockButtonMixin {
     }
 
     @Shadow
-    public void dropBlockAsItem(World world, int x, int y, int z, int meta, int fortune) {}
+    public abstract boolean onNotLegal(World world, int x, int y, int z, int metadata);
 
     @Unique
     public boolean canBlockStay(World world, int x, int y, int z) {
@@ -52,8 +52,7 @@ public abstract class BlockButtonMixin {
         if (!isBlockSolidOnSide(world, x, y, z + 1, EnumFace.NORTH) && i1 == 4) flag = true;
 
         if (flag) {
-            this.dropBlockAsItem(world, x, y, z, meta, 0);
-            world.setBlockToAir(x, y, z);
+            this.onNotLegal(world, x, y, z, meta);
             return false;
         }
         return true;

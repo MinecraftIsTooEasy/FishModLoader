@@ -14,7 +14,6 @@ import java.util.Map;
 @Mixin(FurnaceRecipes.class)
 public class FurnaceRecipesMixin {
     @Shadow private Map smeltingList;
-    @Shadow private Map experienceList;
 
     @Unique
     private HashMap<List<Integer>, ItemStack> metaSmeltingList = new HashMap<List<Integer>, ItemStack>();
@@ -48,8 +47,8 @@ public class FurnaceRecipesMixin {
         if (ret < 0 && metaExperience.containsKey(Arrays.asList(item.itemID, item.getItemDamage()))) {
             ret = metaExperience.get(Arrays.asList(item.itemID, item.getItemDamage()));
         }
-        if (ret < 0 && experienceList.containsKey(item.itemID)) {
-            ret = ((Float) experienceList.get(item.itemID)).floatValue();
+        if (ret < 0) {
+            ret = item.getExperienceReward();
         }
         return (ret < 0 ? 0 : ret);
     }

@@ -21,6 +21,7 @@ import net.minecraft.world.World;
 import net.minecraftforge.common.IExtendedEntityProperties;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.entity.EntityEvent;
+import net.xiaoyu233.fml.reload.transform.forge_compat.api.IForgeEntityDrops;
 import net.xiaoyu233.fml.util.ReflectHelper;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -36,7 +37,7 @@ import java.util.HashMap;
 import java.util.UUID;
 
 @Mixin(Entity.class)
-public class EntityMixin {
+public class EntityMixin implements IForgeEntityDrops {
 
     // Shadows
     @Shadow
@@ -70,6 +71,24 @@ public class EntityMixin {
     public ArrayList<EntityItem> capturedDrops = new ArrayList<>();
     @Unique
     private HashMap<String, IExtendedEntityProperties> extendedProperties;
+
+    @Unique
+    @Override
+    public boolean fmlIsCapturingDrops() {
+        return this.captureDrops;
+    }
+
+    @Unique
+    @Override
+    public void fmlSetCapturingDrops(boolean capturing) {
+        this.captureDrops = capturing;
+    }
+
+    @Unique
+    @Override
+    public ArrayList<EntityItem> fmlGetCapturedDrops() {
+        return this.capturedDrops;
+    }
 
     // Constructor injection - initialize extended properties and fire EntityConstructing event
     @Inject(method = "<init>(Lnet/minecraft/world/World;)V", at = @At("RETURN"))

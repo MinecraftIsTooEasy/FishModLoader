@@ -26,6 +26,7 @@ import net.minecraftforge.event.entity.player.PlayerDestroyItemEvent;
 import net.minecraftforge.event.entity.player.PlayerDropsEvent;
 import net.minecraftforge.event.entity.player.PlayerFlyableFallEvent;
 import net.minecraftforge.event.entity.player.PlayerSleepInBedEvent;
+import net.xiaoyu233.fml.reload.transform.forge_compat.api.IForgeEntityDrops;
 import net.xiaoyu233.fml.util.ReflectHelper;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
@@ -49,10 +50,7 @@ public abstract class EntityPlayerMixin {
     @Shadow private ItemStack itemInUse;
     @Shadow public int dimension;
     @Shadow public String username;
-    @Shadow public boolean captureDrops;
-    @Shadow public java.util.ArrayList<EntityItem> capturedDrops;
     @Shadow public int recentlyHit;
-    @Shadow public ChunkCoordinates playerLocation;
     @Shadow public PlayerCapabilities capabilities;
 
     @Shadow public abstract ItemStack getHeldItemStack();
@@ -141,8 +139,9 @@ public abstract class EntityPlayerMixin {
     // ===========================================================
     @Inject(method = "joinEntityItemWithWorld", at = @At("HEAD"), cancellable = true)
     private void fmlForgeJoinEntityItemWithWorld(EntityItem par1EntityItem, CallbackInfo ci) {
-        if (this.captureDrops) {
-            this.capturedDrops.add(par1EntityItem);
+        IForgeEntityDrops drops = (IForgeEntityDrops) (Object) this;
+        if (drops.fmlIsCapturingDrops()) {
+            drops.fmlGetCapturedDrops().add(par1EntityItem);
             ci.cancel();
         }
     }
@@ -404,17 +403,19 @@ public abstract class EntityPlayerMixin {
     // ===========================================================
     @Inject(method = "onDeath", at = @At(value = "INVOKE", target = "Lnet/minecraft/entity/EntityLivingBase;onDeath(Lnet/minecraft/util/DamageSource;)V", shift = At.Shift.AFTER))
     private void fmlForgeOnDeathCaptureDrops(DamageSource par1DamageSource, CallbackInfo ci) {
-        this.captureDrops = true;
-        this.capturedDrops.clear();
+        IForgeEntityDrops drops = (IForgeEntityDrops) (Object) this;
+        drops.fmlSetCapturingDrops(true);
+        drops.fmlGetCapturedDrops().clear();
     }
 
     @Inject(method = "onDeath", at = @At(value = "INVOKE", target = "Lnet/minecraft/entity/player/InventoryPlayer;dropAllItems()V", shift = At.Shift.AFTER))
     private void fmlForgeOnDeathAfterDropAll(DamageSource par1DamageSource, CallbackInfo ci) {
-        this.captureDrops = false;
+        IForgeEntityDrops drops = (IForgeEntityDrops) (Object) this;
+        drops.fmlSetCapturingDrops(false);
         if (!((EntityLivingBase)(Object)this).worldObj.isRemote) {
-            PlayerDropsEvent event = new PlayerDropsEvent((EntityPlayer)(Object)this, par1DamageSource, this.capturedDrops, this.recentlyHit > 0);
+            PlayerDropsEvent event = new PlayerDropsEvent((EntityPlayer)(Object)this, par1DamageSource, drops.fmlGetCapturedDrops(), this.recentlyHit > 0);
             if (!MinecraftForge.EVENT_BUS.post(event)) {
-                for (EntityItem item : this.capturedDrops) {
+                for (EntityItem item : drops.fmlGetCapturedDrops()) {
                     this.joinEntityItemWithWorld(item);
                 }
             }

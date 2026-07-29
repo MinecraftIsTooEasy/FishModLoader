@@ -8,6 +8,7 @@ import net.minecraft.util.Damage;
 import net.minecraft.util.DamageSource;
 import net.minecraft.util.MathHelper;
 import net.minecraftforge.common.ForgeHooks;
+import net.xiaoyu233.fml.reload.transform.forge_compat.api.IForgeEntityDrops;
 import net.xiaoyu233.fml.util.ReflectHelper;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -27,10 +28,6 @@ public abstract class EntityLivingBaseMixin {
     public net.minecraft.world.World worldObj;
     @Shadow
     private HashMap activePotionsMap;
-    @Shadow
-    public boolean captureDrops;
-    @Shadow
-    public ArrayList<EntityItem> capturedDrops;
     @Shadow
     public int recentlyHit;
 
@@ -156,8 +153,9 @@ public abstract class EntityLivingBaseMixin {
                       target = "Lnet/minecraft/entity/EntityLivingBase;dropFewItems(ZLnet/minecraft/util/DamageSource;)V",
                       shift = At.Shift.BEFORE))
     private void fmlForgeOnDeathCaptureDrops(DamageSource par1DamageSource, CallbackInfo ci) {
-        this.captureDrops = true;
-        this.capturedDrops.clear();
+        IForgeEntityDrops drops = (IForgeEntityDrops) (Object) this;
+        drops.fmlSetCapturingDrops(true);
+        drops.fmlGetCapturedDrops().clear();
     }
 
     /**
@@ -169,10 +167,11 @@ public abstract class EntityLivingBaseMixin {
                       target = "Lnet/minecraft/entity/EntityLivingBase;dropEquipment(ZI)V",
                       shift = At.Shift.AFTER))
     private void fmlForgeOnDeathReleaseDrops(DamageSource par1DamageSource, CallbackInfo ci) {
-        this.captureDrops = false;
+        IForgeEntityDrops drops = (IForgeEntityDrops) (Object) this;
+        drops.fmlSetCapturingDrops(false);
         if (!this.worldObj.isRemote) {
-            if (!ForgeHooks.onLivingDrops(ReflectHelper.dyCast(this), par1DamageSource, this.capturedDrops, 0, this.recentlyHit > 0, 0)) {
-                for (EntityItem item : this.capturedDrops) {
+            if (!ForgeHooks.onLivingDrops(ReflectHelper.dyCast(this), par1DamageSource, drops.fmlGetCapturedDrops(), 0, this.recentlyHit > 0, 0)) {
+                for (EntityItem item : drops.fmlGetCapturedDrops()) {
                     this.worldObj.spawnEntityInWorld(item);
                 }
             }

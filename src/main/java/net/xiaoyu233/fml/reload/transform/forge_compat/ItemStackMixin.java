@@ -16,7 +16,6 @@ import java.util.List;
 
 @Mixin(ItemStack.class)
 public abstract class ItemStackMixin {
-    @Shadow public int itemDamage;
     @Shadow public int itemID;
     @Shadow public int stackSize;
     @Shadow public abstract Item getItem();
@@ -39,14 +38,14 @@ public abstract class ItemStackMixin {
 
     @Inject(method = "isItemDamaged", at = @At("HEAD"), cancellable = true)
     private void fmlForgeIsItemDamaged(CallbackInfoReturnable<Boolean> cir) {
-        boolean damaged = this.itemDamage > 0;
+        boolean damaged = this.getItemDamage() > 0;
         cir.setReturnValue(this.isItemStackDamageable() && damaged);
     }
 
     @Inject(method = "getItemDamageForDisplay", at = @At("HEAD"), cancellable = true)
     private void fmlForgeGetItemDamageForDisplay(CallbackInfoReturnable<Integer> cir) {
         if (this.getItem() != null) {
-            cir.setReturnValue(this.itemDamage);
+            cir.setReturnValue(this.getItemDamage());
         }
     }
 

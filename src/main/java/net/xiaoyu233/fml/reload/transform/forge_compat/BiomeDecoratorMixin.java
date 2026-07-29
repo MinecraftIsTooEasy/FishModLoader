@@ -20,6 +20,7 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.terraingen.DecorateBiomeEvent;
 import net.minecraftforge.event.terraingen.OreGenEvent;
 import net.minecraftforge.event.terraingen.TerrainGen;
+import net.xiaoyu233.fml.reload.transform.forge_compat.api.IBiomeBigTreeAccessor;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
@@ -75,9 +76,6 @@ public abstract class BiomeDecoratorMixin {
     @Shadow protected WorldGenMinable mithrilGen;
     @Shadow protected WorldGenMinable silverfishGen;
     @Shadow protected WorldGenMinable copperGen;
-    @Shadow protected WorldGenerator worldGeneratorBigTree;
-    @Shadow protected abstract void genStandardOre1(int count, WorldGenerator generator, int minY, int maxY);
-    @Shadow protected abstract void genStandardOre2(int count, WorldGenerator generator, int minY, int maxY);
     @Shadow protected abstract void generateOres();
     
     @Shadow
@@ -129,7 +127,8 @@ public abstract class BiomeDecoratorMixin {
 
         int var7;
         if (this.biome == BiomeGenBase.plains && this.randomGenerator.nextInt(400) == 0) {
-            WorldGenBigTree varBigTree = (WorldGenBigTree)this.worldGeneratorBigTree;
+            // BiomeDecorator has no such field; use the single generator owned by its biome.
+            WorldGenBigTree varBigTree = ((IBiomeBigTreeAccessor) this.biome).fmlGetWorldGeneratorBigTree();
             var7 = varBigTree.heightLimit;
             var3 = this.chunk_X + this.randomGenerator.nextInt(16) + 8;
             var4 = this.chunk_Z + this.randomGenerator.nextInt(16) + 8;
@@ -351,68 +350,68 @@ public abstract class BiomeDecoratorMixin {
 // ============ Overworld ============
     
     @WrapWithCondition(method = "generateOres",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/WorldGenMinable;)V", ordinal = 0))
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/feature/WorldGenMinable;)V", ordinal = 0))
     private boolean fmlDirt(int count, WorldGenMinable gen) {
         return TerrainGen.generateOre(currentWorld, randomGenerator, this.dirtGen, chunk_X, chunk_Z, DIRT);
     }
     
     @WrapWithCondition(method = "generateOres",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/WorldGenMinable;)V", ordinal = 1))
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/feature/WorldGenMinable;)V", ordinal = 1))
     private boolean fmlGravelOverworld(int count, WorldGenMinable gen) {
         return TerrainGen.generateOre(currentWorld, randomGenerator, this.gravelGen, chunk_X, chunk_Z, GRAVEL);
     }
     
     @WrapWithCondition(method = "generateOres",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/WorldGenMinable;)V", ordinal = 2))
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/feature/WorldGenMinable;)V", ordinal = 2))
     private boolean fmlCoal(int count, WorldGenMinable gen) {
         return TerrainGen.generateOre(currentWorld, randomGenerator, this.coalGen, chunk_X, chunk_Z, COAL);
     }
     
     @WrapWithCondition(method = "generateOres",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/WorldGenMinable;Z)V", ordinal = 0))
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/feature/WorldGenMinable;Z)V", ordinal = 0))
     private boolean fmlCopperOverworld(int count, WorldGenMinable gen, boolean flag) {
         return TerrainGen.generateOre(currentWorld, randomGenerator, this.copperGen, chunk_X, chunk_Z, COPPER);
     }
     
     @WrapWithCondition(method = "generateOres",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/WorldGenMinable;Z)V", ordinal = 1))
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/feature/WorldGenMinable;Z)V", ordinal = 1))
     private boolean fmlSilverOverworld(int count, WorldGenMinable gen, boolean flag) {
         return TerrainGen.generateOre(currentWorld, randomGenerator, this.silverGen, chunk_X, chunk_Z, SILVER);
     }
     
     @WrapWithCondition(method = "generateOres",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/WorldGenMinable;Z)V", ordinal = 2))
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/feature/WorldGenMinable;Z)V", ordinal = 2))
     private boolean fmlGoldOverworld(int count, WorldGenMinable gen, boolean flag) {
         return TerrainGen.generateOre(currentWorld, randomGenerator, this.goldGen, chunk_X, chunk_Z, GOLD);
     }
     
     @WrapWithCondition(method = "generateOres",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/WorldGenMinable;Z)V", ordinal = 3))
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/feature/WorldGenMinable;Z)V", ordinal = 3))
     private boolean fmlIronOverworld(int count, WorldGenMinable gen, boolean flag) {
         return TerrainGen.generateOre(currentWorld, randomGenerator, this.ironGen, chunk_X, chunk_Z, IRON);
     }
     
     @WrapWithCondition(method = "generateOres",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/WorldGenMinable;Z)V", ordinal = 4))
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/feature/WorldGenMinable;Z)V", ordinal = 4))
     private boolean fmlMithrilOverworld(int count, WorldGenMinable gen, boolean flag) {
         return TerrainGen.generateOre(currentWorld, randomGenerator, this.mithrilGen, chunk_X, chunk_Z, MITHRIL);
     }
 
     
     @WrapWithCondition(method = "generateOres",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/WorldGenMinable;)V", ordinal = 3))
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/feature/WorldGenMinable;)V", ordinal = 3))
     private boolean fmlRedstoneOverworld(int count, WorldGenMinable gen) {
         return TerrainGen.generateOre(currentWorld, randomGenerator, this.redstoneGen, chunk_X, chunk_Z, REDSTONE);
     }
     
     @WrapWithCondition(method = "generateOres",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/WorldGenMinable;)V", ordinal = 4))
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/feature/WorldGenMinable;)V", ordinal = 4))
     private boolean fmlDiamondOverworld(int count, WorldGenMinable gen) {
         return TerrainGen.generateOre(currentWorld, randomGenerator, this.diamondGen, chunk_X, chunk_Z, DIAMOND);
     }
     
     @WrapWithCondition(method = "generateOres",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/WorldGenMinable;)V", ordinal = 5))
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/feature/WorldGenMinable;)V", ordinal = 5))
     private boolean fmlLapisOverworld(int count, WorldGenMinable gen) {
         return TerrainGen.generateOre(currentWorld, randomGenerator, this.lapisGen, chunk_X, chunk_Z, LAPIS);
     }
@@ -420,61 +419,61 @@ public abstract class BiomeDecoratorMixin {
 // ============ Underworld ============
     
     @WrapWithCondition(method = "generateOres",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/WorldGenMinable;)V", ordinal = 6))
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/feature/WorldGenMinable;)V", ordinal = 6))
     private boolean fmlGravelUnderworld(int count, WorldGenMinable gen) {
         return TerrainGen.generateOre(currentWorld, randomGenerator, this.gravelGen, chunk_X, chunk_Z, GRAVEL);
     }
     
     @WrapWithCondition(method = "generateOres",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/WorldGenMinable;Z)V", ordinal = 5))
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/feature/WorldGenMinable;Z)V", ordinal = 5))
     private boolean fmlCopperUnderworld(int count, WorldGenMinable gen, boolean flag) {
         return TerrainGen.generateOre(currentWorld, randomGenerator, this.copperGen, chunk_X, chunk_Z, COPPER);
     }
     
     @WrapWithCondition(method = "generateOres",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/WorldGenMinable;Z)V", ordinal = 6))
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/feature/WorldGenMinable;Z)V", ordinal = 6))
     private boolean fmlSilverUnderworld(int count, WorldGenMinable gen, boolean flag) {
         return TerrainGen.generateOre(currentWorld, randomGenerator, this.silverGen, chunk_X, chunk_Z, SILVER);
     }
     
     @WrapWithCondition(method = "generateOres",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/WorldGenMinable;Z)V", ordinal = 7))
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/feature/WorldGenMinable;Z)V", ordinal = 7))
     private boolean fmlGoldUnderworld(int count, WorldGenMinable gen, boolean flag) {
         return TerrainGen.generateOre(currentWorld, randomGenerator, this.goldGen, chunk_X, chunk_Z, GOLD);
     }
     
     @WrapWithCondition(method = "generateOres",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/WorldGenMinable;Z)V", ordinal = 8))
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/feature/WorldGenMinable;Z)V", ordinal = 8))
     private boolean fmlIronUnderworld(int count, WorldGenMinable gen, boolean flag) {
         return TerrainGen.generateOre(currentWorld, randomGenerator, this.ironGen, chunk_X, chunk_Z, IRON);
     }
     
     @WrapWithCondition(method = "generateOres",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/WorldGenMinable;Z)V", ordinal = 9))
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/feature/WorldGenMinable;Z)V", ordinal = 9))
     private boolean fmlMithrilUnderworld(int count, WorldGenMinable gen, boolean flag) {
         return TerrainGen.generateOre(currentWorld, randomGenerator, this.mithrilGen, chunk_X, chunk_Z, MITHRIL);
     }
     
     @WrapWithCondition(method = "generateOres",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/WorldGenMinable;Z)V", ordinal = 10))
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/feature/WorldGenMinable;Z)V", ordinal = 10))
     private boolean fmlAdamantiumUnderworld(int count, WorldGenMinable gen, boolean flag) {
         return TerrainGen.generateOre(currentWorld, randomGenerator, this.adamantiteGen, chunk_X, chunk_Z, ADAMANTIUM);
     }
     
     @WrapWithCondition(method = "generateOres",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/WorldGenMinable;)V", ordinal = 7))
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/feature/WorldGenMinable;)V", ordinal = 7))
     private boolean fmlRedstoneUnderworld(int count, WorldGenMinable gen) {
         return TerrainGen.generateOre(currentWorld, randomGenerator, this.redstoneGen, chunk_X, chunk_Z, REDSTONE);
     }
     
     @WrapWithCondition(method = "generateOres",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/WorldGenMinable;)V", ordinal = 8))
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/feature/WorldGenMinable;)V", ordinal = 8))
     private boolean fmlDiamondUnderworld(int count, WorldGenMinable gen) {
         return TerrainGen.generateOre(currentWorld, randomGenerator, this.diamondGen, chunk_X, chunk_Z, DIAMOND);
     }
     
     @WrapWithCondition(method = "generateOres",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/WorldGenMinable;)V", ordinal = 9))
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/biome/BiomeDecorator;genMinable(ILnet/minecraft/world/gen/feature/WorldGenMinable;)V", ordinal = 9))
     private boolean fmlLapisUnderworld(int count, WorldGenMinable gen) {
         return TerrainGen.generateOre(currentWorld, randomGenerator, this.lapisGen, chunk_X, chunk_Z, LAPIS);
     }

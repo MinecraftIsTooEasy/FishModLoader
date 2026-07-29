@@ -24,7 +24,6 @@ import java.util.Random;
 
 @Mixin(Item.class)
 public class ItemMixin {
-    @Shadow private boolean damageable;
 
     @Unique
     protected boolean canRepair = true;

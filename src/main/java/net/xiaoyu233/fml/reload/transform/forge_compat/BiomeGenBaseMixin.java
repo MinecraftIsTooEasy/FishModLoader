@@ -2,10 +2,12 @@ package net.xiaoyu233.fml.reload.transform.forge_compat;
 
 import net.minecraft.world.biome.BiomeDecorator;
 import net.minecraft.world.biome.BiomeGenBase;
+import net.minecraft.world.gen.feature.WorldGenBigTree;
 import net.minecraft.world.gen.feature.WorldGenerator;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.terraingen.BiomeEvent;
 import net.minecraftforge.event.terraingen.DeferredBiomeDecorator;
+import net.xiaoyu233.fml.reload.transform.forge_compat.api.IBiomeBigTreeAccessor;
 import net.xiaoyu233.fml.util.ReflectHelper;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -16,12 +18,18 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(BiomeGenBase.class)
-public abstract class BiomeGenBaseMixin {
+public abstract class BiomeGenBaseMixin implements IBiomeBigTreeAccessor {
     @Shadow public int waterColorMultiplier;
     @Shadow public BiomeDecorator theBiomeDecorator;
-    @Shadow public WorldGenerator worldGeneratorBigTree;
+    @Shadow protected WorldGenBigTree worldGeneratorBigTree;
     @Shadow public abstract int getBiomeGrassColor();
     @Shadow public abstract int getBiomeFoliageColor();
+
+    @Unique
+    @Override
+    public WorldGenBigTree fmlGetWorldGeneratorBigTree() {
+        return this.worldGeneratorBigTree;
+    }
 
     @Unique
     public BiomeDecorator getModdedBiomeDecorator(BiomeDecorator original) {

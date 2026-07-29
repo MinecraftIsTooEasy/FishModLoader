@@ -54,7 +54,7 @@ public abstract class BlockTripWireSourceMixin {
     }
 
     @Shadow
-    public void dropBlockAsItem(World world, int x, int y, int z, int meta, int fortune) {}
+    public abstract boolean onNotLegal(World world, int x, int y, int z, int metadata);
 
     @Unique
     public boolean canBlockStay(World world, int x, int y, int z) {
@@ -68,8 +68,7 @@ public abstract class BlockTripWireSourceMixin {
         if (!isBlockSolidOnSide(world, x, y, z + 1, EnumFace.NORTH) && j1 == 2) flag = true;
 
         if (flag) {
-            this.dropBlockAsItem(world, x, y, z, i1, 0);
-            world.setBlockToAir(x, y, z);
+            this.onNotLegal(world, x, y, z, i1);
             return false;
         }
         return true;

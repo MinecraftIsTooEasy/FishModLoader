@@ -21,7 +21,13 @@ public abstract class BlockTorchMixin {
     }
 
     @Shadow
-    public abstract boolean canPlaceTorchOn(World world, int x, int y, int z);
+    public abstract boolean canMountToBlock(int metadata, Block block, int blockMetadata, EnumFace face);
+
+    @Unique
+    private boolean canPlaceOnTop(World world, int x, int y, int z) {
+        Block block = world.getBlock(x, y, z);
+        return block != null && this.canMountToBlock(0, block, world.getBlockMetadata(x, y, z), EnumFace.TOP);
+    }
 
     @Unique
     public boolean canPlaceBlockAt(World world, int x, int y, int z) {
@@ -29,7 +35,7 @@ public abstract class BlockTorchMixin {
                isBlockSolidOnSide(world, x + 1, y, z, EnumFace.WEST) ||
                isBlockSolidOnSide(world, x, y, z - 1, EnumFace.SOUTH) ||
                isBlockSolidOnSide(world, x, y, z + 1, EnumFace.NORTH) ||
-               canPlaceTorchOn(world, x, y - 1, z);
+               canPlaceOnTop(world, x, y - 1, z);
     }
 
     @Unique
@@ -45,7 +51,7 @@ public abstract class BlockTorchMixin {
     }
 
     @Shadow
-    public void dropBlockAsItem(World world, int x, int y, int z, int meta, int fortune) {}
+    public abstract boolean onNotLegal(World world, int x, int y, int z, int metadata);
 
     @Unique
     public boolean canBlockStay(World world, int x, int y, int z) {
@@ -65,8 +71,7 @@ public abstract class BlockTorchMixin {
         if (!isBlockSolidOnSide(world, x, y, z + 1, EnumFace.NORTH) && i1 == 4) flag = true;
 
         if (flag) {
-            this.dropBlockAsItem(world, x, y, z, i1, 0);
-            world.setBlockToAir(x, y, z);
+            this.onNotLegal(world, x, y, z, i1);
             return false;
         }
         return true;
