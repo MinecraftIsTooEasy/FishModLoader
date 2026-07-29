@@ -26,13 +26,13 @@ public abstract class Packet51MapChunkMixin {
     private boolean includeInitialize;
 
     @Shadow
-    private byte[] chunkData;
+    private byte[] compressed_chunk_data;
 
     @Shadow
-    private int tempLength;
+    private byte[] uncompressed_chunk_data;
 
     @Shadow
-    private byte[] compressedChunkData;
+    private int compressed_chunk_data_length;
 
     @Unique
     private Semaphore deflateGate;
@@ -41,11 +41,16 @@ public abstract class Packet51MapChunkMixin {
     private void deflate() {
         java.util.zip.Deflater deflater = new java.util.zip.Deflater(-1);
         try {
-            deflater.setInput(compressedChunkData, 0, compressedChunkData.length);
+            // MITE semantics (verified against writePacketData in mite-named.jar):
+            //   uncompressed_chunk_data      = raw input, its length is written as the
+            //                                  uncompressed size
+            //   compressed_chunk_data        = deflate output, written to the wire
+            //   compressed_chunk_data_length = number of valid bytes in the output
+            deflater.setInput(uncompressed_chunk_data, 0, uncompressed_chunk_data.length);
             deflater.finish();
-            byte[] deflated = new byte[compressedChunkData.length];
-            this.tempLength = deflater.deflate(deflated);
-            this.chunkData = deflated;
+            byte[] deflated = new byte[uncompressed_chunk_data.length];
+            this.compressed_chunk_data_length = deflater.deflate(deflated);
+            this.compressed_chunk_data = deflated;
         } finally {
             deflater.end();
         }

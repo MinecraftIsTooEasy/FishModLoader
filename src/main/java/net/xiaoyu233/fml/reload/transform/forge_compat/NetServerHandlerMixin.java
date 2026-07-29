@@ -30,12 +30,6 @@ public abstract class NetServerHandlerMixin extends NetHandler {
     private MinecraftServer mcServer;
 
     @Shadow
-    private int teleportationId;
-
-    @Shadow
-    private int ticksForFloatKick;
-
-    @Shadow
     public abstract void setPlayerLocation(double par1, double par3, double par5, float par7, float par8);
 
     @Unique

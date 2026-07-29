@@ -61,7 +61,6 @@ public abstract class EntityPlayerMixin {
     @Shadow public abstract boolean isEntityInvulnerable();
     @Shadow public abstract boolean isBlocking();
     @Shadow public abstract float getAbsorptionAmount();
-    @Shadow public abstract NBTTagCompound getEntityData();
 
     // ===========================================================
     // Forge NBT tag

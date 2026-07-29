@@ -83,21 +83,6 @@ public abstract class WorldServerMixin {
     private int updateEntityTick;
 
     @Shadow
-    private int updateLCG;
-
-    @Shadow
-    public abstract boolean isRaining();
-
-    @Shadow
-    public abstract boolean isThundering();
-
-    @Shadow
-    protected abstract void resetRainAndThunder();
-
-    @Shadow
-    public abstract Chunk getChunkFromChunkCoords(int par1, int par2);
-
-    @Shadow
     public abstract ChunkProviderServer getChunkProvider();
 
     @Shadow

@@ -24,10 +24,10 @@ public abstract class Packet56MapChunksMixin extends Packet {
     private byte[][] field_73584_f;
 
     @Shadow
-    private byte[] chunkDataBuffer;
+    private byte[] compressed_chunk_data;
 
     @Shadow
-    private int dataLength;
+    private int compressed_chunk_data_length;
 
     @Shadow
     private boolean skyLightSent;
@@ -52,8 +52,8 @@ public abstract class Packet56MapChunksMixin extends Packet {
             deflater.setInput(data, 0, maxLen);
             deflater.finish();
             byte[] deflated = new byte[maxLen];
-            this.dataLength = deflater.deflate(deflated);
-            this.chunkDataBuffer = deflated;
+            this.compressed_chunk_data_length = deflater.deflate(deflated);
+            this.compressed_chunk_data = deflated;
         } finally {
             deflater.end();
         }

@@ -17,14 +17,14 @@ public class WeightedRandomChestContentMixin {
     private ItemStack theItemId;
 
     @Shadow
-    private int theMinimumChanceToGenerateItem;
+    private int min_quantity;
 
     @Shadow
-    private int theMaximumChanceToGenerateItem;
+    private int max_quantity;
 
     @Unique
     protected ItemStack[] generateChestContent(Random random, IInventory newInventory) {
         return ChestGenHooks.generateStacks(random, theItemId,
-                theMinimumChanceToGenerateItem, theMaximumChanceToGenerateItem);
+                min_quantity, max_quantity);
     }
 }

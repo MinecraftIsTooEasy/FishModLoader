@@ -8,27 +8,27 @@ import net.minecraft.network.TcpConnection;
 import net.xiaoyu233.fml.reload.transform.forge_compat.api.IMixinNetLoginHandler;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Final;
 
 @Mixin(NetLoginHandler.class)
 public class NetLoginHandlerMixin implements IMixinNetLoginHandler {
-    @Shadow private MinecraftServer mcServer;
-    @Shadow private TcpConnection myTCPConnection;
+    @Shadow @Final private MinecraftServer mcServer;
+    @Shadow @Final public TcpConnection myTCPConnection;
     @Shadow private String clientUsername;
-    @Shadow private boolean connectionComplete;
+    @Shadow public boolean finishedProcessing;
 
-    @Shadow private void raiseErrorAndDisconnect(String var1) {}
+    @Shadow public void kickUser(String reason) {}
 
     @Override
-    public void completeConnection(String var1) {
-        if (var1 != null) {
-            this.raiseErrorAndDisconnect(var1);
+    public void completeConnection(String errorMessage) {
+        if (errorMessage != null) {
+            this.kickUser(errorMessage);
+            this.finishedProcessing = true;
         } else {
-            EntityPlayerMP var2 = this.mcServer.getConfigurationManager().createPlayerForUser(this.clientUsername);
-            if (var2 != null) {
-                this.mcServer.getConfigurationManager().initializeConnectionToPlayer(this.myTCPConnection, var2);
-            }
+            // MITE's initializePlayerConnection already does createPlayerForUser
+            // + initializeConnectionToPlayer + set finishedProcessing.
+            ((NetLoginHandler)(Object)this).initializePlayerConnection();
         }
-        this.connectionComplete = true;
     }
 
     @Override

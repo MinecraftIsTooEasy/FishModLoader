@@ -20,18 +20,6 @@ public abstract class ChunkProviderServerMixin {
     @Shadow
     private World worldObj;
 
-    @Shadow
-    private Set<Long> chunksToUnload;
-
-    @Shadow
-    private Map<Long, Chunk> loadedChunkHashMap;
-
-    @Shadow
-    private List<Chunk> loadedChunks;
-
-    @Shadow
-    private net.minecraft.world.chunk.IChunkProvider currentChunkProvider;
-
     @Inject(method = "unloadChunksIfNotNearSpawn", at = @At("HEAD"), cancellable = true)
     private void fmlForgeUnloadChunks(int par1, int par2, CallbackInfo ci) {
         if (!(this.worldObj.provider.canRespawnHere() && DimensionManager.shouldLoadSpawn(this.worldObj.provider.dimensionId))) {
