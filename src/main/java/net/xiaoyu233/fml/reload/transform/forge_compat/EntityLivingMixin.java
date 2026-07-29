@@ -19,7 +19,7 @@ public abstract class EntityLivingMixin {
 
     @Shadow public abstract void setDead();
 
-    @Inject(method = "setAttackTarget", at = @At("RETURN"))
+    @Inject(method = "setAttackTarget(Lnet/minecraft/entity/EntityLivingBase;)V", at = @At("RETURN"))
     private void onSetAttackTarget(EntityLivingBase par1EntityLivingBase, CallbackInfo ci) {
         ForgeHooks.onLivingSetAttackTarget(ReflectHelper.dyCast(this), par1EntityLivingBase);
     }
