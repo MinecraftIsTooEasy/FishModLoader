@@ -584,3 +584,27 @@ tasks.register('verifyGameJar', JavaExec) {
         systemProperty 'verify.trace', project.property('trace')
     }
 }
+
+
+tasks.register('verifyOverwrites', JavaExec) {
+    group = 'fishmodloader'
+    description = 'Verify @Shadow/@Overwrite targets exist in the remapped MITE jar (with full descriptor check)'
+    dependsOn ':tools:classes'
+    classpath = project(':tools').sourceSets.main.runtimeClasspath
+    mainClass = 'org.moddedmite.fish.faloom.VerifyOverwrites'
+    args = [
+            project.findProperty('gameJar') ?: file('build/tmp/mite-named.jar').path
+    ]
+}
+
+tasks.register('verifyInjections', JavaExec) {
+    group = 'fishmodloader'
+    description = 'Detect self-recursive @Inject, @Shadow descriptor mismatches, and missing @Inject targets'
+    dependsOn ':tools:classes', remapMiteToNamed
+    classpath = project(':tools').sourceSets.main.runtimeClasspath
+    mainClass = 'org.moddedmite.fish.faloom.VerifyInjections'
+    args = [
+            project.findProperty('gameJar') ?: file('build/tmp/mite-named.jar').path,
+            'src/main/java/net/xiaoyu233/fml/reload/transform'
+    ]
+}
