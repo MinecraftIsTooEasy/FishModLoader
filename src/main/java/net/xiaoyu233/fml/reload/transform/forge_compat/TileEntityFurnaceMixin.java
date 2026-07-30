@@ -12,5 +12,5 @@ public abstract class TileEntityFurnaceMixin {
     private ItemStack[] furnaceItemStacks;
 
     @Shadow
-    public int getInventoryStackLimit() { return 64; }
+    public abstract int getInventoryStackLimit();
 }

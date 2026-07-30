@@ -16,10 +16,10 @@ import org.spongepowered.asm.mixin.Unique;
  * {@code true}. Returning {@code false} prevents stitching.
  */
 @Mixin(TextureAtlasSprite.class)
-public class TextureAtlasSpriteMixin {
+public abstract class TextureAtlasSpriteMixin {
 
     @Shadow
-    public void loadSprite(Resource par1Resource) {}
+    public abstract void loadSprite(Resource par1Resource);
 
     /**
      * New method matching the Forge patch:

@@ -17,7 +17,7 @@ public abstract class NetLoginHandlerMixin implements IMixinNetLoginHandler {
     @Shadow private String clientUsername;
     @Shadow public boolean finishedProcessing;
 
-    @Shadow public void kickUser(String reason) {}
+    @Shadow public abstract void kickUser(String reason);
 
     @Shadow public abstract void initializePlayerConnection();
 

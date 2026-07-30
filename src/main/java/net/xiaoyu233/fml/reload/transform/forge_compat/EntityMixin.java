@@ -37,7 +37,7 @@ import java.util.HashMap;
 import java.util.UUID;
 
 @Mixin(Entity.class)
-public class EntityMixin implements IForgeEntityDrops {
+public abstract class EntityMixin implements IForgeEntityDrops {
 
     // Shadows
     @Shadow
@@ -58,9 +58,7 @@ public class EntityMixin implements IForgeEntityDrops {
     protected Entity ridingEntity;
 
     @Shadow
-    public float getEyeHeight() {
-        return 0;
-    }
+    public abstract float getEyeHeight();
 
     // 1. Forge-added fields
     @Unique
@@ -200,12 +198,11 @@ public class EntityMixin implements IForgeEntityDrops {
     // 3. Override isInsideOfMaterial with Forge's fluid height logic
     @Inject(method = "isInsideOfMaterial", at = @At("HEAD"), cancellable = true)
     private void onIsInsideOfMaterial(Material material, CallbackInfoReturnable<Boolean> cir) {
-        Entity self = ReflectHelper.dyCast(this);
-        double d0 = self.posY + self.getEyeHeight();
-        int i = MathHelper.floor_double(self.posX);
-        int j = MathHelper.floor_float((float) MathHelper.floor_double(self.posY));
-        int k = MathHelper.floor_double(self.posZ);
-        int l = self.worldObj.getBlockId(i, j, k);
+        double d0 = this.posY + this.getEyeHeight();
+        int i = MathHelper.floor_double(this.posX);
+        int j = MathHelper.floor_float((float) MathHelper.floor_double(this.posY));
+        int k = MathHelper.floor_double(this.posZ);
+        int l = this.worldObj.getBlockId(i, j, k);
         Block block = Block.blocksList[l];
         if (block != null && block.blockMaterial == material) {
             cir.setReturnValue(true);

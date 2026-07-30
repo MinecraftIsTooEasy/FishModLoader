@@ -35,7 +35,7 @@ public abstract class MinecraftServerMixin {
     public Profiler theProfiler;
 
     @Shadow
-    public ILogAgent getLogAgent() { return null; }
+    public abstract ILogAgent getLogAgent();
 
     @Shadow
     public abstract boolean getAllowNether();

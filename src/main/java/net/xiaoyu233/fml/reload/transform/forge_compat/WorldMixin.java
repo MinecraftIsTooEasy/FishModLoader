@@ -48,7 +48,7 @@ public abstract class WorldMixin {
     private boolean scanningTileEntities;
 
     @Shadow
-    public Chunk getChunkFromChunkCoords(int par1, int par2) { return null; }
+    public abstract Chunk getChunkFromChunkCoords(int par1, int par2);
 
     @Shadow
     public abstract int getBlockId(int x, int y, int z);
