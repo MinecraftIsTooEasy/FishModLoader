@@ -79,7 +79,7 @@ public class SoundManagerMixin implements IMixinSoundManager {
      * <p>
      * The Forge patch inserts the event at the end of {@code loadSoundSettings}.
      */
-    @Inject(method = "loadSoundSettings", at = @At("RETURN"))
+    @Inject(method = "onResourceManagerReload(Lnet/minecraft/client/resources/ResourceManager;)V", at = @At("RETURN"))
     private void fmlForgeOnSoundLoad(CallbackInfo ci) {
         MinecraftForge.EVENT_BUS.post(new SoundLoadEvent((SoundManager)(Object)this));
     }

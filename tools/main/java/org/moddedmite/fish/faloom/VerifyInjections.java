@@ -117,6 +117,8 @@ public final class VerifyInjections {
                                     List<String> recursive, List<String> mismatch, List<String> noTarget)
             throws IOException {
         String text = Files.readString(src, StandardCharsets.UTF_8);
+        // Strip single-line comments before regex matching to avoid false positives
+        text = text.replaceAll("//[^\n]*", "");
         String rel  = srcRoot.relativize(src).toString().replace('\\', '/');
 
         Matcher mm = MIXIN_PAT.matcher(text);
