@@ -16,6 +16,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.util.WeightedRandomChestContent;
 import net.minecraft.world.World;
 import net.minecraftforge.common.ChestGenHooks;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -23,7 +24,23 @@ import org.spongepowered.asm.mixin.Unique;
 import java.util.Random;
 
 @Mixin(Item.class)
-public class ItemMixin {
+public abstract class ItemMixin {
+
+    @Shadow @Final public int itemID;
+
+    @Shadow public abstract boolean requiresMultipleRenderPasses();
+
+    @Shadow public abstract boolean hasContainerItem();
+
+    @Shadow public abstract Item getContainerItem();
+
+    @Shadow public abstract CreativeTabs getCreativeTab();
+
+    @Shadow public abstract boolean isPotionIngredient();
+
+    @Shadow public abstract String getPotionEffect();
+
+    @Shadow public abstract boolean hasEffect(ItemStack stack);
 
     @Unique
     protected boolean canRepair = true;
@@ -72,15 +89,15 @@ public class ItemMixin {
 
     @Unique
     public int getRenderPasses(int metadata) {
-        return ((Item)(Object)this).requiresMultipleRenderPasses() ? 2 : 1;
+        return this.requiresMultipleRenderPasses() ? 2 : 1;
     }
 
     @Unique
     public ItemStack getContainerItemStack(ItemStack itemStack) {
-        if (!((Item)(Object)this).hasContainerItem()) {
+        if (!this.hasContainerItem()) {
             return null;
         }
-        return new ItemStack(((Item)(Object)this).getContainerItem());
+        return new ItemStack(this.getContainerItem());
     }
 
     @Unique
@@ -105,7 +122,7 @@ public class ItemMixin {
 
     @Unique
     public CreativeTabs[] getCreativeTabs() {
-        return new CreativeTabs[]{ ((Item)(Object)this).getCreativeTab() };
+        return new CreativeTabs[]{ this.getCreativeTab() };
     }
 
     @Unique
@@ -139,19 +156,19 @@ public class ItemMixin {
             return ((ItemArmor)(Object)this).armorType == armorType;
         }
         if (armorType == 0) {
-            return ((Item)(Object)this).itemID == Block.pumpkin.blockID || ((Item)(Object)this).itemID == Item.skull.itemID;
+            return this.itemID == Block.pumpkin.blockID || this.itemID == Item.skull.itemID;
         }
         return false;
     }
 
     @Unique
     public boolean isPotionIngredient(ItemStack stack) {
-        return ((Item)(Object)this).isPotionIngredient();
+        return this.isPotionIngredient();
     }
 
     @Unique
     public String getPotionEffect(ItemStack stack) {
-        return ((Item)(Object)this).getPotionEffect();
+        return this.getPotionEffect();
     }
 
     @Unique
@@ -225,7 +242,7 @@ public class ItemMixin {
 
     @Unique
     public boolean hasEffect(ItemStack par1ItemStack, int pass) {
-        return ((Item)(Object)this).hasEffect(par1ItemStack);
+        return this.hasEffect(par1ItemStack);
     }
 
     @Unique

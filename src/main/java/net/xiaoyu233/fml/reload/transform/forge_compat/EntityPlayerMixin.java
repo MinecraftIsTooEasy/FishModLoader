@@ -50,6 +50,11 @@ public abstract class EntityPlayerMixin {
     @Shadow private ItemStack itemInUse;
     @Shadow @org.spongepowered.asm.mixin.Final public String username;
     @Shadow public PlayerCapabilities capabilities;
+    // recentlyHit is declared on EntityLivingBase, worldObj/onGround on Entity;
+    // @Shadow resolves inherited members too.
+    @Shadow public int recentlyHit;
+    @Shadow public World worldObj;
+    @Shadow public boolean onGround;
 
     @Shadow public abstract ItemStack getHeldItemStack();
     @Shadow public abstract void joinEntityItemWithWorld(EntityItem par1EntityItem);
@@ -57,6 +62,7 @@ public abstract class EntityPlayerMixin {
     @Shadow public abstract boolean isEntityInvulnerable();
     @Shadow public abstract boolean isBlocking();
     @Shadow public abstract float getAbsorptionAmount();
+    @Shadow public abstract boolean isInsideOfMaterial(net.minecraft.block.material.Material material);
 
     // ===========================================================
     // Forge NBT tag
@@ -168,13 +174,13 @@ public abstract class EntityPlayerMixin {
         }
 
         if (f > 0.0F) {
-            boolean flag3 = ((EntityLivingBase)(Object)this).isInsideOfMaterial(net.minecraft.block.material.Material.water);
+            boolean flag3 = this.isInsideOfMaterial(net.minecraft.block.material.Material.water);
             if (flag3) {
                 f /= 5.0F;
             }
         }
 
-        if (!((EntityLivingBase)(Object)this).onGround) {
+        if (!this.onGround) {
             f /= 5.0F;
         }
 
@@ -428,8 +434,8 @@ public abstract class EntityPlayerMixin {
     private void fmlForgeOnDeathAfterDropAll(DamageSource par1DamageSource, CallbackInfo ci) {
         IForgeEntityDrops drops = (IForgeEntityDrops) (Object) this;
         drops.fmlSetCapturingDrops(false);
-        if (!((EntityLivingBase)(Object)this).worldObj.isRemote) {
-            PlayerDropsEvent event = new PlayerDropsEvent((EntityPlayer)(Object)this, par1DamageSource, drops.fmlGetCapturedDrops(), ((EntityPlayer)(Object)this).recentlyHit > 0);
+        if (!this.worldObj.isRemote) {
+            PlayerDropsEvent event = new PlayerDropsEvent((EntityPlayer)(Object)this, par1DamageSource, drops.fmlGetCapturedDrops(), this.recentlyHit > 0);
             if (!MinecraftForge.EVENT_BUS.post(event)) {
                 for (EntityItem item : drops.fmlGetCapturedDrops()) {
                     this.joinEntityItemWithWorld(item);

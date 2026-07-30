@@ -11,13 +11,15 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Final;
 
 @Mixin(NetLoginHandler.class)
-public class NetLoginHandlerMixin implements IMixinNetLoginHandler {
+public abstract class NetLoginHandlerMixin implements IMixinNetLoginHandler {
     @Shadow @Final private MinecraftServer mcServer;
     @Shadow @Final public TcpConnection myTCPConnection;
     @Shadow private String clientUsername;
     @Shadow public boolean finishedProcessing;
 
     @Shadow public void kickUser(String reason) {}
+
+    @Shadow public abstract void initializePlayerConnection();
 
     @Override
     public void completeConnection(String errorMessage) {
@@ -27,7 +29,7 @@ public class NetLoginHandlerMixin implements IMixinNetLoginHandler {
         } else {
             // MITE's initializePlayerConnection already does createPlayerForUser
             // + initializeConnectionToPlayer + set finishedProcessing.
-            ((NetLoginHandler)(Object)this).initializePlayerConnection();
+            this.initializePlayerConnection();
         }
     }
 

@@ -1,6 +1,7 @@
 package net.xiaoyu233.fml.reload.transform.forge_compat;
 
 import net.minecraft.block.Block;
+import net.minecraft.entity.DataWatcher;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
@@ -30,7 +31,17 @@ public abstract class EntityItemMixin {
     @Shadow public float hoverStart;
     @Shadow public int delayBeforeCanPickup;
 
+    // Declared on Entity; @Shadow resolves inherited members too.
+    @Shadow public World worldObj;
+    @Shadow public Random rand;
+
     @Shadow public abstract ItemStack getEntityItem();
+
+    @Shadow public abstract DataWatcher getDataWatcher();
+
+    @Shadow public abstract void setDead();
+
+    @Shadow public abstract void playSound(String sound, float volume, float pitch);
 
     @Unique
     public int lifespan = 6000;
@@ -45,7 +56,7 @@ public abstract class EntityItemMixin {
 
     @Inject(method = "onUpdate", at = @At("HEAD"), cancellable = true)
     private void fmlForgeOnEntityItemUpdate(CallbackInfo ci) {
-        ItemStack stack = ((EntityItem)(Object)this).getDataWatcher().getWatchableObjectItemStack(10);
+        ItemStack stack = this.getDataWatcher().getWatchableObjectItemStack(10);
         if (stack != null && stack.getItem() != null) {
             // Forge hook: onEntityItemUpdate
         }
@@ -53,26 +64,26 @@ public abstract class EntityItemMixin {
 
     @Inject(method = "onUpdate", at = @At(value = "FIELD", target = "Lnet/minecraft/entity/item/EntityItem;age:I", opcode = 181, ordinal = 1))
     private void fmlForgeCheckLifespan(CallbackInfo ci) {
-        ItemStack item = ((EntityItem)(Object)this).getDataWatcher().getWatchableObjectItemStack(10);
-        if (!((EntityItem)(Object)this).worldObj.isRemote && this.age >= this.lifespan) {
+        ItemStack item = this.getDataWatcher().getWatchableObjectItemStack(10);
+        if (!this.worldObj.isRemote && this.age >= this.lifespan) {
             if (item != null) {
                 ItemExpireEvent event = new ItemExpireEvent((EntityItem)(Object)this, 6000);
                 if (MinecraftForge.EVENT_BUS.post(event)) {
                     this.lifespan += event.extraLife;
                 } else {
-                    ((EntityItem)(Object)this).setDead();
+                    this.setDead();
                 }
             } else {
-                ((EntityItem)(Object)this).setDead();
+                this.setDead();
             }
         }
     }
 
     @Inject(method = "onUpdate", at = @At(value = "INVOKE", target = "Lnet/minecraft/entity/item/EntityItem;setDead()V", ordinal = 0))
     private void fmlForgeCheckStackSize(CallbackInfo ci) {
-        ItemStack item = ((EntityItem)(Object)this).getDataWatcher().getWatchableObjectItemStack(10);
+        ItemStack item = this.getDataWatcher().getWatchableObjectItemStack(10);
         if (item != null && item.stackSize <= 0) {
-            ((EntityItem)(Object)this).setDead();
+            this.setDead();
         }
     }
 
@@ -93,7 +104,7 @@ public abstract class EntityItemMixin {
      */
     @Overwrite
     public void onCollideWithPlayer(EntityPlayer par1EntityPlayer) {
-        if (!((EntityItem)(Object)this).worldObj.isRemote) {
+        if (!this.worldObj.isRemote) {
             if (this.delayBeforeCanPickup > 0) {
                 return;
             }
@@ -123,11 +134,11 @@ public abstract class EntityItemMixin {
                     par1EntityPlayer.triggerAchievement(AchievementList.acquireIron);
                 }
 
-                ((EntityItem)(Object)this).playSound("random.pop", 0.2F, ((((EntityItem)(Object)this).rand.nextFloat() - ((EntityItem)(Object)this).rand.nextFloat()) * 0.7F + 1.0F) * 2.0F);
+                this.playSound("random.pop", 0.2F, ((this.rand.nextFloat() - this.rand.nextFloat()) * 0.7F + 1.0F) * 2.0F);
                 par1EntityPlayer.onItemPickup((EntityItem)(Object)this, i);
 
                 if (itemstack.stackSize <= 0) {
-                    ((EntityItem)(Object)this).setDead();
+                    this.setDead();
                 }
             }
         }

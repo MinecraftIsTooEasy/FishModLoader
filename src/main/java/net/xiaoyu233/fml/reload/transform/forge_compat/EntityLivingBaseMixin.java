@@ -8,6 +8,7 @@ import net.minecraft.potion.PotionEffect;
 import net.minecraft.util.Damage;
 import net.minecraft.util.DamageSource;
 import net.minecraft.util.MathHelper;
+import net.minecraft.world.World;
 import net.minecraftforge.common.ForgeHooks;
 import net.xiaoyu233.fml.reload.transform.forge_compat.api.IForgeEntityDrops;
 import net.xiaoyu233.fml.util.ReflectHelper;
@@ -30,6 +31,9 @@ public abstract class EntityLivingBaseMixin {
     private HashMap activePotionsMap;
     @Shadow
     public int recentlyHit;
+    // Declared on Entity; @Shadow resolves inherited members too.
+    @Shadow
+    public World worldObj;
 
     @Shadow
     protected abstract void onFinishedPotionEffect(PotionEffect par1PotionEffect);
@@ -169,10 +173,10 @@ public abstract class EntityLivingBaseMixin {
     private void fmlForgeOnDeathReleaseDrops(DamageSource par1DamageSource, CallbackInfo ci) {
         IForgeEntityDrops drops = (IForgeEntityDrops) (Object) this;
         drops.fmlSetCapturingDrops(false);
-        if (!((EntityLivingBase)(Object)this).worldObj.isRemote) {
+        if (!this.worldObj.isRemote) {
             if (!ForgeHooks.onLivingDrops(ReflectHelper.dyCast(this), par1DamageSource, drops.fmlGetCapturedDrops(), 0, this.recentlyHit > 0, 0)) {
                 for (EntityItem item : drops.fmlGetCapturedDrops()) {
-                    ((EntityLivingBase)(Object)this).worldObj.spawnEntityInWorld(item);
+                    this.worldObj.spawnEntityInWorld(item);
                 }
             }
         }
@@ -184,7 +188,7 @@ public abstract class EntityLivingBaseMixin {
      */
     @Unique
     public void curePotionEffects(ItemStack curativeItem) {
-        if (((EntityLivingBase)(Object)this).worldObj.isRemote) {
+        if (this.worldObj.isRemote) {
             return;
         }
         // Remove all potion effects (Forge's default isCurativeItem returns true for all)

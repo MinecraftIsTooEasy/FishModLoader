@@ -2,6 +2,7 @@ package net.xiaoyu233.fml.reload.transform.forge_compat;
 
 import net.minecraft.block.Block;
 import net.minecraft.client.particle.EffectRenderer;
+import net.minecraft.util.EnumFace;
 import net.minecraft.util.MovingObjectPosition;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
@@ -21,10 +22,12 @@ import org.spongepowered.asm.mixin.Unique;
  * </ul>
  */
 @Mixin(EffectRenderer.class)
-public class EffectRendererMixin {
+public abstract class EffectRendererMixin {
 
     @Shadow
     private World worldObj;
+
+    @Shadow public abstract void addBlockHitEffects(int x, int y, int z, EnumFace face);
 
     /**
      * Placeholder: The patch adds null-checks around entityfx in the
@@ -68,6 +71,6 @@ public class EffectRendererMixin {
         Block block = Block.blocksList[worldObj.getBlockId(x, y, z)];
         // addBlockHitEffects removed - doesn't exist in MITE
         // Fall back to the original method using EnumFace
-        ((EffectRenderer)(Object)this).addBlockHitEffects(x, y, z, net.minecraft.util.EnumFace.values()[target.sideHit]);
+        this.addBlockHitEffects(x, y, z, EnumFace.values()[target.sideHit]);
     }
 }

@@ -23,6 +23,10 @@ public abstract class EntitySheepMixin {
     @Shadow public abstract void setSheared(boolean par1);
     @Shadow public abstract int getFleeceColor();
 
+    // Declared on Entity; @Shadow resolves inherited members too.
+    @Shadow public Random rand;
+    @Shadow public World worldObj;
+
     @Unique
     public boolean isShearable(ItemStack item, World world, int X, int Y, int Z) {
         return !getSheared();
@@ -32,11 +36,11 @@ public abstract class EntitySheepMixin {
     public ArrayList<ItemStack> onSheared(ItemStack item, World world, int X, int Y, int Z, int fortune) {
         ArrayList<ItemStack> ret = new ArrayList<ItemStack>();
         setSheared(true);
-        int i = 1 + ((EntitySheep)(Object)this).rand.nextInt(3);
+        int i = 1 + this.rand.nextInt(3);
         for (int j = 0; j < i; j++) {
             ret.add(new ItemStack(Block.cloth.blockID, 1, getFleeceColor()));
         }
-        ((EntitySheep)(Object)this).worldObj.playSoundAtEntity((Entity)(Object)this, "mob.sheep.shear", 1.0F, 1.0F);
+        this.worldObj.playSoundAtEntity((Entity)(Object)this, "mob.sheep.shear", 1.0F, 1.0F);
         return ret;
     }
 }

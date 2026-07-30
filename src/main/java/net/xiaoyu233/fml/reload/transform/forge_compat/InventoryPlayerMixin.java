@@ -31,6 +31,12 @@ public abstract class InventoryPlayerMixin {
     @Shadow
     public EntityPlayer player;
 
+    @Shadow
+    public abstract void setCurrentItem(int itemID, int meta, boolean searchBackward, boolean hotbar);
+
+    @Shadow
+    public abstract void onInventoryChanged();
+
     /**
      * Injects at the beginning of {@code onInventoryChanged()} to fire
      * a Forge event notifying listeners that the player's inventory has
@@ -44,11 +50,10 @@ public abstract class InventoryPlayerMixin {
     @Inject(method = "onInventoryChanged()V",
             at = @At("TAIL"))
     private void fmlForgeOnInventoryChanged(CallbackInfo ci) {
-        InventoryPlayer self = (InventoryPlayer) (Object) this;
         // Fire a generic inventory changed event for Forge mods that listen
         // for inventory state changes beyond individual slot mutations.
         net.minecraftforge.event.entity.player.PlayerEvent event =
-                new net.minecraftforge.event.entity.player.PlayerEvent(self.player);
+                new net.minecraftforge.event.entity.player.PlayerEvent(this.player);
         MinecraftForge.EVENT_BUS.post(event);
 
         // Call onArmorTickUpdate for all equipped armor items (Forge hook)
@@ -72,10 +77,9 @@ public abstract class InventoryPlayerMixin {
     @Inject(method = "setInventorySlotContents(ILnet/minecraft/item/ItemStack;)V",
             at = @At("TAIL"))
     private void fmlForgeOnSetInventorySlotContents(int slot, ItemStack stack, CallbackInfo ci) {
-        InventoryPlayer self = (InventoryPlayer) (Object) this;
         // Notify forge event bus of the slot change
         net.minecraftforge.event.entity.player.PlayerEvent event =
-                new net.minecraftforge.event.entity.player.PlayerEvent(self.player);
+                new net.minecraftforge.event.entity.player.PlayerEvent(this.player);
         MinecraftForge.EVENT_BUS.post(event);
     }
 
@@ -97,8 +101,8 @@ public abstract class InventoryPlayerMixin {
      */
     @Unique
     public void forgeSetCurrentItem(int itemID, int meta, boolean searchBackward, boolean hotbar) {
-        // Delegate to the vanilla method via @Shadow or a direct cast
-        ((InventoryPlayer) (Object) this).setCurrentItem(itemID, meta, searchBackward, hotbar);
+        // Delegate to the vanilla method via @Shadow
+        this.setCurrentItem(itemID, meta, searchBackward, hotbar);
     }
 
     /**
@@ -118,7 +122,7 @@ public abstract class InventoryPlayerMixin {
         if (stack != null && stack.isItemStackDamageable() && stack.getItemDamage() > stack.getMaxDamage()) {
             MinecraftForge.EVENT_BUS.post(new PlayerDestroyItemEvent(this.player, stack));
             this.mainInventory[slot] = null;
-            ((InventoryPlayer) (Object) this).onInventoryChanged();
+            this.onInventoryChanged();
         }
     }
 

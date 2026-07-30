@@ -1,5 +1,6 @@
 package net.xiaoyu233.fml.reload.transform.forge_compat;
 
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.item.EntityMinecart;
 import net.minecraft.entity.item.EntityMinecartEmpty;
 import net.minecraftforge.common.IMinecartCollisionHandler;
@@ -10,6 +11,13 @@ import org.spongepowered.asm.mixin.Unique;
 @Mixin(EntityMinecart.class)
 public abstract class EntityMinecartBaseMixin {
     @Shadow public abstract int getMinecartType();
+
+    // Declared on Entity; @Shadow resolves inherited members too.
+    @Shadow public double motionX;
+    @Shadow public double motionZ;
+    @Shadow public Entity riddenByEntity;
+
+    @Shadow public abstract void moveEntity(double x, double y, double z);
 
     // Forge exposed these defaults as public static fields. Mixin rejects such
     // fields, so keep private defaults and preserve the per-cart accessors.
@@ -36,10 +44,10 @@ public abstract class EntityMinecartBaseMixin {
 
     @Unique
     public void moveMinecartOnRail(int x, int y, int z, double par4) {
-        double d12 = ((net.minecraft.entity.Entity)(Object)this).motionX;
-        double d13 = ((net.minecraft.entity.Entity)(Object)this).motionZ;
+        double d12 = this.motionX;
+        double d13 = this.motionZ;
 
-        if (((EntityMinecart)(Object)this).riddenByEntity != null) {
+        if (this.riddenByEntity != null) {
             d12 *= 0.75D;
             d13 *= 0.75D;
         }
@@ -49,7 +57,7 @@ public abstract class EntityMinecartBaseMixin {
         if (d13 < -par4) d13 = -par4;
         if (d13 > par4) d13 = par4;
 
-        ((net.minecraft.entity.Entity)(Object)this).moveEntity(d12, 0.0D, d13);
+        this.moveEntity(d12, 0.0D, d13);
     }
 
     @Unique

@@ -27,7 +27,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import java.util.List;
 
 @Mixin(World.class)
-public class WorldMixin {
+public abstract class WorldMixin {
     @Shadow
     @Final
     public WorldProvider provider;
@@ -46,6 +46,12 @@ public class WorldMixin {
 
     @Shadow
     public Chunk getChunkFromChunkCoords(int par1, int par2) { return null; }
+
+    @Shadow
+    public abstract int getBlockId(int x, int y, int z);
+
+    @Shadow
+    public abstract int getBlockMetadata(int x, int y, int z);
 
     // ========================================================================
     // Forge-added fields
@@ -102,13 +108,12 @@ public class WorldMixin {
         if (chunk == null || chunk.isEmpty()) {
             return _default;
         }
-        World self = (World)(Object)this;
-        int id = self.getBlockId(x, y, z);
+        int id = this.getBlockId(x, y, z);
         Block block = Block.blocksList[id];
         if (block == null) {
             return false;
         }
-        int metadata = self.getBlockMetadata(x, y, z);
+        int metadata = this.getBlockMetadata(x, y, z);
         if (block instanceof net.minecraft.block.BlockFarmland) {
             return side != ForgeDirection.DOWN && side != ForgeDirection.UP;
         }

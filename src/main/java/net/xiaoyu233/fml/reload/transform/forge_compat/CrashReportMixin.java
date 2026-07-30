@@ -2,13 +2,16 @@ package net.xiaoyu233.fml.reload.transform.forge_compat;
 
 import net.minecraft.crash.CrashReport;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(CrashReport.class)
-public class CrashReportMixin {
+public abstract class CrashReportMixin {
+
+    @Shadow public abstract Throwable getCrashCause();
 
     /**
      * @reason Stop MITE's crash reporter from masking real errors.
@@ -28,7 +31,7 @@ public class CrashReportMixin {
     @ModifyVariable(method = "makeCategoryDepth(Ljava/lang/String;I)Lnet/minecraft/crash/CrashReportCategory;",
                     at = @At("HEAD"), ordinal = 0, argsOnly = true)
     private int fmlClampStackTraceDepth(int depth) {
-        Throwable cause = ((CrashReport) (Object) this).getCrashCause();
+        Throwable cause = this.getCrashCause();
         if (cause == null) return depth;
         StackTraceElement[] trace = cause.getStackTrace();
         if (trace == null) return depth;

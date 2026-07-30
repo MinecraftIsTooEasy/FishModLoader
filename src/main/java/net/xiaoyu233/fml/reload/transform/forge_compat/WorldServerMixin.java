@@ -35,6 +35,14 @@ public abstract class WorldServerMixin {
     // hard mixin-apply failure waiting to happen: MITE renames or removes
     // members freely, and a single unresolvable @Shadow aborts the whole
     // mixin, silently disabling every Forge hook in this file.
+    // playerEntities is declared on World and getTotalWorldTime() is inherited
+    // from it as well; @Shadow resolves inherited members too.
+    @Shadow
+    public List playerEntities;
+
+    @Shadow
+    public abstract long getTotalWorldTime();
+
     @Unique
     protected Set<ChunkCoordIntPair> doneChunks = new HashSet<ChunkCoordIntPair>();
 
@@ -59,7 +67,7 @@ public abstract class WorldServerMixin {
     @Inject(method = "tick", at = @At("TAIL"))
     private void fmlForgeTickCustomTeleporters(CallbackInfo ci) {
         for (Teleporter tele : customTeleporters) {
-            tele.removeStalePortalLocations(((WorldServer)(Object)this).getTotalWorldTime());
+            tele.removeStalePortalLocations(this.getTotalWorldTime());
         }
     }
 
@@ -68,10 +76,7 @@ public abstract class WorldServerMixin {
 
     @Inject(method = "updateEntities", at = @At("HEAD"), cancellable = true)
     private void fmlForgeUpdateEntities(CallbackInfo ci) {
-        // Mixin @Shadow does not search superclasses for FIELDS (only methods),
-        // and playerEntities is declared on World, not WorldServer. Read it
-        // through the target type instead of shadowing it.
-        if (((WorldServer)(Object)this).playerEntities.isEmpty() && perWorldStorage == null) {
+        if (this.playerEntities.isEmpty() && perWorldStorage == null) {
             if (fmlForgeIdleTicks++ >= 1200) {
                 ci.cancel();
             }

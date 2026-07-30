@@ -18,6 +18,8 @@ public abstract class EntityLivingMixin {
     @Unique private int forgeDespawnCounter;
     @Shadow private boolean persistenceRequired;
 
+    @Shadow public abstract void setDead();
+
 
     @Inject(method = "setAttackTarget(Lnet/minecraft/entity/EntityLivingBase;)V", at = @At("RETURN"))
     private void onSetAttackTarget(EntityLivingBase par1EntityLivingBase, CallbackInfo ci) {
@@ -32,7 +34,7 @@ public abstract class EntityLivingMixin {
                 this.forgeDespawnCounter = 0;
                 ci.cancel();
             } else if (result == Result.ALLOW) {
-                ((net.minecraft.entity.EntityLiving)(Object)this).setDead();
+                this.setDead();
                 ci.cancel();
             }
         }
