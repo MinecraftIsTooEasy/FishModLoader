@@ -5,7 +5,7 @@ import net.minecraft.block.BlockSnow;
 import net.minecraft.util.EnumFace;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Unique;
+import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Unique;
 
 import java.util.Random;
@@ -61,19 +61,12 @@ public class BlockSnowMixin {
         return (meta & 7) + 1;
     }
 
-    /**
-     * DEAD METHOD: MITE's updateTick returns boolean; this mixin returns void.
-     * The JVM treats them as distinct methods (different descriptors), so both
-     * coexist in the class but MITE only calls its own boolean variant. This
-     * Forge-compat logic never executes.
-     *
-     * Originally intended @reason: Remove dropBlockAsItem call when snow melts.
-     */
-    @Unique
-    public void updateTick(World world, int x, int y, int z, Random rand) {
+    @Overwrite
+    public boolean updateTick(World world, int x, int y, int z, Random rand) {
         if (world.getSavedLightValue(net.minecraft.world.EnumSkyBlock.Block, x, y, z) > 11) {
             world.setBlockToAir(x, y, z);
         }
+        return false;
     }
 
     @Unique

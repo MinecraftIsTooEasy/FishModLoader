@@ -52,14 +52,6 @@ public abstract class MinecraftServerMixin {
     @Shadow
     public abstract ServerConfigurationManager getConfigurationManager();
 
-    // DEAD METHOD: MITE's MinecraftServer.getNetworkThread() returns
-    // NetworkListenThread, but this mixin returns Object. The JVM treats them
-    // as distinct methods (different descriptors), so both coexist but MITE
-    // only calls its own version. This stub never executes.
-    // NetworkSystem doesn't exist in MITE; original intent was generic fallback.
-    @Unique
-    public Object getNetworkThread() { return null; }
-
     @Shadow
     private int tickCounter;
 

@@ -4,23 +4,14 @@ import net.minecraft.block.Block;
 import net.minecraft.block.BlockGrass;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Unique;
+import org.spongepowered.asm.mixin.Overwrite;
 
 import java.util.Random;
 
 @Mixin(BlockGrass.class)
 public abstract class BlockGrassMixin {
-    /**
-     * DEAD METHOD: MITE's updateTick returns boolean; this mixin returns void.
-     * The JVM treats them as distinct methods (different descriptors), so both
-     * coexist in the class but MITE only calls its own boolean variant. This
-     * Forge-compat logic never executes.
-     *
-     * Originally intended @reason: Use Block.lightOpacity array instead of
-     * getBlockLightOpacity for Forge compat.
-     */
-    @Unique
-    public void updateTick(World world, int x, int y, int z, Random rand) {
+    @Overwrite
+    public boolean updateTick(World world, int x, int y, int z, Random rand) {
         if (!world.isRemote) {
             if (world.getBlockLightValue(x, y + 1, z) < 4 && Block.lightOpacity[world.getBlockId(x, y + 1, z)] > 2) {
                 world.setBlock(x, y, z, BlockGrass.dirt.blockID);
@@ -41,5 +32,6 @@ public abstract class BlockGrassMixin {
                 }
             }
         }
+        return false;
     }
 }
