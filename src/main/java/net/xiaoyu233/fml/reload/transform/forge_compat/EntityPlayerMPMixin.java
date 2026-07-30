@@ -9,9 +9,6 @@ import org.spongepowered.asm.mixin.Unique;
 public class EntityPlayerMPMixin implements Player {
     // Player interface only has a default method (openGui), nothing to implement
 
-    /**
-     * @reason Forge changes getDefaultEyeHeight to match EntityPlayerMP's height
-     */
     /** NOTE: MITE has no getDefaultEyeHeight on EntityPlayerMP, so this cannot be an @Overwrite
      *  (mixin apply would fail hard). Kept inert. See PLAN.md. */
     @Unique

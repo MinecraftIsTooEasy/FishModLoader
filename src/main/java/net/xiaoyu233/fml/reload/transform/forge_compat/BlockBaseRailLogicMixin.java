@@ -30,9 +30,6 @@ public abstract class BlockBaseRailLogicMixin {
     @Unique
     private boolean canMakeSlopes;
 
-    /**
-     * @reason Forge compat: simplify to just use metadata directly
-     */
     /** NOTE: MITE has no updateRailMetadata on BlockBaseRailLogic, so this cannot be an @Overwrite
      *  (mixin apply would fail hard). Kept inert. See PLAN.md. */
     @Unique

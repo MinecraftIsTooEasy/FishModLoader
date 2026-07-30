@@ -9,8 +9,6 @@ import org.spongepowered.asm.mixin.Unique;
 public abstract class BlockRedstoneOreMixin {
     @Unique
     public int getExpDrop(World world, int metadata, int fortune) {
-        // MITE handles ore experience internally through Block.dropXpOnBlockBreak.
-        // Keep this Forge-shaped compatibility hook inert to avoid duplicate XP.
-        return 0;
+        return 0; // MITE handles XP via Block.dropXpOnBlockBreak; this hook is inert
     }
 }

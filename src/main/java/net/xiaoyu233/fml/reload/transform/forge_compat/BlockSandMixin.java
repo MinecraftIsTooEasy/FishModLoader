@@ -8,9 +8,6 @@ import org.spongepowered.asm.mixin.Unique;
 
 @Mixin(BlockSand.class)
 public class BlockSandMixin {
-    /**
-     * @reason Use isAirBlock instead of getBlockId == 0 for Forge compat
-     */
     /** NOTE: MITE has no canFallAbove on BlockSand, so this cannot be an @Overwrite
      *  (mixin apply would fail hard). Kept inert. See PLAN.md. */
     @Unique

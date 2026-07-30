@@ -25,17 +25,11 @@ public class BlockSnowMixin {
         return block.isFaceFlatAndSolid(meta, EnumFace.TOP);
     }
 
-    /**
-     * @reason Use isFaceFlatAndSolid instead of isOpaqueCube/isLeaves/blocksMovement for Forge compat
-     */
     @Unique
     public boolean canPlaceBlockAt(World world, int x, int y, int z) {
         return canSnowStayAt(world, x, y, z);
     }
 
-    /**
-     * @reason Simplified canBlockStay for Forge compat
-     */
     @Unique
     public boolean canBlockStay(World world, int x, int y, int z) {
         if (!canSnowStayAt(world, x, y, z)) {
@@ -45,10 +39,7 @@ public class BlockSnowMixin {
         return true;
     }
 
-    /**
-     * @reason Return 1 for quantity dropped - items handled by getBlockDropped.
-     *
-     * NOTE: MITE has no quantityDropped (func_71925_a) on BlockSnow or Block,
+    /** NOTE: MITE has no quantityDropped (func_71925_a) on BlockSnow or Block,
      * so this cannot be an @Unique. Kept inert until rewired. See PLAN.md.
      */
     @Unique

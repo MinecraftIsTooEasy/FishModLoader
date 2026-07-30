@@ -27,18 +27,11 @@ public class BlockFireMixin {
     @Shadow
     private int[] abilityToCatchFire;
 
-    /**
-     * @reason Inject ForgeDirection support into canBlockCatchFire: delegate to the new side-sensitive overload
-     */
     @Inject(method = "canBlockCatchFire(Lnet/minecraft/world/IBlockAccess;III)Z", at = @At("HEAD"), cancellable = true)
     private void onCanBlockCatchFire(IBlockAccess world, int x, int y, int z, CallbackInfoReturnable<Boolean> cir) {
         cir.setReturnValue(this.canBlockCatchFire(world, x, y, z, UP));
     }
 
-    /**
-     * @reason Inject fire spread speed config into getChanceOfNeighborsEncouragingFire:
-     * use side-sensitive getChanceToEncourageFire with ForgeDirection
-     */
     @Inject(method = "getChanceOfNeighborsEncouragingFire", at = @At("HEAD"), cancellable = true)
     private void onGetChanceOfNeighborsEncouragingFire(World world, int x, int y, int z, CallbackInfoReturnable<Integer> cir) {
         int current = 0;

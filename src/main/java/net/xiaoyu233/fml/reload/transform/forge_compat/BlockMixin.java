@@ -88,9 +88,6 @@ public abstract class BlockMixin {
     // ========== @Inject: Methods that exist in (patched) Block ==========
 
     /**
-     * @reason Add Forge creature spawn check / delegate to block-specific logic
-     */
-    /**
      * Forge addition: allows blocks to control creature spawning.
      * MITE does not have this method; made @Unique so Forge mods can call it.
      * SpawnerAnimals queries this via canCreatureTypeSpawnOn.

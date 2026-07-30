@@ -34,10 +34,7 @@ public class BlockTrapDoorMixin {
         return block.isFaceFlatAndSolid(meta, EnumFace.TOP);
     }
 
-    /**
-     * @reason Add disableValidation support and isBlockSolidOnSide check.
-     *
-     * NOTE: MITE removed the vanilla canPlaceBlockOnSide API, so this cannot
+    /** NOTE: MITE removed the vanilla canPlaceBlockOnSide API, so this cannot
      * be an @Overwrite -- mixin application would fail hard. See PLAN.md.
      */
     @Unique

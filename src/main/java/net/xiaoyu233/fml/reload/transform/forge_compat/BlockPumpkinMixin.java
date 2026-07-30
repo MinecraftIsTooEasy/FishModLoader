@@ -8,10 +8,7 @@ import org.spongepowered.asm.mixin.Unique;
 
 @Mixin(BlockPumpkin.class)
 public class BlockPumpkinMixin {
-    /**
-     * @reason Simplify canPlaceBlockAt for Forge compat.
-     *
-     * NOTE: MITE removed the vanilla canPlaceBlockAt API (it uses
+    /** NOTE: MITE removed the vanilla canPlaceBlockAt API (it uses
      * isLegalAt/isLegalOn instead), so this cannot be an @Overwrite --
      * mixin application would fail hard. Kept inert. See PLAN.md.
      */
