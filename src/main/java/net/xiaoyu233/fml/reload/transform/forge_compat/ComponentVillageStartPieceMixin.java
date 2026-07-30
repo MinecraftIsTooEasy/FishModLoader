@@ -1,6 +1,7 @@
 package net.xiaoyu233.fml.reload.transform.forge_compat;
 
 import net.minecraft.world.biome.BiomeGenBase;
+import net.minecraft.world.biome.WorldChunkManager;
 import net.minecraft.world.gen.structure.ComponentVillageStartPiece;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -16,7 +17,7 @@ public abstract class ComponentVillageStartPieceMixin {
 
     @Inject(method = "<init>(Lnet/minecraft/world/biome/WorldChunkManager;IILnet/minecraft/world/gen/structure/ComponentVillageStartPiece;IILjava/util/List;I)V",
             at = @At("RETURN"))
-    private void fmlForgeInitBiome(net.minecraft.world.biome.WorldChunkManager par1WorldChunkManager,
+    private void fmlForgeInitBiome(WorldChunkManager par1WorldChunkManager,
                                     int par2, int par3,
                                     ComponentVillageStartPiece par4ComponentVillageStartPiece,
                                     int par5, int par6, java.util.List par7List, int par8, CallbackInfo ci) {

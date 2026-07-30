@@ -1,6 +1,7 @@
 package net.xiaoyu233.fml.reload.transform.forge_compat;
 
 import net.minecraft.item.ItemBucketMilk;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
@@ -12,7 +13,7 @@ public class ItemBucketMilkMixin {
     @Redirect(method = "onItemRightClick",
               at = @At(value = "INVOKE",
                        target = "Lnet/minecraft/entity/player/EntityPlayer;clearActivePotions()V"))
-    private void fmlForgeCurePotionEffects(net.minecraft.entity.player.EntityPlayer player, ItemStack itemStack) {
+    private void fmlForgeCurePotionEffects(EntityPlayer player, ItemStack itemStack) {
         player.clearActivePotions();
     }
 }

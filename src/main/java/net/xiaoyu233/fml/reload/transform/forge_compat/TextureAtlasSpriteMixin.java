@@ -1,5 +1,6 @@
 package net.xiaoyu233.fml.reload.transform.forge_compat;
 
+import net.minecraft.client.resources.Resource;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.resources.ResourceManager;
 import net.minecraft.util.ResourceLocation;
@@ -18,7 +19,7 @@ import org.spongepowered.asm.mixin.Unique;
 public class TextureAtlasSpriteMixin {
 
     @Shadow
-    public void loadSprite(net.minecraft.client.resources.Resource par1Resource) {}
+    public void loadSprite(Resource par1Resource) {}
 
     /**
      * New method matching the Forge patch:

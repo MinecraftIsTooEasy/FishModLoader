@@ -34,7 +34,7 @@ public class TextureMapMixin {
     private java.util.List listAnimatedSprites;
 
     @Shadow
-    private net.minecraft.client.renderer.texture.TextureAtlasSprite missingImage;
+    private TextureAtlasSprite missingImage;
 
     /**
      * Placeholder: The patch calls {@code registerIcons()} at the

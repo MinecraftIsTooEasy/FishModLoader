@@ -2,6 +2,8 @@ package net.xiaoyu233.fml.reload.transform.forge_compat;
 
 import net.minecraft.entity.EntityDamageResult;
 import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.passive.EntityPig;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.potion.PotionEffect;
@@ -200,7 +202,7 @@ public abstract class EntityLivingBaseMixin {
      * Forge-added method.
      */
     @Unique
-    public boolean shouldRiderFaceForward(net.minecraft.entity.player.EntityPlayer player) {
+    public boolean shouldRiderFaceForward(EntityPlayer player) {
         return ReflectHelper.dyCast(this) instanceof net.minecraft.entity.passive.EntityPig;
     }
 }

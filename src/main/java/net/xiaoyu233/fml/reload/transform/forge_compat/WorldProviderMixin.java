@@ -9,6 +9,7 @@ import net.minecraft.util.ChunkCoordinates;
 import net.minecraft.util.Vec3;
 import net.minecraft.world.EnumGameType;
 import net.minecraft.world.World;
+import net.minecraft.world.WorldType;
 import net.minecraft.world.WorldProvider;
 import net.minecraft.world.WorldProviderEnd;
 import net.minecraft.world.WorldProviderHell;
@@ -36,7 +37,7 @@ public class WorldProviderMixin {
     @Shadow
     public World worldObj;
     @Shadow
-    private net.minecraft.world.WorldType terrainType;
+    private WorldType terrainType;
     @Shadow
     @Final
     protected boolean hasNoSky;

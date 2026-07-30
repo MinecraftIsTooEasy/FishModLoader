@@ -1,5 +1,11 @@
 package net.xiaoyu233.fml.reload.transform.forge_compat;
 
+import net.minecraft.block.material.Material;
+import net.minecraft.entity.EntityDamageResult;
+import net.minecraft.item.ItemDamageResult;
+import net.minecraft.raycast.RaycastCollision;
+import net.minecraft.util.Icon;
+import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockBed;
 import net.minecraft.entity.Entity;
@@ -14,6 +20,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.ChunkCoordinates;
+import net.minecraft.util.Damage;
 import net.minecraft.util.DamageSource;
 import net.minecraft.world.World;
 import net.minecraftforge.common.ForgeHooks;
@@ -62,7 +69,7 @@ public abstract class EntityPlayerMixin {
     @Shadow public abstract boolean isEntityInvulnerable();
     @Shadow public abstract boolean isBlocking();
     @Shadow public abstract float getAbsorptionAmount();
-    @Shadow public abstract boolean isInsideOfMaterial(net.minecraft.block.material.Material material);
+    @Shadow public abstract boolean isInsideOfMaterial(Material material);
 
     // ===========================================================
     // Forge NBT tag
@@ -161,7 +168,7 @@ public abstract class EntityPlayerMixin {
         float f = (stack == null ? 1.0F : stack.getStrVsBlock(par1Block, meta));
 
         if (f > 1.0F) {
-            int i = net.minecraft.enchantment.EnchantmentHelper.getEfficiencyModifier((EntityLivingBase)(Object)this);
+            int i = EnchantmentHelper.getEfficiencyModifier((EntityLivingBase)(Object)this);
             if (i > 0 && stack != null) {
                 float f1 = (float)(i * i + 1);
                 boolean canHarvest = ForgeHooks.canToolHarvestBlock(par1Block, meta, stack);
@@ -174,7 +181,7 @@ public abstract class EntityPlayerMixin {
         }
 
         if (f > 0.0F) {
-            boolean flag3 = this.isInsideOfMaterial(net.minecraft.block.material.Material.water);
+            boolean flag3 = this.isInsideOfMaterial(Material.water);
             if (flag3) {
                 f /= 5.0F;
             }
@@ -233,7 +240,7 @@ public abstract class EntityPlayerMixin {
     // attackEntityFrom - ForgeHooks.onLivingAttack
     // ===========================================================
     @Inject(method = "attackEntityFrom(Lnet/minecraft/util/Damage;)Lnet/minecraft/entity/EntityDamageResult;", at = @At("HEAD"), cancellable = true)
-    private void fmlForgeOnLivingAttack(net.minecraft.util.Damage damage, CallbackInfoReturnable<net.minecraft.entity.EntityDamageResult> cir) {
+    private void fmlForgeOnLivingAttack(Damage damage, CallbackInfoReturnable<EntityDamageResult> cir) {
         if (ForgeHooks.onLivingAttack((EntityLivingBase)(Object)this, damage.getSource(), damage.getAmount())) {
             cir.setReturnValue(null);
         }
@@ -261,7 +268,7 @@ public abstract class EntityPlayerMixin {
         method = "checkForEntityInteraction(Lnet/minecraft/raycast/RaycastCollision;)Z",
         at = @At("HEAD"), cancellable = true)
     private void fmlForgeInteractWith(
-            net.minecraft.raycast.RaycastCollision collision,
+            RaycastCollision collision,
             CallbackInfoReturnable<Boolean> cir) {
         Entity target = collision.getEntityHit();
         if (target != null &&
@@ -282,14 +289,14 @@ public abstract class EntityPlayerMixin {
         method = "tryDamageHeldItem(Lnet/minecraft/util/DamageSource;I)Lnet/minecraft/item/ItemDamageResult;",
         at = @At(value = "INVOKE",
                  target = "Lnet/minecraft/item/ItemStack;tryDamageItem(Lnet/minecraft/util/DamageSource;ILnet/minecraft/entity/EntityLivingBase;)Lnet/minecraft/item/ItemDamageResult;"))
-    private net.minecraft.item.ItemDamageResult fmlForgeDestroyCurrentEquippedItem(
+    private ItemDamageResult fmlForgeDestroyCurrentEquippedItem(
             ItemStack stack,
-            net.minecraft.util.DamageSource source,
+            DamageSource source,
             int amount,
-            net.minecraft.entity.EntityLivingBase entity) {
+            EntityLivingBase entity) {
         // Capture current item before damage (stack may change after tryDamageItem)
         ItemStack heldBefore = this.inventory.getCurrentItemStack();
-        net.minecraft.item.ItemDamageResult result = stack.tryDamageItem(source, amount, entity);
+        ItemDamageResult result = stack.tryDamageItem(source, amount, entity);
         if (result != null && result.itemWasDestroyed() && heldBefore != null) {
             MinecraftForge.EVENT_BUS.post(
                 new PlayerDestroyItemEvent((EntityPlayer)(Object)this, heldBefore));
@@ -308,7 +315,7 @@ public abstract class EntityPlayerMixin {
         }
         ItemStack stack = this.inventory.getCurrentItemStack();
         if (stack != null) {
-            net.minecraftforge.common.ForgeHooks.onLivingAttack((EntityLivingBase)(Object)this, DamageSource.causePlayerDamage((EntityPlayer)(Object)this), 0.0F);
+            ForgeHooks.onLivingAttack((EntityLivingBase)(Object)this, DamageSource.causePlayerDamage((EntityPlayer)(Object)this), 0.0F);
         }
     }
 
@@ -316,7 +323,7 @@ public abstract class EntityPlayerMixin {
     // getItemIcon - Forge icon system
     // ===========================================================
     @Inject(method = "getItemIcon", at = @At("RETURN"))
-    private void fmlForgeGetItemIcon(ItemStack par1ItemStack, int par2, CallbackInfoReturnable<net.minecraft.util.Icon> cir) {
+    private void fmlForgeGetItemIcon(ItemStack par1ItemStack, int par2, CallbackInfoReturnable<Icon> cir) {
         if (par1ItemStack != null) {
             // The Forge icon hook is handled by getIcon(stack, pass, player, using, useRemaining)
         }

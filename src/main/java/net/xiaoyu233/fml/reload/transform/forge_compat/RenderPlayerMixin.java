@@ -1,5 +1,7 @@
 package net.xiaoyu233.fml.reload.transform.forge_compat;
 
+import net.minecraft.client.entity.AbstractClientPlayer;
+import net.minecraft.client.model.ModelBiped;
 import net.minecraft.client.renderer.entity.RenderPlayer;
 import net.minecraftforge.client.event.RenderPlayerEvent;
 import net.minecraftforge.common.MinecraftForge;
@@ -29,13 +31,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class RenderPlayerMixin {
 
     @Shadow
-    private net.minecraft.client.model.ModelBiped modelBipedMain;
+    private ModelBiped modelBipedMain;
 
     @Shadow
-    private net.minecraft.client.model.ModelBiped modelArmorChestplate;
+    private ModelBiped modelArmorChestplate;
 
     @Shadow
-    private net.minecraft.client.model.ModelBiped modelArmor;
+    private ModelBiped modelArmor;
 
     /**
      * Placeholder: The patch fires
@@ -63,7 +65,7 @@ public class RenderPlayerMixin {
      */
     @Inject(method = "func_130009_a", at = @At("HEAD"), cancellable = true)
     private void fmlForgeOnRenderPlayerPre(
-            net.minecraft.client.entity.AbstractClientPlayer par1AbstractClientPlayer,
+            AbstractClientPlayer par1AbstractClientPlayer,
             double par2, double par4, double par6, float par8, float par9,
             CallbackInfo ci) {
         if (MinecraftForge.EVENT_BUS.post(
@@ -79,7 +81,7 @@ public class RenderPlayerMixin {
      */
     @Inject(method = "func_130009_a", at = @At("RETURN"))
     private void fmlForgeOnRenderPlayerPost(
-            net.minecraft.client.entity.AbstractClientPlayer par1AbstractClientPlayer,
+            AbstractClientPlayer par1AbstractClientPlayer,
             double par2, double par4, double par6, float par8, float par9,
             CallbackInfo ci) {
         MinecraftForge.EVENT_BUS.post(
@@ -93,7 +95,7 @@ public class RenderPlayerMixin {
      */
     @Inject(method = "renderSpecials", at = @At("HEAD"), cancellable = true)
     private void fmlForgeOnRenderPlayerSpecialsPre(
-            net.minecraft.client.entity.AbstractClientPlayer par1AbstractClientPlayer,
+            AbstractClientPlayer par1AbstractClientPlayer,
             float par2, CallbackInfo ci) {
         RenderPlayerEvent.Specials.Pre event =
                 new RenderPlayerEvent.Specials.Pre(par1AbstractClientPlayer,
@@ -109,7 +111,7 @@ public class RenderPlayerMixin {
      */
     @Inject(method = "renderSpecials", at = @At("RETURN"))
     private void fmlForgeOnRenderPlayerSpecialsPost(
-            net.minecraft.client.entity.AbstractClientPlayer par1AbstractClientPlayer,
+            AbstractClientPlayer par1AbstractClientPlayer,
             float par2, CallbackInfo ci) {
         MinecraftForge.EVENT_BUS.post(
                 new RenderPlayerEvent.Specials.Post(par1AbstractClientPlayer,

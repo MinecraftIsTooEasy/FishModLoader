@@ -2,7 +2,10 @@ package net.xiaoyu233.fml.reload.transform.forge_compat;
 
 import net.minecraft.world.World;
 import net.minecraft.world.gen.ChunkProviderHell;
+import net.minecraft.world.chunk.IChunkProvider;
+import net.minecraft.world.gen.MapGenBase;
 import net.minecraft.world.gen.MapGenRavine;
+import net.minecraft.world.gen.structure.MapGenNetherBridge;
 import net.minecraft.world.gen.NoiseGeneratorOctaves;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.Event;
@@ -45,9 +48,9 @@ public abstract class ChunkProviderHellMixin {
     private World worldObj;
 
     @Shadow
-    private net.minecraft.world.gen.structure.MapGenNetherBridge genNetherBridge;
+    private MapGenNetherBridge genNetherBridge;
     @Shadow
-    private net.minecraft.world.gen.MapGenBase netherCaveGenerator;
+    private MapGenBase netherCaveGenerator;
 
     @Inject(method = "<init>(Lnet/minecraft/world/World;J)V", at = @At("RETURN"))
     private void fmlForgeInit(World par1World, long par2, CallbackInfo ci) {
@@ -92,13 +95,13 @@ public abstract class ChunkProviderHellMixin {
     }
 
     @Inject(method = "populate", at = @At("HEAD"))
-    private void fmlForgePopulatePre(net.minecraft.world.chunk.IChunkProvider par1IChunkProvider, int par2, int par3, CallbackInfo ci) {
+    private void fmlForgePopulatePre(IChunkProvider par1IChunkProvider, int par2, int par3, CallbackInfo ci) {
         MinecraftForge.EVENT_BUS.post(new PopulateChunkEvent.Pre(par1IChunkProvider, worldObj, hellRNG, par2, par3, false));
         MinecraftForge.EVENT_BUS.post(new DecorateBiomeEvent.Pre(worldObj, hellRNG, par2 * 16, par3 * 16));
     }
 
     @Inject(method = "populate", at = @At("TAIL"))
-    private void fmlForgePopulatePost(net.minecraft.world.chunk.IChunkProvider par1IChunkProvider, int par2, int par3, CallbackInfo ci) {
+    private void fmlForgePopulatePost(IChunkProvider par1IChunkProvider, int par2, int par3, CallbackInfo ci) {
         MinecraftForge.EVENT_BUS.post(new DecorateBiomeEvent.Post(worldObj, hellRNG, par2 * 16, par3 * 16));
         MinecraftForge.EVENT_BUS.post(new PopulateChunkEvent.Post(par1IChunkProvider, worldObj, hellRNG, par2, par3, false));
     }

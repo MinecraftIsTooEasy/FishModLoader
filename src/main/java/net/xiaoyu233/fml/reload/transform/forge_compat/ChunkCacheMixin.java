@@ -1,6 +1,7 @@
 package net.xiaoyu233.fml.reload.transform.forge_compat;
 
 import net.minecraft.block.Block;
+import net.minecraft.util.EnumFace;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.ChunkCache;
 import net.minecraft.world.World;
@@ -57,7 +58,7 @@ public abstract class ChunkCacheMixin {
         Block block = Block.blocksList[id];
         if (block == null) return false;
         int meta = this.worldObj.getBlockMetadata(par1, par2, par3);
-        return block.isFaceFlatAndSolid(meta, net.minecraft.util.EnumFace.TOP);
+        return block.isFaceFlatAndSolid(meta, EnumFace.TOP);
     }
 
     @Inject(method = "isAirBlock", at = @At("HEAD"), cancellable = true)
@@ -67,7 +68,7 @@ public abstract class ChunkCacheMixin {
     }
 
     @Unique
-    public boolean isBlockSolidOnSide(int x, int y, int z, net.minecraft.util.EnumFace face, boolean _default) {
+    public boolean isBlockSolidOnSide(int x, int y, int z, EnumFace face, boolean _default) {
         int id = getBlockId(x, y, z);
         Block block = Block.blocksList[id];
         if (block == null) return _default;

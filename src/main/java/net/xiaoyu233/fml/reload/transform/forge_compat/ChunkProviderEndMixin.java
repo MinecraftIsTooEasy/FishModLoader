@@ -1,6 +1,8 @@
 package net.xiaoyu233.fml.reload.transform.forge_compat;
 
+import net.minecraft.world.biome.BiomeGenBase;
 import net.minecraft.world.World;
+import net.minecraft.world.chunk.IChunkProvider;
 import net.minecraft.world.gen.ChunkProviderEnd;
 import net.minecraft.world.gen.NoiseGeneratorOctaves;
 import net.minecraftforge.common.MinecraftForge;
@@ -49,7 +51,7 @@ public abstract class ChunkProviderEndMixin {
     }
 
     @Inject(method = "replaceBlocksForBiome", at = @At("HEAD"), cancellable = true)
-    private void fmlForgeReplaceBiomeBlocks(int par1, int par2, byte[] par3ArrayOfByte, net.minecraft.world.biome.BiomeGenBase[] par4ArrayOfBiomeGenBase, CallbackInfo ci) {
+    private void fmlForgeReplaceBiomeBlocks(int par1, int par2, byte[] par3ArrayOfByte, BiomeGenBase[] par4ArrayOfBiomeGenBase, CallbackInfo ci) {
         ChunkProviderEvent.ReplaceBiomeBlocks event = new ChunkProviderEvent.ReplaceBiomeBlocks(
                 (ChunkProviderEnd)(Object)this, par1, par2, par3ArrayOfByte, par4ArrayOfBiomeGenBase);
         MinecraftForge.EVENT_BUS.post(event);
@@ -68,12 +70,12 @@ public abstract class ChunkProviderEndMixin {
     }
 
     @Inject(method = "populate", at = @At("HEAD"))
-    private void fmlForgePopulatePre(net.minecraft.world.chunk.IChunkProvider par1IChunkProvider, int par2, int par3, CallbackInfo ci) {
+    private void fmlForgePopulatePre(IChunkProvider par1IChunkProvider, int par2, int par3, CallbackInfo ci) {
         MinecraftForge.EVENT_BUS.post(new PopulateChunkEvent.Pre(par1IChunkProvider, endWorld, endWorld.rand, par2, par3, false));
     }
 
     @Inject(method = "populate", at = @At("TAIL"))
-    private void fmlForgePopulatePost(net.minecraft.world.chunk.IChunkProvider par1IChunkProvider, int par2, int par3, CallbackInfo ci) {
+    private void fmlForgePopulatePost(IChunkProvider par1IChunkProvider, int par2, int par3, CallbackInfo ci) {
         MinecraftForge.EVENT_BUS.post(new PopulateChunkEvent.Post(par1IChunkProvider, endWorld, endWorld.rand, par2, par3, false));
     }
 }

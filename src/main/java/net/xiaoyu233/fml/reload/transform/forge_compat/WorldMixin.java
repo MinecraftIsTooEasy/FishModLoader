@@ -2,6 +2,9 @@ package net.xiaoyu233.fml.reload.transform.forge_compat;
 
 import com.google.common.collect.ImmutableSetMultimap;
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockFarmland;
+import net.minecraft.block.BlockStairs;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EnumCreatureType;
 import net.minecraft.entity.player.EntityPlayer;
@@ -89,7 +92,7 @@ public abstract class WorldMixin {
     // ========================================================================
 
     @Unique
-    public void addTileEntity(net.minecraft.tileentity.TileEntity entity) {
+    public void addTileEntity(TileEntity entity) {
         List dest = scanningTileEntities ? addedTileEntityList : loadedTileEntityList;
         dest.add(entity);
     }
@@ -114,10 +117,10 @@ public abstract class WorldMixin {
             return false;
         }
         int metadata = this.getBlockMetadata(x, y, z);
-        if (block instanceof net.minecraft.block.BlockFarmland) {
+        if (block instanceof BlockFarmland) {
             return side != ForgeDirection.DOWN && side != ForgeDirection.UP;
         }
-        if (block instanceof net.minecraft.block.BlockStairs) {
+        if (block instanceof BlockStairs) {
             return (metadata & 4) != 0;
         }
         return block.isFaceFlatAndSolid(metadata, forgeDirectionToEnumFace(side.getOpposite()));

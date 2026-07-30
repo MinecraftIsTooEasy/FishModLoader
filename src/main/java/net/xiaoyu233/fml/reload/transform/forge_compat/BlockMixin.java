@@ -1,5 +1,17 @@
 package net.xiaoyu233.fml.reload.transform.forge_compat;
 
+import net.minecraftforge.common.IPlantable;
+import net.minecraftforge.common.EnumPlantType;
+import net.minecraft.world.Explosion;
+import net.minecraft.tileentity.TileEntity;
+import net.minecraft.stats.StatList;
+import net.minecraft.entity.boss.EntityWither;
+import net.minecraft.entity.boss.EntityDragon;
+import net.minecraft.block.ITileEntityProvider;
+import net.minecraft.block.BlockStep;
+import net.minecraft.block.BlockStairs;
+import net.minecraft.block.BlockFarmland;
+import net.minecraft.block.BlockBreakInfo;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.enchantment.EnchantmentHelper;
@@ -11,6 +23,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumFace;
 import net.minecraft.util.MovingObjectPosition;
 import net.minecraft.world.IBlockAccess;
+import net.minecraft.world.WorldProviderEnd;
 import net.minecraft.world.World;
 import net.minecraftforge.common.ForgeDirection;
 import net.minecraftforge.common.ForgeHooks;
@@ -52,13 +65,13 @@ public abstract class BlockMixin {
     public abstract ItemStack createStackedBlock(int metadata);
 
     @Shadow
-    public abstract int dropBlockAsEntityItem(net.minecraft.block.BlockBreakInfo info);
+    public abstract int dropBlockAsEntityItem(BlockBreakInfo info);
 
     @Shadow
-    public abstract int dropBlockAsEntityItem(net.minecraft.block.BlockBreakInfo info, ItemStack stack);
+    public abstract int dropBlockAsEntityItem(BlockBreakInfo info, ItemStack stack);
 
     @Shadow
-    public abstract float getExplosionResistance(net.minecraft.world.Explosion explosion);
+    public abstract float getExplosionResistance(Explosion explosion);
 
     // Mixin forbids non-private static fields in mixin classes. Forge's public
     // Block.blockFireSpreadSpeed/blockFlammability field API cannot be exposed
@@ -85,9 +98,9 @@ public abstract class BlockMixin {
     @Unique
     public boolean canCreatureSpawn(EnumCreatureType type, World world, int x, int y, int z) {
         int meta = world.getBlockMetadata(x, y, z);
-        if ((Object) this instanceof net.minecraft.block.BlockStep) {
+        if ((Object) this instanceof BlockStep) {
             return (meta & 8) == 8;
-        } else if ((Object) this instanceof net.minecraft.block.BlockStairs) {
+        } else if ((Object) this instanceof BlockStairs) {
             return (meta & 4) != 0;
         } else {
             return this.isFaceFlatAndSolid(meta, EnumFace.TOP);
@@ -133,22 +146,22 @@ public abstract class BlockMixin {
      */
     @Unique
     public void harvestBlock(World world, EntityPlayer player, int x, int y, int z, int metadata) {
-        player.addStat(net.minecraft.stats.StatList.mineBlockStatArray[this.blockID], 1);
+        player.addStat(StatList.mineBlockStatArray[this.blockID], 1);
 
         if (this.canSilkHarvest(metadata) && EnchantmentHelper.getSilkTouchModifier(player)) {
-            ArrayList<net.minecraft.item.ItemStack> items = new ArrayList<>();
-            net.minecraft.item.ItemStack itemstack = this.createStackedBlock(metadata);
+            ArrayList<ItemStack> items = new ArrayList<>();
+            ItemStack itemstack = this.createStackedBlock(metadata);
             if (itemstack != null) {
                 items.add(itemstack);
             }
             ForgeEventFactory.fireBlockHarvesting(items, world, (Block) (Object) this, x, y, z, metadata, 0, 1.0f, true, player);
-            for (net.minecraft.item.ItemStack is : items) {
-                net.minecraft.block.BlockBreakInfo info = new net.minecraft.block.BlockBreakInfo(world, x, y, z).setHarvestedBy(player).setBlock((Block) (Object) this, metadata);
+            for (ItemStack is : items) {
+                BlockBreakInfo info = new BlockBreakInfo(world, x, y, z).setHarvestedBy(player).setBlock((Block) (Object) this, metadata);
                 this.dropBlockAsEntityItem(info, is);
             }
         } else {
             int fortune = EnchantmentHelper.getFortuneModifier(player);
-            this.dropBlockAsEntityItem(new net.minecraft.block.BlockBreakInfo(world, x, y, z).setHarvestedBy(player).setBlock((Block) (Object) this, metadata));
+            this.dropBlockAsEntityItem(new BlockBreakInfo(world, x, y, z).setHarvestedBy(player).setBlock((Block) (Object) this, metadata));
         }
     }
 
@@ -165,7 +178,7 @@ public abstract class BlockMixin {
      */
     @Unique
     public float getExplosionResistance(Entity par1Entity, World world, int x, int y, int z, double explosionX, double explosionY, double explosionZ) {
-        return this.getExplosionResistance((net.minecraft.world.Explosion) null);
+        return this.getExplosionResistance((Explosion) null);
     }
 
     /**
@@ -266,10 +279,10 @@ public abstract class BlockMixin {
     @Unique
     public boolean isBlockSolidOnSide(World world, int x, int y, int z, ForgeDirection side) {
         int meta = world.getBlockMetadata(x, y, z);
-        if ((Object) this instanceof net.minecraft.block.BlockFarmland) {
+        if ((Object) this instanceof BlockFarmland) {
             return side != ForgeDirection.DOWN && side != ForgeDirection.UP;
         }
-        if ((Object) this instanceof net.minecraft.block.BlockStairs) {
+        if ((Object) this instanceof BlockStairs) {
             return (meta & 4) != 0;
         }
         return this.isFaceFlatAndSolid(meta, toEnumFace(side.getOpposite()));
@@ -302,7 +315,7 @@ public abstract class BlockMixin {
 
     @Unique
     public boolean isFireSource(World world, int x, int y, int z, int metadata, ForgeDirection side) {
-        if (side == ForgeDirection.UP && world.provider instanceof net.minecraft.world.WorldProviderEnd) {
+        if (side == ForgeDirection.UP && world.provider instanceof WorldProviderEnd) {
             return true;
         }
         return false;
@@ -316,20 +329,20 @@ public abstract class BlockMixin {
 
     @Unique
     public boolean hasTileEntity(int metadata) {
-        return ((Block)(Object)this) instanceof net.minecraft.block.ITileEntityProvider;
+        return ((Block)(Object)this) instanceof ITileEntityProvider;
     }
 
     @Unique
-    public net.minecraft.tileentity.TileEntity createTileEntity(World world, int metadata) {
-        if (((Block)(Object)this) instanceof net.minecraft.block.ITileEntityProvider) {
-            return ((net.minecraft.block.ITileEntityProvider)(Object)this).createNewTileEntity(world);
+    public TileEntity createTileEntity(World world, int metadata) {
+        if (((Block)(Object)this) instanceof ITileEntityProvider) {
+            return ((ITileEntityProvider)(Object)this).createNewTileEntity(world);
         }
         return null;
     }
 
     @Unique
-    public boolean canSustainPlant(World world, int x, int y, int z, ForgeDirection direction, net.minecraftforge.common.IPlantable plant) {
-        net.minecraftforge.common.EnumPlantType plantType = plant.getPlantType(world, x, y + direction.offsetY, z);
+    public boolean canSustainPlant(World world, int x, int y, int z, ForgeDirection direction, IPlantable plant) {
+        EnumPlantType plantType = plant.getPlantType(world, x, y + direction.offsetY, z);
         switch (plantType) {
             case Desert:
                 return this.blockID == Block.sand.blockID || this.blockID == Block.hardenedClay.blockID;
@@ -393,10 +406,10 @@ public abstract class BlockMixin {
 
     @Unique
     public boolean canEntityDestroy(World world, int x, int y, int z, Entity entity) {
-        if (entity instanceof net.minecraft.entity.boss.EntityWither) {
+        if (entity instanceof EntityWither) {
             return this.blockMaterial != Material.iron;
         }
-        if (entity instanceof net.minecraft.entity.boss.EntityDragon) {
+        if (entity instanceof EntityDragon) {
             return !this.blockMaterial.isSolid();
         }
         return true;
