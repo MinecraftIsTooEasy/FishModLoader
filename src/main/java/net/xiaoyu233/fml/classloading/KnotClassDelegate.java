@@ -27,6 +27,7 @@ import org.spongepowered.asm.mixin.transformer.IMixinTransformer;
 import org.spongepowered.asm.mixin.transformer.ext.Extensions;
 
 import java.io.ByteArrayOutputStream;
+import net.minecraft.launchwrapper.IClassTransformer;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Constructor;
@@ -61,6 +62,8 @@ public final class KnotClassDelegate<T extends ClassLoader & KnotClassDelegate.C
 	private volatile Set<Path> codeSources = Collections.emptySet();
 	private volatile Set<Path> validParentCodeSources = Collections.emptySet();
 	private AsmTransformer asmTransformer;
+	/** FMLCorePlugin-registered {@link IClassTransformer} instances, applied after mixin. */
+	private final List<IClassTransformer> externalTransformers = new ArrayList<>();
 	KnotClassDelegate(T classLoader, ClassLoader parentClassLoader) {
 		this.classLoader = classLoader;
 		this.parentClassLoader = parentClassLoader;
@@ -456,13 +459,39 @@ public final class KnotClassDelegate<T extends ClassLoader & KnotClassDelegate.C
 			return transformedClassArray;
 		}
 
+		byte[] mixinResult;
 		try {
-			return getMixinTransformer().transformClassBytes(name, name, transformedClassArray);
+			mixinResult = getMixinTransformer().transformClassBytes(name, name, transformedClassArray);
 		} catch (Throwable t) {
 			String msg = String.format("Mixin transformation of %s failed", name);
 			if (LOG_TRANSFORM_ERRORS) Log.warn( msg, t);
 
 			throw new RuntimeException(msg, t);
+		}
+
+		// Apply FMLCorePlugin IClassTransformer instances after mixin.
+		List<IClassTransformer> ext = externalTransformers;
+		if (!ext.isEmpty() && mixinResult != null) {
+			for (IClassTransformer transformer : ext) {
+				try {
+					byte[] result = transformer.transform(name, name, mixinResult);
+					if (result != null) mixinResult = result;
+				} catch (Throwable t) {
+					Log.warn("External transformer %s failed on %s: %s",
+							transformer.getClass().getName(), name, t.getMessage());
+				}
+			}
+		}
+		return mixinResult;
+	}
+
+	/**
+	 * Register an {@link IClassTransformer} from a {@code FMLCorePlugin} to be applied
+	 * after mixin transformation. Thread-safe; safe to call during mod discovery.
+	 */
+	public void registerExternalTransformer(IClassTransformer transformer) {
+		synchronized (externalTransformers) {
+			externalTransformers.add(transformer);
 		}
 	}
 

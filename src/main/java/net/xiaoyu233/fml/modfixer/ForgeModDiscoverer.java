@@ -1,6 +1,9 @@
 package net.xiaoyu233.fml.modfixer;
 
+import net.minecraft.launchwrapper.IClassTransformer;
 import net.xiaoyu233.fml.FishModLoader;
+import net.xiaoyu233.fml.classloading.KnotClassDelegate;
+import net.xiaoyu233.fml.classloading.KnotClassLoaderInterface;
 import net.xiaoyu233.fml.relaunch.Launch;
 
 import java.io.IOException;
@@ -49,12 +52,16 @@ public final class ForgeModDiscoverer {
         boolean hasFabric;
         boolean hasMcModInfo;
         boolean hasAt;
+        String corePluginClass;
 
         try (JarFile jf = new JarFile(jarPath.toFile())) {
             hasFabric = jf.getEntry("fabric.mod.json") != null
                     || jf.getEntry("fml.mod.json") != null;
             hasMcModInfo = jf.getEntry("mcmod.info") != null;
             hasAt = !ForgeAccessTransformerImporter.findLocations(jf).isEmpty();
+            corePluginClass = jf.getManifest() != null
+                    ? jf.getManifest().getMainAttributes().getValue("FMLCorePlugin")
+                    : null;
         } catch (IOException e) {
             FishModLoader.LOGGER.warn("Could not inspect {}", jarPath, e);
             return;
@@ -65,7 +72,7 @@ public final class ForgeModDiscoverer {
         }
 
         List<LegacyModInfo> modAnns = LegacyModParser.scan(jarPath);
-        boolean isForgeMod = hasMcModInfo || hasAt || !modAnns.isEmpty();
+        boolean isForgeMod = hasMcModInfo || hasAt || !modAnns.isEmpty() || corePluginClass != null;
         if (!isForgeMod) return;
 
         List<McModInfoParser.Entry> mcInfo = McModInfoParser.read(jarPath);
@@ -85,8 +92,72 @@ public final class ForgeModDiscoverer {
             ForgeAccessTransformerImporter.importFrom(jarPath);
         }
 
-        FishModLoader.LOGGER.info("Discovered Forge mod: {} ({} @Mod class(es), {} mcmod.info entries)",
-                jarPath.getFileName(), modAnns.size(), mcInfo.size());
+        if (corePluginClass != null) {
+            registerCorePlugin(jarPath, corePluginClass);
+        }
+
+        FishModLoader.LOGGER.info("Discovered Forge mod: {} ({} @Mod class(es), {} mcmod.info entries{})",
+                jarPath.getFileName(), modAnns.size(), mcInfo.size(),
+                corePluginClass != null ? ", coremod=" + corePluginClass : "");
+    }
+
+    /**
+     * Instantiate the FMLCorePlugin and register its {@link IClassTransformer}s with
+     * {@link KnotClassDelegate}.  Must be called after the jar has been added to the
+     * class loader's code source list.
+     */
+    private static void registerCorePlugin(Path jarPath, String corePluginClass) {
+        KnotClassLoaderInterface knotLoader = Launch.knotLoader;
+        ClassLoader classLoader = knotLoader.getClassLoader();
+        try {
+            Class<?> pluginClazz = Class.forName(corePluginClass, true, classLoader);
+            Object plugin = pluginClazz.getDeclaredConstructor().newInstance();
+
+            // IFMLLoadingPlugin.injectData — call if the plugin implements it
+            try {
+                pluginClazz.getMethod("injectData", java.util.Map.class).invoke(plugin, Launch.blackboard);
+            } catch (NoSuchMethodException ignored) {
+            } catch (Exception e) {
+                FishModLoader.LOGGER.warn("FMLCorePlugin {} injectData failed: {}", corePluginClass, e.getMessage());
+            }
+
+            // Retrieve transformer class names
+            String[] transformerClasses;
+            try {
+                transformerClasses = (String[]) pluginClazz
+                        .getMethod("getASMTransformerClass")
+                        .invoke(plugin);
+            } catch (Exception e) {
+                FishModLoader.LOGGER.warn("FMLCorePlugin {} has no getASMTransformerClass: {}",
+                        corePluginClass, e.getMessage());
+                return;
+            }
+
+            if (transformerClasses == null || transformerClasses.length == 0) return;
+
+            // KnotClassLoaderInterface.create() returns a KnotClassDelegate instance
+            KnotClassDelegate<?> delegate = (knotLoader instanceof KnotClassDelegate<?>)
+                    ? (KnotClassDelegate<?>) knotLoader : null;
+
+            for (String tClass : transformerClasses) {
+                try {
+                    Class<?> tClazz = Class.forName(tClass, true, classLoader);
+                    IClassTransformer transformer = (IClassTransformer) tClazz
+                            .getDeclaredConstructor().newInstance();
+                    if (delegate != null) {
+                        delegate.registerExternalTransformer(transformer);
+                        FishModLoader.LOGGER.info("Registered FML transformer: {}", tClass);
+                    } else {
+                        FishModLoader.LOGGER.warn("Could not get KnotClassDelegate; transformer {} not registered", tClass);
+                    }
+                } catch (Exception e) {
+                    FishModLoader.LOGGER.warn("Failed to instantiate FML transformer {}: {}",
+                            tClass, e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            FishModLoader.LOGGER.warn("Failed to load FMLCorePlugin {}: {}", corePluginClass, e);
+        }
     }
 
     /** Aggregate of everything known about a Forge mod jar at discovery time. */
