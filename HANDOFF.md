@@ -173,8 +173,8 @@ grep -iE "World|Chunk|IllegalAccess" exc.log | tail -20
 
 - [x] **`LaunchMixin`**：已通过 LaunchClassBlocker 增加 `net.minecraft.launchwrapper` 前缀阻断解决，无需写 Mixin。
 - [ ] **`ForgeAccessTransformerImporter.importFrom`**：已改为运行时 ASM AT 规则模型；支持 manifest FMLAT、固定位置及 META-INF/*_at.cfg 去重，已处于 intermediary/SRG 的规则保持原样，并基于 `intermediary.tiny` 精确映射 official 类、字段、方法及方法描述符。字段映射歧义、缺失成员或描述符中的未知 official 类型会显式 warning 并拒绝，不再假报成功；`probeForgeAccessTransformer` 已覆盖这些行为。仍待用真实带 AT mod 做服务端验证。
-- [ ] **`ForgeSrgModRemapper`**：仍是 identity passthrough，目前不影响功能（运行时已在 intermediary 命名空间）。
-- [ ] **`MixinConfigCreator`**：空 stub，暂不阻塞。
+- [x] **`ForgeSrgModRemapper`**：identity passthrough IS 最终正确实现。Forge mod 分发时已用 SRG(intermediary) 名，运行时一致，无需重映射。已含 intermediary.tiny 存在性验证。
+- [x] **`MixinConfigCreator`**：经核实无任何调用处，为孤立 stub，无需实现，保留文件。
 - [x] **`mixin.refmap.json`**：已从仓库删除（构建期生成，不入库）。
 
 ### P2 清理已完成

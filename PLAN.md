@@ -242,9 +242,8 @@ mixin 自建辅助方法（本就不该存在于 jar，属预期）。其余需�
 - [x] ~~`src/main/resources/mixin.refmap.json`~~ 已从仓库删除（构建期生成，不入库）。
 
 - [x] ~~`tasks.gradle` 死代码~~（`applyForgePatches` / `compilePatchedSource` / `packagePatchedJar`）— 已删除（bd8b5d4）。
-- [ ] `ForgeSrgModRemapper` 当前是 identity passthrough（`@Deprecated`），
-  SRG → intermediary 实际映射可补全，但不影响现有 mod 加载（运行时已在 intermediary 命名空间）。
-- [ ] 完善 `MixinConfigCreator`（现为空 stub）。
+- [x] `ForgeSrgModRemapper`：identity passthrough IS 最终正确实现（运行时已在 intermediary 命名空间，Forge mod 分发时也用 SRG 名，无需重映射）。已含 intermediary.tiny 验证与日志。
+- [x] `MixinConfigCreator`：经核实无任何调用处，为孤立 stub，无需实现。
 - [x] **`BlockLadderMixin.onNotLegal` 调用链**：MITE 的 `Block` 已定义同签名方法，改为
   `@Overwrite`，避免 `@Unique` 重命名后 `canBlockStay` 绕过 MITE 目标方法。
 - [x] **`BlockNetherStalkMixin` 方法核实**：MITE 的 `BlockNetherStalk` 及父类链均无
