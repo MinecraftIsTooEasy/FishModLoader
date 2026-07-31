@@ -68,6 +68,7 @@ public class FMLInjectionData
     }
     public static Object[] data()
     {
-        return new Object[] { major, minor, rev, build, mccversion, mcpversion, minecraftHome, containers };
+        File home = minecraftHome != null ? minecraftHome : new File(System.getProperty("user.dir"));
+        return new Object[] { major, minor, rev, build, mccversion, mcpversion, home, containers };
     }
 }

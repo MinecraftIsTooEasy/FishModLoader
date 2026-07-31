@@ -2,20 +2,24 @@ package net.xiaoyu233.fml.reload.transform.entrypoint;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.ModInitializer;
-import net.minecraft.client.main.Main;
+import net.minecraft.client.Minecraft;
 import net.xiaoyu233.fml.FishModLoader;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-@Mixin(Main.class)
+@Mixin(Minecraft.class)
 public class ClientEntrypointMixin {
-    @Inject(method = "main([Ljava/lang/String;)V", at = @At(value = "NEW", target = "(Lnet/minecraft/util/Session;IIZZLjava/io/File;Ljava/io/File;Ljava/io/File;Ljava/net/Proxy;Ljava/lang/String;)Lnet/minecraft/client/Minecraft;", shift = At.Shift.BEFORE))
-    private static void injectMain(CallbackInfo callbackInfo){
-        // Forge mod PreInit fires before Minecraft is instantiated, matching
-        // upstream Forge 1.6.4 where PreInit runs early during FMLLoadingPlugin
-        // loadModContainer.
+    @Inject(method = "<init>", at = @At("RETURN"))
+    private void injectMain(CallbackInfo callbackInfo){
+        // MITE initializes its vanilla item/block/stat registries while the
+        // Minecraft client is being constructed.  IngameIME's preInit loads
+        // Forge Configuration, which in turn initializes Item and StatList;
+        // firing it before this constructor would therefore initialize
+        // AchievementList while its referenced items are still null.
+        // Run the client lifecycle after the constructor, once those registries
+        // are ready (the client is still before the main menu at this point).
         FishModLoader.fireForgePreInit();
 
         FishModLoader.invokeEntrypoints("main", ModInitializer.class, modInitializer -> {

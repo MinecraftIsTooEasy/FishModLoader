@@ -23,7 +23,10 @@ import net.xiaoyu233.fml.classloading.dump.DumpClassExtension;
 import net.xiaoyu233.fml.mixin.service.MixinService;
 import net.xiaoyu233.fml.modfixer.ForgeSrgModRemapper;
 import net.xiaoyu233.fml.util.*;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassWriter;
 import org.spongepowered.asm.mixin.transformer.IMixinTransformer;
+import org.spongepowered.asm.transformers.MixinClassWriter;
 import org.spongepowered.asm.mixin.transformer.ext.Extensions;
 
 import java.io.ByteArrayOutputStream;
@@ -455,31 +458,46 @@ public final class KnotClassDelegate<T extends ClassLoader & KnotClassDelegate.C
 	private byte[] getPostMixinClassByteArray(String name, boolean allowFromParent) {
 		byte[] transformedClassArray = getPreMixinClassByteArray(name, allowFromParent);
 
-		if (!transformInitialized || !canTransformClass(name)) {
+		if (!transformInitialized) {
 			return transformedClassArray;
 		}
 
-		byte[] mixinResult;
-		try {
-			mixinResult = getMixinTransformer().transformClassBytes(name, name, transformedClassArray);
-		} catch (Throwable t) {
-			String msg = String.format("Mixin transformation of %s failed", name);
-			if (LOG_TRANSFORM_ERRORS) Log.warn( msg, t);
+		byte[] mixinResult = transformedClassArray;
+		if (canTransformClass(name)) {
+			try {
+				mixinResult = getMixinTransformer().transformClassBytes(name, name, transformedClassArray);
+			} catch (Throwable t) {
+				String msg = String.format("Mixin transformation of %s failed", name);
+				if (LOG_TRANSFORM_ERRORS) Log.warn(msg, t);
 
-			throw new RuntimeException(msg, t);
+				throw new RuntimeException(msg, t);
+			}
 		}
 
 		// Apply FMLCorePlugin IClassTransformer instances after mixin.
 		List<IClassTransformer> ext = externalTransformers;
 		if (!ext.isEmpty() && mixinResult != null) {
+			boolean transformed = false;
 			for (IClassTransformer transformer : ext) {
 				try {
-					byte[] result = transformer.transform(name, name, mixinResult);
-					if (result != null) mixinResult = result;
+					byte[] input = mixinResult;
+					byte[] before = input.clone();
+					byte[] result = transformer.transform(name, name, input);
+					if (result != null) {
+						mixinResult = result;
+						transformed |= !Arrays.equals(before, result);
+					}
 				} catch (Throwable t) {
 					Log.warn("External transformer %s failed on %s: %s",
 							transformer.getClass().getName(), name, t.getMessage());
 				}
+			}
+			if (transformed) {
+				Log.info("Recomputing frames after external transformation of %s", name);
+				ClassReader reader = new ClassReader(mixinResult);
+				ClassWriter writer = new MixinClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES);
+				reader.accept(writer, ClassReader.SKIP_FRAMES);
+				mixinResult = writer.toByteArray();
 			}
 		}
 		return mixinResult;
