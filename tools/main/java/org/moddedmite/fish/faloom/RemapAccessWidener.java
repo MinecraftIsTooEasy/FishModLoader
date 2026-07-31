@@ -90,10 +90,11 @@ public final class RemapAccessWidener {
                 if (parts.length >= 5 && (parts[1].equals("field") || parts[1].equals("method"))) {
                     String owner = parts[2];
                     String member = parts[3];
+                    String descriptor = parts[4];
                     Map<String, Map<String, String>> tables =
                             parts[1].equals("field") ? fields : methods;
 
-                    Resolved resolved = resolveMember(owner, member, tables, supers);
+                    Resolved resolved = resolveMember(owner, member, descriptor, tables, supers);
                     if (resolved != null && !resolved.mapped.equals(member)) {
                         parts[3] = resolved.mapped;
                         out.add(String.join("\t", parts));
@@ -153,9 +154,11 @@ public final class RemapAccessWidener {
      */
     private static Resolved resolveMember(String owner,
                                           String member,
+                                          String descriptor,
                                           Map<String, Map<String, String>> tables,
                                           Map<String, List<String>> supers) {
-        String direct = tables.getOrDefault(owner, Map.of()).get(member);
+        String memberKey = memberKey(member, descriptor);
+        String direct = tables.getOrDefault(owner, Map.of()).get(memberKey);
         if (direct != null) {
             return new Resolved(direct, false);
         }
@@ -165,7 +168,7 @@ public final class RemapAccessWidener {
         java.util.Set<String> seen = new java.util.HashSet<>(queue);
         for (int i = 0; i < queue.size(); i++) {
             String superName = queue.get(i);
-            String mapped = tables.getOrDefault(superName, Map.of()).get(member);
+            String mapped = tables.getOrDefault(superName, Map.of()).get(memberKey);
             if (mapped != null) {
                 return new Resolved(mapped, true);
             }
@@ -226,13 +229,18 @@ public final class RemapAccessWidener {
                         String src = parts[3];
                         String dst = parts[4];
                         if ("f".equals(kind)) {
-                            fields.computeIfAbsent(currentClass, k -> new HashMap<>()).put(src, dst);
+                            fields.computeIfAbsent(currentClass, k -> new HashMap<>()).put(memberKey(src, parts[2]), dst);
                         } else if ("m".equals(kind)) {
-                            methods.computeIfAbsent(currentClass, k -> new HashMap<>()).put(src, dst);
+                            methods.computeIfAbsent(currentClass, k -> new HashMap<>()).put(memberKey(src, parts[2]), dst);
                         }
                     }
                 }
             }
         }
+    }
+
+    /** Members are overloaded; a name-only lookup can remap a MITE-added overload using a vanilla descriptor. */
+    private static String memberKey(String name, String descriptor) {
+        return name + '\u0000' + descriptor;
     }
 }

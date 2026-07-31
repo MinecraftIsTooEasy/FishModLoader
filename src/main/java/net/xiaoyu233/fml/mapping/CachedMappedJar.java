@@ -45,7 +45,11 @@ public class CachedMappedJar {
     }
 
     public Path ensureJarMapped() {
-        Path mappedJar = this.cacheDir.resolve(jarSource.getFileName() + "-" + Constants.VERSION + ".jar");
+        // Include the source jar and mappings in the cache key. A version-only
+        // key keeps stale remaps after either input changes, so runtime
+        // transformations can be applied to obsolete bytecode.
+        Path mappedJar = this.cacheDir.resolve(jarSource.getFileName() + "-" + Constants.VERSION
+                + "-" + mappingFingerprint(jarSource) + ".jar");
         boolean injectionsInvalid = false;
 
         if (Files.exists(mappedJar) && !injectionsInvalid){
@@ -65,5 +69,34 @@ public class CachedMappedJar {
             }
         }
         return mappedJar;
+    }
+
+    private static String mappingFingerprint(Path source) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            updateDigest(digest, Files.newInputStream(source));
+            java.io.InputStream mappings = CachedMappedJar.class.getResourceAsStream("/intermediary.tiny");
+            if (mappings == null) {
+                throw new IOException("Missing /intermediary.tiny");
+            }
+            updateDigest(digest, mappings);
+            byte[] hash = digest.digest();
+            StringBuilder result = new StringBuilder(16);
+            for (int i = 0; i < 8; i++) {
+                result.append(String.format("%02x", hash[i]));
+            }
+            return result.toString();
+        } catch (IOException | NoSuchAlgorithmException e) {
+            throw new RuntimeException("Cannot fingerprint game jar and mappings", e);
+        }
+    }
+
+    private static void updateDigest(MessageDigest digest, java.io.InputStream input) throws IOException {
+        try (java.io.InputStream in = input) {
+            byte[] buffer = new byte[8192];
+            for (int read; (read = in.read(buffer)) >= 0; ) {
+                digest.update(buffer, 0, read);
+            }
+        }
     }
 }
