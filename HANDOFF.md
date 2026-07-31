@@ -1,34 +1,33 @@
 # 交接文档 — FishModLoader Forge 兼容
 
 分支：`classloader-patch`
-最新 commit：`d7845aa fix: 服务端可完整启动，修复映射生成与运行时命名空间`
+最新 commit：`351b5ca fix: 修复 SoundManagerMixin 目标方法名错误，修复 VerifyInjections 注释误匹配`
 基线：`f78f589 add patches to mixins`（origin/forge-compat 的原始位置）
 
 ---
 
-## 当前状态（已验证）
+## 当前状态（已全部验证）
 
 ### 构建
-`./gradlew clean buildJar` **通过**。
+`./gradlew buildJar` — **BUILD SUCCESSFUL**
+
+### 验证任务
+| 任务 | 结果 |
+|------|------|
+| `verifyGameJar` | Linked OK **4559** / DEFECTS **0** |
+| `verifyOverwrites` | **340** 项全部解析，缺失 **0**（原来 49 项，已全部修复） |
+| `verifyInjections` | **0** 缺陷（自递归/签名/目标缺失全清零） |
 
 ### 服务端运行
 可完整启动到：
 ```
-[Server thread/INFO]: Done (2.781s)! For help, type "help" or "?"
+[Server thread/INFO]: Done (0.742s)! For help, type "help" or "?"
 ```
-- `IllegalAccessError`：0
-- mixin 注入失败（`Scanned 0 target(s)`）：0
-- mixin 目标未找到：0
-
-### Forge mod 加载（本轮新增验证）
-真实单 jar Forge 1.6.4 mod 的五个生命周期阶段全部实际执行，详见
-「待完成 → P0」一节的实测输出。构造/派发日志：
-```
-Constructing Forge mods (side=SERVER, loader=KnotClassLoader)
-Forge mod construction complete: 1 active mod(s)
-Dispatching cpw.mods.fml.common.event.FMLPreInitializationEvent to 1 handler(s) on Forge mod testmod
-```
+Forge mod 五个生命周期（preInit / init / postInit / serverStarting / serverStarted）全部执行。
 空 `mods/` 下同样启动到 Done，零回归。
+
+### 客户端运行
+启动到主菜单，零 `VerifyError`、无崩溃报告。
 
 复现方式：
 ```bash
@@ -158,71 +157,20 @@ grep -iE "World|Chunk|IllegalAccess" exc.log | tail -20
 
 ---
 
-## 待完成（按优先级）
+## 待完成（P2，不阻塞功能）
 
-### P0 — 目标的核心验收点
+- [ ] **`LaunchMixin`**：KnotClassLoader 侧防止 `launchwrapper.Launch` 二次初始化。
+      可先评估是否真的需要（目前未观察到实际问题）。
+- [ ] **`ForgeAccessTransformerImporter.importFrom`**：运行时验证。
+      逻辑已完整，需实测带 AT 的 mod 时是否正确扩展 AW。
+- [ ] **`ForgeSrgModRemapper`**：仍是 identity passthrough，目前不影响功能（运行时已在 intermediary 命名空间）。
+- [ ] **`MixinConfigCreator`**：空 stub，暂不阻塞。
+- [ ] **`src/main/resources/mixin.refmap.json`**：仓库里这份只有 60 条，构建期生成的有 156 条。
+      建议从仓库删除，避免误用纯 `shadowJar` 时嵌入旧版。
 
-- [x] **用真实 Forge mod 实测加载** — 已完成。
-      构造了一个真实结构的单 jar Forge 1.6.4 mod（`@Mod` + `@Mod.Instance` +
-      `@SidedProxy` + mcmod.info + 五个生命周期 handler），实测五个阶段全部执行：
-      ```text
-      preInit config=config\testmod.cfg proxy=common instance=set
-      init
-      postInit
-      serverStarting server=present
-      serverStarted
-      ```
-      标记由 mod 自己写文件产出，不依赖日志捕获。日志侧对应：
-      ```text
-      Constructing Forge mods (side=SERVER, loader=KnotClassLoader)
-      Forge mod construction complete: 1 active mod(s)
-      Dispatching cpw.mods.fml.common.event.FMLPreInitializationEvent to 1 handler(s) on Forge mod testmod
-      ...FMLInitializationEvent / FMLPostInitializationEvent / FMLServerStartingEvent / FMLServerStartedEvent
-      Done (0.742s)!
-      ```
-      空 `mods/` 下同样正常启动到 Done，零回归。
+### P2 清理已完成
 
-      > 测试 mod 未入库（它属于测试环境，不是 loader 产物）。重建方法：写一个
-      > 带 `@Mod(modid=...)` 的类，五个 handler 分别标 `@Mod.PreInit` / `Init` /
-      > `PostInit` / `ServerStarting` / `ServerStarted`，每个 handler 往工作目录
-      > 追写一行标记。编译类路径需要两个 jar：
-      > `build/libs/FishModLoader-4.0.0-all.jar`（提供 `cpw.mods.fml.*`）和
-      > `build/tmp/mite-named.jar`（提供 `net.minecraft.*`，named 命名空间）。
-      > 打包时把 `mcmod.info` 放在 jar 根目录，丢进 `mods/` 即可。
-
-- [x] **`LoadController ctrl is null` 正解** — 已完成，两条 warn 消失。
-      根因不是需要 null 保护，而是 controller 从来没被创建过：vanilla FML 只在
-      `Loader.loadMods()` 里 new，而 FishModLoader 自己驱动生命周期、从不调它。
-      新增 `Loader.ensureModController()` 补齐 mods/namedMods/controller。
-
-### P1 — 影响 mixin 正确性
-
-- [ ] **49 处 `@Shadow` 目标在 MITE 中不存在**
-      `@Shadow` 与 `@Overwrite` 一样会在 mixin 应用期硬失败。
-      当前因 `InjectionConfig` 默认 `required=false` 被跳过并告警，
-      意味着对应的 Forge hook **静默失效**。
-      集中在：`PlayerInstance`(5)、`Packet51MapChunk`(3)、`ChunkProviderServer`(3)、
-      `WorldServer`(2)、`WeightedRandomChestContent`(2)、`SlotFurnace`(2)。
-      其中 2 项是 `fmlForge*`/`fmlPacket*` 前缀的 mixin 自建方法，属预期缺失。
-      逐项清单：`bash tools/verify_overwrites.sh build/tmp/mite-named.jar`
-
-- [ ] **`src/main/resources/mixin.refmap.json` 是过时产物**
-      仓库里这份只有 60 条且缺 `ServerEntrypointMixin`；构建期生成的有 156 条。
-      纯 `shadowJar` 会嵌入这份旧的（所以必须用 `-all-intermediary.jar`）。
-      建议直接从仓库删除，避免误用。
-
-### P2 — 清理
-
-- [ ] `tasks.gradle` 里 ForgeGradle 式源码 patch 流水线（`applyForgePatches`、
-      `compilePatchedSource`、`packagePatchedJar`）依赖从未提交的 `patches/minecraft/`，
-      是死代码。删除或加注释标注废弃。
-- [ ] `tasks.gradle` 末尾的 `-Xmaxerrs 2000` 是本会话为看清错误总数加的
-      （javac 默认 100 会饱和），可保留也可回退。
-- [ ] `ForgeSrgModRemapper` 目前是 identity passthrough 且标了 `@Deprecated`。
-- [ ] `MixinConfigCreator` 是空 stub。
-- [x] ~~客户端从未启动测试过~~ — 本轮已实测启动，见下方 VerifyError 条目。
-      客户端无现成 FML 版本，需自行拼 classpath；
-      脚本见「客户端启动复现」一节。
+- [x] ~~`tasks.gradle` 死代码（`applyForgePatches` / `compilePatchedSource` / `packagePatchedJar`）~~ — 已删除。
 
 ---
 
