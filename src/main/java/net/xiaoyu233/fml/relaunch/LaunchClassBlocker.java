@@ -13,6 +13,7 @@ public class LaunchClassBlocker {
         classLoaderInterface.blockClassPrefix("net.fabricmc.loader");
         classLoaderInterface.blockClassPrefix("net.fabricmc.api");
         classLoaderInterface.blockClassPrefix("com.chocohead.mm");
+        classLoaderInterface.blockClassPrefix("net.minecraft.launchwrapper");
         classLoaderInterface.whitelistClassPrefix("net.xiaoyu233.fml.reload.util");
         classLoaderInterface.whitelistClassPrefix("net.xiaoyu233.fml.reload.event");
         classLoaderInterface.whitelistClassPrefix("net.xiaoyu233.fml.api");

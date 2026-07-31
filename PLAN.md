@@ -211,10 +211,11 @@ mixin 自建辅助方法（本就不该存在于 jar，属预期）。其余需�
   `codeSource` 局部变量已删除，`defineClass` 统一使用 `getMetadata(...).codeSource`。
   （仍有未读取的 `signers` 局部变量，仅属后续清理，不影响行为。）
 
-- [ ] **`net.minecraft.launchwrapper.Launch` 在 KnotClassLoader 侧的 Mixin**
-  如果 launchwrapper 被 KnotClassLoader 加载（未被 AppCL 预先加载），
-  则需要一个 `LaunchMixin` 在静态初始化时把 `blackboard` 指向 FishModLoader 的版本，
-  防止模块加载顺序导致的二次创建。
+- [x] **`net.minecraft.launchwrapper.Launch` 类加载器隔离**
+  launchwrapper 以 `shaded 'net.minecraft:launchwrapper:1.12'` 打入 loader all jar，运行时该 jar
+  位于 AppClassLoader classpath；`initLaunchwrapperBridge` 也已通过 AppClassLoader 成功加载它。
+  `LaunchClassBlocker` 现阻止 KnotClassLoader 再定义 `net.minecraft.launchwrapper.*`，并回退到
+  AppClassLoader 的同一份类，因此无需 `LaunchMixin`，也不会再创建独立的 `Launch.blackboard`。
 
 - [ ] **`ForgeAccessTransformerImporter` 实际应用**
   已移除 AT→named AccessWidener 翻译，改由 `FMLClassTransformer` 在运行时修改 ASM access flags；已覆盖可见性、`+f`/`-f`、无 descriptor 字段、AT 文件发现，以及基于 `intermediary.tiny` 的 official → intermediary 类/字段/方法和方法描述符映射。无法精确映射或字段映射歧义会显式 warning 并拒绝，`probeForgeAccessTransformer` 已验证。仍需用真实带 AT mod 做服务端验证。
@@ -238,13 +239,18 @@ mixin 自建辅助方法（本就不该存在于 jar，属预期）。其余需�
 
 ### P2 — 优化 / 后续
 
+- [x] ~~`src/main/resources/mixin.refmap.json`~~ 已从仓库删除（构建期生成，不入库）。
+
 - [ ] 删除 `tasks.gradle` 中已无 `patches/` 目录的 ForgeGradle 流水线（`applyForgePatches`、
   `compilePatchedSource`、`packagePatchedJar` 等任务），或保留作为备用但加注释说明已废弃。
 - [ ] `ForgeSrgModRemapper` 当前是 identity passthrough（`@Deprecated`），
   SRG → intermediary 实际映射可补全，但不影响现有 mod 加载（运行时已在 intermediary 命名空间）。
 - [ ] 完善 `MixinConfigCreator`（现为空 stub）。
-- [ ] 补全 `BlockNetherStalkMixin`、`BlockTorchMixin`、`BlockLadderMixin` 等
-  其余 `@Unique` 方法的调用链，确认 Forge canBlockStay/isReplaceable 语义正确。
+- [x] **`BlockLadderMixin.onNotLegal` 调用链**：MITE 的 `Block` 已定义同签名方法，改为
+  `@Overwrite`，避免 `@Unique` 重命名后 `canBlockStay` 绕过 MITE 目标方法。
+- [x] **`BlockNetherStalkMixin` 方法核实**：MITE 的 `BlockNetherStalk` 及父类链均无
+  `canBlockStay` / `getBlockDropped`，两者保持 `@Unique` 以添加 Forge API。
+- [ ] 补全 `BlockTorchMixin` 等其余 `@Unique` 方法的调用链，确认 Forge canBlockStay/isReplaceable 语义正确。
 
 ---
 

@@ -6,7 +6,7 @@ import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.util.EnumFace;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Unique;
 
 @Mixin(BlockLadder.class)
@@ -41,7 +41,7 @@ public abstract class BlockLadderMixin {
         return j1;
     }
 
-    @Unique
+    @Overwrite
     public boolean onNotLegal(World world, int x, int y, int z, int metadata) { return false; }
 
     @Unique
