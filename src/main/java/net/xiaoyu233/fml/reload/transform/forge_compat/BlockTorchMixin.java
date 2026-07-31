@@ -5,6 +5,7 @@ import net.minecraft.block.BlockTorch;
 import net.minecraft.util.EnumFace;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 
@@ -50,7 +51,7 @@ public abstract class BlockTorchMixin {
         return j1;
     }
 
-    @Unique
+    @Overwrite
     public boolean onNotLegal(World world, int x, int y, int z, int metadata) { return false; }
 
     @Unique

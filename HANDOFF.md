@@ -171,17 +171,15 @@ grep -iE "World|Chunk|IllegalAccess" exc.log | tail -20
 
 ### P2（不阻塞功能）
 
-- [ ] **`LaunchMixin`**：KnotClassLoader 侧防止 `launchwrapper.Launch` 二次初始化。
-      可先评估是否真的需要（目前未观察到实际问题）。
+- [x] **`LaunchMixin`**：已通过 LaunchClassBlocker 增加 `net.minecraft.launchwrapper` 前缀阻断解决，无需写 Mixin。
 - [ ] **`ForgeAccessTransformerImporter.importFrom`**：已改为运行时 ASM AT 规则模型；支持 manifest FMLAT、固定位置及 META-INF/*_at.cfg 去重，已处于 intermediary/SRG 的规则保持原样，并基于 `intermediary.tiny` 精确映射 official 类、字段、方法及方法描述符。字段映射歧义、缺失成员或描述符中的未知 official 类型会显式 warning 并拒绝，不再假报成功；`probeForgeAccessTransformer` 已覆盖这些行为。仍待用真实带 AT mod 做服务端验证。
 - [ ] **`ForgeSrgModRemapper`**：仍是 identity passthrough，目前不影响功能（运行时已在 intermediary 命名空间）。
 - [ ] **`MixinConfigCreator`**：空 stub，暂不阻塞。
-- [ ] **`src/main/resources/mixin.refmap.json`**：仓库里这份只有 60 条，构建期生成的有 156 条。
-      建议从仓库删除，避免误用纯 `shadowJar` 时嵌入旧版。
+- [x] **`mixin.refmap.json`**：已从仓库删除（构建期生成，不入库）。
 
 ### P2 清理已完成
 
-- [x] ~~`tasks.gradle` 死代码（`applyForgePatches` / `compilePatchedSource` / `packagePatchedJar`）~~ — 已删除。
+- [x] `tasks.gradle` 死代码（`applyForgePatches` / `compilePatchedSource` / `packagePatchedJar`）— 已删除（bd8b5d4）。
 
 ---
 
