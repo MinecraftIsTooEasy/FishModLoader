@@ -1,7 +1,7 @@
 # 交接文档 — FishModLoader Forge 兼容
 
 分支：`classloader-patch`
-最新 commit：`351b5ca fix: 修复 SoundManagerMixin 目标方法名错误，修复 VerifyInjections 注释误匹配`
+最新提交：Forge Access Transformer 运行时支持（本提交）
 基线：`f78f589 add patches to mixins`（origin/forge-compat 的原始位置）
 
 ---
@@ -161,8 +161,7 @@ grep -iE "World|Chunk|IllegalAccess" exc.log | tail -20
 
 - [ ] **`LaunchMixin`**：KnotClassLoader 侧防止 `launchwrapper.Launch` 二次初始化。
       可先评估是否真的需要（目前未观察到实际问题）。
-- [ ] **`ForgeAccessTransformerImporter.importFrom`**：运行时验证。
-      逻辑已完整，需实测带 AT 的 mod 时是否正确扩展 AW。
+- [ ] **`ForgeAccessTransformerImporter.importFrom`**：已改为运行时 ASM AT 规则模型；支持 manifest FMLAT、固定位置及 META-INF/*_at.cfg 去重，已处于 intermediary/SRG 的规则可保留可见性与 `+f`/`-f` 语义。无法安全应用的重混淆 official 规则会显式 warning，不再假报成功；official → intermediary 映射和真实带 AT mod 的服务端验证仍待完成。已添加 `probeForgeAccessTransformer`。
 - [ ] **`ForgeSrgModRemapper`**：仍是 identity passthrough，目前不影响功能（运行时已在 intermediary 命名空间）。
 - [ ] **`MixinConfigCreator`**：空 stub，暂不阻塞。
 - [ ] **`src/main/resources/mixin.refmap.json`**：仓库里这份只有 60 条，构建期生成的有 156 条。

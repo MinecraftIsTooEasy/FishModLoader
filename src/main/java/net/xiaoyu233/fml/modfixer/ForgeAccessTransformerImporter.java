@@ -1,184 +1,216 @@
 package net.xiaoyu233.fml.modfixer;
 
-import net.fabricmc.accesswidener.AccessWidener;
 import net.xiaoyu233.fml.FishModLoader;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.FieldNode;
+import org.objectweb.asm.tree.MethodNode;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.*;
+import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.zip.ZipEntry;
 
-/**
- * Translates a Forge 1.6.4 access-transformer config (the {@code _at.cfg}
- * format) into AccessWidener v2 directives.
- *
- * <p>Forge AT lines look like:
- * <pre>
- *   public-f bff.a       #FD:Tessellator/field_78398_a #instance
- *   public  yi.&lt;init&gt;(ILxy;)V #MD:ItemPickaxe/&lt;init&gt;(...)
- * </pre>
- * The first token is the modifier; the second is {@code class.member}
- * (member optional for class-level entries) using whatever the AT was
- * compiled against. Comments after {@code #} are informational only.
- *
- * <p>This translator ignores the obfuscated names (we only have MITE-named
- * jars) and instead trusts the human-readable suffix when present, e.g.
- * {@code #FD:Tessellator/field_78398_a}. For mod-shipped ATs that use
- * already-mapped names (e.g. {@code public net/minecraft/block/Block.field_X}),
- * the name is taken verbatim.
- *
- * <p>The output is appended directly to FishModLoader's runtime
- * {@link AccessWidener}; the jar is not modified — runtime
- * AccessWidener pass widens at class-load.
- */
+/** Loads legacy Forge access-transformer rules and applies them in their runtime namespace. */
 @Deprecated
 public final class ForgeAccessTransformerImporter {
-
-    /** Standard locations Forge mods ship their AT inside the jar. */
-    public static final String[] LOCATIONS = {
-            "META-INF/forge_at.cfg",
-            "META-INF/fml_at.cfg",
-            "META-INF/at.cfg"
-    };
+    public static final String[] LOCATIONS = {"META-INF/forge_at.cfg", "META-INF/fml_at.cfg", "META-INF/at.cfg"};
+    private static final Map<String, List<Rule>> RULES = new HashMap<>();
+    private static final Set<String> LOADED_SOURCES = new HashSet<>();
 
     private ForgeAccessTransformerImporter() {}
 
-    /** Scan the jar for any AT files; for each found, append rules to FML's AW. */
+    /** Returns all AT config entries advertised by a mod jar, without duplicates. */
+    public static List<String> findLocations(JarFile jar) throws IOException {
+        LinkedHashSet<String> found = new LinkedHashSet<>();
+        Attributes attributes = jar.getManifest() == null ? null : jar.getManifest().getMainAttributes();
+        if (attributes != null) {
+            String fmlAt = attributes.getValue("FMLAT");
+            if (fmlAt != null) {
+                for (String value : fmlAt.split("[ ,]+")) {
+                    if (!value.isEmpty()) found.add(normalizeLocation(value));
+                }
+            }
+        }
+        Collections.addAll(found, LOCATIONS);
+        Enumeration<? extends ZipEntry> entries = jar.entries();
+        while (entries.hasMoreElements()) {
+            String name = entries.nextElement().getName();
+            if (name.startsWith("META-INF/") && name.endsWith("_at.cfg")) found.add(name);
+        }
+        found.removeIf(name -> jar.getEntry(name) == null);
+        return new ArrayList<>(found);
+    }
+
+    public static boolean hasAccessTransform(String className) {
+        return RULES.containsKey(normalizeOwner(className));
+    }
+
     public static void importFrom(Path jarPath) {
         try (JarFile jar = new JarFile(jarPath.toFile())) {
-            for (String loc : LOCATIONS) {
-                ZipEntry entry = jar.getEntry(loc);
-                if (entry == null) continue;
-                try (InputStream in = jar.getInputStream(entry);
-                     BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
-                    int n = importStream(reader, jarPath.getFileName() + "!/" + loc);
-                    FishModLoader.LOGGER.info("Imported {} AT entries from {}!/{}", n, jarPath.getFileName(), loc);
+            for (String loc : findLocations(jar)) {
+                String source = jarPath.toAbsolutePath().normalize() + "!/" + loc;
+                synchronized (RULES) {
+                    if (!LOADED_SOURCES.add(source)) continue;
+                }
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(jar.getInputStream(jar.getEntry(loc)), StandardCharsets.UTF_8))) {
+                    int count = importStream(reader, source);
+                    FishModLoader.LOGGER.info("Loaded {} Forge AT rules from {}", count, source);
                 }
             }
         } catch (IOException e) {
-            FishModLoader.LOGGER.warn("Could not read AT from {}", jarPath, e);
+            FishModLoader.LOGGER.warn("Could not read Forge AT from {}", jarPath, e);
         }
     }
 
-    /** Import from a raw string (for unit tests). Returns number of entries appended. */
+    /** Test/probe entry point. Rules are still deduplicated by source and textual identity. */
     public static int importString(String content, String sourceLabel) {
-        try (BufferedReader r = new BufferedReader(new StringReader(content))) {
-            return importStream(r, sourceLabel);
-        } catch (IOException e) {
-            return 0;
+        try (BufferedReader reader = new BufferedReader(new StringReader(content))) {
+            return importStream(reader, sourceLabel);
+        } catch (IOException impossible) {
+            throw new AssertionError(impossible);
         }
     }
 
-    /**
-     * Walk a reader and emit AccessWidener directives via fabric's text format.
-     * Returns the number of rules consumed.
-     *
-     * Note: we synthesize an AW v2 string and feed it to AccessWidenerReader
-     * later in the loader. To keep this method side-effect-light, we instead
-     * convert directly into the in-memory widener — see {@link #toAwLine}.
-     */
-    private static int importStream(BufferedReader reader, String sourceLabel) throws IOException {
-        AccessWidener aw = FishModLoader.getAccessWidener();
-        StringBuilder buffer = new StringBuilder("accessWidener\tv2\tnamed\n");
+    private static int importStream(BufferedReader reader, String source) throws IOException {
         int count = 0;
         String line;
+        int lineNumber = 0;
         while ((line = reader.readLine()) != null) {
-            String trimmed = stripComment(line).trim();
-            if (trimmed.isEmpty()) continue;
-            String awLine = toAwLine(trimmed, sourceLabel);
-            if (awLine != null) {
-                buffer.append(awLine).append('\n');
-                count++;
+            lineNumber++;
+            String clean = stripComment(line).trim();
+            if (clean.isEmpty()) continue;
+            Rule rule;
+            try {
+                rule = Rule.parse(clean, source, lineNumber);
+            } catch (RuntimeException malformed) {
+                rule = null;
             }
-        }
-        if (count > 0) {
-            net.fabricmc.accesswidener.AccessWidenerReader awr =
-                    new net.fabricmc.accesswidener.AccessWidenerReader(aw);
-            try (BufferedReader br = new BufferedReader(new StringReader(buffer.toString()))) {
-                awr.read(br, "named");
+            if (rule == null) {
+                FishModLoader.LOGGER.warn("Unresolved Forge AT rule at {}:{}: {}", source, lineNumber, clean);
+                continue;
+            }
+            synchronized (RULES) {
+                List<Rule> ownerRules = RULES.computeIfAbsent(rule.owner, key -> new ArrayList<>());
+                if (!ownerRules.contains(rule)) {
+                    ownerRules.add(rule);
+                    count++;
+                }
             }
         }
         return count;
     }
 
-    /**
-     * Convert a single AT line into an AccessWidener v2 directive.
-     * Returns null if the line cannot be translated.
-     */
-    private static String toAwLine(String line, String sourceLabel) {
-        // Split on whitespace into [modifier, target, ...]
-        String[] tokens = line.split("\\s+", 3);
-        if (tokens.length < 2) return null;
-        String modifier = tokens[0];
-        String target = tokens[1];
-
-        boolean removeFinal = modifier.endsWith("-f");
-        boolean addFinal    = modifier.endsWith("+f");
-        // We only honour "public" widening here; AW doesn't support targeted
-        // protected/private widening and most ATs use public anyway.
-        boolean isPublic = modifier.startsWith("public");
-        if (!isPublic) return null;
-
-        String access = (removeFinal && isClassOrField(target)) ? "mutable" : "accessible";
-        // 'extendable' equivalent for class lines — AW v2 supports it
-        // (class accessibility + remove FINAL). We keep it simple: always
-        // emit accessible; mutable for fields with -f.
-
-        // target is class.member or just a class:
-        // - class only (no '.'): "accessible class <internal>"
-        // - field:               "accessible field <internal> <name> <desc>"
-        //                        but we lack desc unless the AT has it
-        // - method:              "accessible method <internal> <name> <desc>"
-
-        int dot = target.indexOf('.');
-        if (dot < 0) {
-            return access + " class " + toInternal(target);
+    /** Applies all rules for the node and warns for each member rule that did not resolve. */
+    public static int apply(String runtimeName, ClassNode node) {
+        List<Rule> rules;
+        synchronized (RULES) {
+            List<Rule> registered = RULES.get(normalizeOwner(runtimeName));
+            if (registered == null) return 0;
+            rules = new ArrayList<>(registered);
         }
-
-        String owner = toInternal(target.substring(0, dot));
-        String memberAndDesc = target.substring(dot + 1);
-
-        // Method form: name(...)Ldesc; or <init>(...)V
-        int paren = memberAndDesc.indexOf('(');
-        if (paren >= 0) {
-            String name = memberAndDesc.substring(0, paren);
-            String desc = memberAndDesc.substring(paren);
-            return access + " method " + owner + " " + name + " " + desc;
+        int changed = 0;
+        for (Rule rule : rules) {
+            boolean resolved = false;
+            if (rule.kind == Kind.CLASS) {
+                node.access = fixedAccess(node.access, rule);
+                resolved = true;
+            } else if (rule.kind == Kind.FIELD) {
+                for (FieldNode field : node.fields) {
+                    if (field.name.equals(rule.name) || "*".equals(rule.name)) {
+                        field.access = fixedAccess(field.access, rule);
+                        resolved = true;
+                        if (!"*".equals(rule.name)) break;
+                    }
+                }
+            } else {
+                for (MethodNode method : node.methods) {
+                    if ((method.name.equals(rule.name) && method.desc.equals(rule.descriptor)) || "*".equals(rule.name)) {
+                        method.access = fixedAccess(method.access, rule);
+                        resolved = true;
+                        if (!"*".equals(rule.name)) break;
+                    }
+                }
+            }
+            if (resolved) changed++;
+            else FishModLoader.LOGGER.warn("Unresolved Forge AT target {} ({}:{})", rule.targetText, rule.source, rule.line);
         }
-
-        // Field form — but Forge AT often omits the descriptor!
-        // AccessWidener v2 requires a descriptor. If we don't have one, we
-        // fall back to widening the whole class so the field reference at
-        // least resolves.
-        if (memberAndDesc.contains(" ")) {
-            String[] parts = memberAndDesc.split("\\s+", 2);
-            return access + " field " + owner + " " + parts[0] + " " + parts[1];
-        }
-
-        // No descriptor available — best-effort: widen the class instead.
-        FishModLoader.LOGGER.debug("AT entry lacks descriptor, widening class instead: {} ({})", target, sourceLabel);
-        return access + " class " + owner;
+        return changed;
     }
 
-    private static boolean isClassOrField(String target) {
-        return !target.contains("(");
+    /** Same visibility lattice and final handling as Forge 1.6.4 AccessTransformer#getFixedAccess. */
+    private static int fixedAccess(int access, Rule target) {
+        int requested = target.access;
+        int result = access & ~7;
+        switch (access & 7) {
+            case Opcodes.ACC_PRIVATE: result |= requested; break;
+            case 0: result |= requested != Opcodes.ACC_PRIVATE ? requested : 0; break;
+            case Opcodes.ACC_PROTECTED: result |= requested != Opcodes.ACC_PRIVATE && requested != 0 ? requested : Opcodes.ACC_PROTECTED; break;
+            case Opcodes.ACC_PUBLIC: result |= requested == Opcodes.ACC_PUBLIC ? requested : Opcodes.ACC_PUBLIC; break;
+            default: throw new IllegalArgumentException("Invalid visibility flags: " + access);
+        }
+        if (target.changeFinal) result = target.markFinal ? result | Opcodes.ACC_FINAL : result & ~Opcodes.ACC_FINAL;
+        return result;
     }
 
-    /**
-     * Normalize a class reference. We expect mod-shipped ATs to either use
-     * MCP-style names ({@code net/minecraft/...}) or already-translated
-     * names; if the input is dotted ({@code net.minecraft.X}) we slash it.
-     * Obfuscated 1-3-letter names (e.g. {@code bff}) are returned as-is —
-     * they will quietly miss when fed to the widener but won't crash.
-     */
-    private static String toInternal(String classRef) {
-        return classRef.replace('.', '/');
+    private static String normalizeLocation(String value) {
+        String result = value.replace('\\', '/');
+        return result.startsWith("META-INF/") ? result : "META-INF/" + result;
     }
 
-    /** Strip a Forge AT comment. {@code #} starts a comment to end-of-line. */
-    private static String stripComment(String line) {
-        int hash = line.indexOf('#');
-        return hash < 0 ? line : line.substring(0, hash);
+    private static String normalizeOwner(String owner) { return owner.replace('/', '.'); }
+    private static String stripComment(String line) { int hash = line.indexOf('#'); return hash < 0 ? line : line.substring(0, hash); }
+
+    private enum Kind { CLASS, FIELD, METHOD }
+
+    private static final class Rule {
+        final String owner, name, descriptor, source, targetText;
+        final Kind kind;
+        final int access, line;
+        final boolean changeFinal, markFinal;
+
+        Rule(String owner, String name, String descriptor, Kind kind, int access, boolean changeFinal, boolean markFinal, String source, int line, String targetText) {
+            this.owner = owner; this.name = name; this.descriptor = descriptor; this.kind = kind; this.access = access;
+            this.changeFinal = changeFinal; this.markFinal = markFinal; this.source = source; this.line = line; this.targetText = targetText;
+        }
+
+        static Rule parse(String text, String source, int line) {
+            String[] parts = text.split("\\s+");
+            if (parts.length != 2) return null;
+            String modifier = parts[0];
+            int access;
+            if (modifier.startsWith("public")) access = Opcodes.ACC_PUBLIC;
+            else if (modifier.startsWith("protected")) access = Opcodes.ACC_PROTECTED;
+            else if (modifier.startsWith("private")) access = Opcodes.ACC_PRIVATE;
+            else if (modifier.startsWith("default")) access = 0;
+            else return null;
+            String suffix = modifier.substring(modifier.indexOf(modifier.startsWith("protected") ? "protected" : modifier.startsWith("private") ? "private" : modifier.startsWith("default") ? "default" : "public") + (modifier.startsWith("protected") ? 9 : modifier.startsWith("private") ? 7 : modifier.startsWith("default") ? 7 : 6));
+            if (!suffix.isEmpty() && !suffix.equals("-f") && !suffix.equals("+f")) return null;
+            String target = parts[1];
+            int method = target.indexOf('(');
+            int separator = method >= 0 ? target.lastIndexOf('.', method) : target.lastIndexOf('.');
+            // Slash-qualified owners make member separation unambiguous. Dotted class-only names are retained as classes.
+            if (separator < 0 || (target.indexOf('/') < 0 && method < 0 && target.substring(separator + 1).indexOf('$') < 0 && Character.isUpperCase(target.charAt(separator + 1)))) {
+                return new Rule(normalizeOwner(target), "", "", Kind.CLASS, access, !suffix.isEmpty(), suffix.equals("+f"), source, line, target);
+            }
+            String owner = normalizeOwner(target.substring(0, separator));
+            String member = target.substring(separator + 1);
+            // Runtime classes are intermediary/SRG-qualified. A reobfuscated AT such as
+            // "bff.a" cannot be applied safely without official -> intermediary mapping;
+            // reject it now instead of registering a rule that can never be visited.
+            if (owner.indexOf('.') < 0 || member.isEmpty()) return null;
+            if (method >= 0) return new Rule(owner, member.substring(0, member.indexOf('(')), member.substring(member.indexOf('(')), Kind.METHOD, access, !suffix.isEmpty(), suffix.equals("+f"), source, line, target);
+            return new Rule(owner, member, "", Kind.FIELD, access, !suffix.isEmpty(), suffix.equals("+f"), source, line, target);
+        }
+
+        @Override public boolean equals(Object other) {
+            if (!(other instanceof Rule)) return false;
+            Rule r = (Rule) other;
+            return owner.equals(r.owner) && name.equals(r.name) && descriptor.equals(r.descriptor) && kind == r.kind && access == r.access && changeFinal == r.changeFinal && markFinal == r.markFinal;
+        }
+        @Override public int hashCode() { return Objects.hash(owner, name, descriptor, kind, access, changeFinal, markFinal); }
     }
 }

@@ -485,6 +485,14 @@ tasks.register('verifyGameJar', JavaExec) {
 }
 
 
+tasks.register('probeForgeAccessTransformer', JavaExec) {
+    group = 'verification'
+    description = 'Direct behavior probe for Forge AT parsing, discovery, and ASM access changes'
+    dependsOn classes
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'net.xiaoyu233.fml.modfixer.ForgeAccessTransformerProbe'
+}
+
 tasks.register('verifyOverwrites', JavaExec) {
     group = 'fishmodloader'
     description = 'Verify @Shadow/@Overwrite targets exist in the remapped MITE jar (with full descriptor check)'

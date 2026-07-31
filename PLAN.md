@@ -1,6 +1,7 @@
 # FishModLoader forge-compat 改造规划
 
 分支：`classloader-patch`（基于 `forge-compat`）
+最新进展：Forge Access Transformer 运行时支持（已提交）
 
 ## 目标
 
@@ -125,7 +126,7 @@ MITE 删除了整套原版方块放置 API，改用：
 
 ## 编译现状（已实测）
 
-`./gradlew compileJava` 目前 **仍不通过**，剩 **66** 条错误。
+历史记录：当时 `./gradlew compileJava` 尚有 **66** 条错误；当前已通过（本轮 JDK 17 验证）。
 
 演进过程（每一步都实测）：
 
@@ -202,15 +203,9 @@ mixin 自建辅助方法（本就不该存在于 jar，属预期）。其余需�
 - [x] ~~补齐缺失源码包~~ 已完成（`FilteringMappingVisitor`、
   `MixinIntermediaryDevRemapper`）
 
-- [ ] **剩余 66 条 MITE API 分歧**（唯一编译阻塞项）
-  集中在 `net/minecraftforge/fluids/*`、`net/minecraftforge/common/ForgeHooks`、
-  `cpw/**/network/*` 和 `forge_compat/BlockTorchMixin`。
-  需把 vanilla 写法改为 MITE 对应 API，详见上方分布表。
+- [x] **历史 66 条 MITE API 分歧**：当前 `compileJava` 已通过；上方分布表仅保留为历史记录。
 
-- [ ] **49 处 `@Shadow` 目标缺失**
-  `@Shadow` 与 `@Overwrite` 一样会在 mixin 应用期硬失败。
-  `@Overwrite` 组已全部清零，`@Shadow` 组待逐项处理：
-  `bash tools/verify_overwrites.sh build/tmp/mite-named.jar`
+- [x] **历史 49 处 `@Shadow` 目标缺失**：当前 `verifyOverwrites` 检查 340 项、缺失 0。
 
 - [ ] **`LaunchClassLoader.findClass` 死变量清理**
   `untransformedName` 行的 `codeSource` 局部变量算完后没有传给 `defineClass`，
@@ -223,8 +218,7 @@ mixin 自建辅助方法（本就不该存在于 jar，属预期）。其余需�
   防止模块加载顺序导致的二次创建。
 
 - [ ] **`ForgeAccessTransformerImporter` 实际应用**
-  当前 `ForgeModDiscoverer` 已调用 `ForgeAccessTransformerImporter.importFrom(jarPath)`
-  但实现需要验证能否正确扩展 AccessWidener。
+  已移除 AT→named AccessWidener 翻译，改由 `FMLClassTransformer` 在运行时 intermediary/SRG owner 上直接修改 ASM access flags；已覆盖可见性、`+f`/`-f`、无 descriptor 字段和 AT 文件发现。重混淆 official 规则目前显式拒绝并 warning，仍需补 official → intermediary 映射，并用真实带 AT mod 做服务端验证。
 
 ### P1 — 重要（影响常用 Forge API）
 

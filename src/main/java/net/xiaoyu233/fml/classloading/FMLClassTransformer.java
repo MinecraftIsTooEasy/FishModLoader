@@ -5,6 +5,7 @@ import net.fabricmc.accesswidener.AccessWidenerClassVisitor;
 import net.xiaoyu233.fml.FishModLoader;
 import net.xiaoyu233.fml.classloading.dump.ClassDumper;
 import net.xiaoyu233.fml.classloading.dump.DumpStage;
+import net.xiaoyu233.fml.modfixer.ForgeAccessTransformerImporter;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
@@ -21,9 +22,10 @@ public class FMLClassTransformer {
         boolean isMinecraftClass = name.startsWith("net.minecraft.") || name.startsWith("com.mojang.blaze3d.") || name.indexOf('.') < 0;
         Optional<Consumer<ClassNode>> classModifier = asmTransformer.getClassModifier(name);
         boolean hasTransformation = classModifier.isPresent();
+        boolean applyAccessTransformer = ForgeAccessTransformerImporter.hasAccessTransform(name);
         boolean applyAccessWidener = isMinecraftClass && FishModLoader.getAccessWidener().getTargets().contains(name) ;
 
-        if (!applyAccessWidener && !hasTransformation) {
+        if (!applyAccessWidener && !hasTransformation && !applyAccessTransformer) {
             return bytes;
         }
 
@@ -31,17 +33,21 @@ public class FMLClassTransformer {
         ClassWriter classWriter = new ClassWriter(classReader, 0);
         ClassNode classNode = new ClassNode();
         // If we have the transformations, we need the class info goto the nodes so we can use it, else just let it go to writer to write
-        ClassVisitor visitor = hasTransformation ? classNode : classWriter;
+        ClassVisitor visitor = (hasTransformation || applyAccessTransformer) ? classNode : classWriter;
 
         if (applyAccessWidener) {
             visitor = AccessWidenerClassVisitor.createClassVisitor(ASM9, visitor, FishModLoader.getAccessWidener());
             FishModLoader.LOGGER.info("[AW] Widened class: " + name);
         }
         classReader.accept(visitor, 0);
-        if (hasTransformation){
+        if (hasTransformation || applyAccessTransformer){
             if (applyAccessWidener){
                 //Dump before CT
                 ClassDumper.dumpClassStaged(classNode,name, DumpStage.ACCESS_WIDENER);
+            }
+            if (applyAccessTransformer) {
+                int resolved = ForgeAccessTransformerImporter.apply(name, classNode);
+                FishModLoader.LOGGER.info("[AT] Applied {} rule(s) to {}", resolved, name);
             }
             classModifier.ifPresent(modifier -> modifier.accept(classNode));
             //Write the modified class data to the writer
@@ -49,7 +55,7 @@ public class FMLClassTransformer {
         }
 
         byte[] byteArray = classWriter.toByteArray();
-        if (hasTransformation){
+        if (hasTransformation || applyAccessTransformer){
             //Final stage for has class tinkers and has both CT and AW
             ClassDumper.dumpClassStaged(byteArray, name, DumpStage.CLASS_TINKER);
         }else{

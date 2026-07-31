@@ -54,13 +54,7 @@ public final class ForgeModDiscoverer {
             hasFabric = jf.getEntry("fabric.mod.json") != null
                     || jf.getEntry("fml.mod.json") != null;
             hasMcModInfo = jf.getEntry("mcmod.info") != null;
-            hasAt = false;
-            for (String loc : ForgeAccessTransformerImporter.LOCATIONS) {
-                if (jf.getEntry(loc) != null) {
-                    hasAt = true;
-                    break;
-                }
-            }
+            hasAt = !ForgeAccessTransformerImporter.findLocations(jf).isEmpty();
         } catch (IOException e) {
             FishModLoader.LOGGER.warn("Could not inspect {}", jarPath, e);
             return;
