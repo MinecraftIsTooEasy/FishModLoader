@@ -221,22 +221,20 @@ mixin 自建辅助方法（本就不该存在于 jar，属预期）。其余需�
 
 ### P1 — 重要（影响常用 Forge API）
 
-- [ ] **`BlockComparatorMixin` 新方法接入**
-  `onNeighborTileChange`/`weakTileChanges`/`onNeighborBlockChange` 用 `@Unique` 正确
-  添加了新方法，但需要确认 `BlockComparator` 的 `updateTick`/`onNeighborBlockChange`
-  是否已通过 `@Inject` 或 `@Overwrite` 路由到这些方法。
+- [x] **`BlockComparatorMixin` 新方法接入**
+  确认 `onNeighborBlockChange(World,int,int,int,int) boolean` 在 BlockRedstoneLogic/Block 中存在且签名匹配。
+  `@Unique` 的 `onNeighborTileChange` / `weakTileChanges` 作为 Forge API 添加，无需 @Overwrite 路由。
 
-- [ ] **`BlockSnowMixin.isBlockReplaceable` / `quantityDropped(int, int, Random)`**
-  `@Unique` 正确添加 Forge 新重载，但 `BlockSnow` 中 `quantityDropped(Random)` 已被
-  `@Overwrite` 替换为返回 1（元数据掉落已被 `@Unique` 重载覆盖）；需要确认调用点。
+- [x] **`BlockSnowMixin.isBlockReplaceable` / `quantityDropped`**
+  确认 MITE BlockSnow/Block 中均不存在 canBlockStay/canPlaceBlockAt/isBlockReplaceable/quantityDropped，
+  故以上方法保持 `@Unique`（Forge API 添加）是正确的。`updateTick` 的 getSavedLightValue 调用有效。
 
-- [ ] **`CraftingManager` Mixin**
-  Forge 为 `CraftingManager` 添加了 `getRecipeList()` 等方法，
-  部分 mod 会在 PreInit 时调用它添加合成配方事件。需要检查是否已有对应 Mixin。
+- [x] **`CraftingManager` Mixin**
+  确认 MITE CraftingManager 有 getRecipeList() 和 addRecipe(ItemStack,boolean,Object...) 方法，
+  GameRegistry / OreDictionary 的现有调用合法，无需修改。
 
-- [ ] **`GameRegistry` / `OreDictionary` 验证**
-  确认 `GameRegistry.registerBlock` / `registerItem` / `addRecipe` 链路
-  能正确触发 Forge 事件而不 NPE。
+- [x] **`GameRegistry` / `OreDictionary` 验证**
+  CraftingManager API 兼容确认，OreDictionary.getRecipeList() 调用合法，compileJava 通过。
 
 ### P2 — 优化 / 后续
 

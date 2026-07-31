@@ -157,7 +157,19 @@ grep -iE "World|Chunk|IllegalAccess" exc.log | tail -20
 
 ---
 
-## 待完成（P2，不阻塞功能）
+## 待完成
+
+### P1 已全部确认（050994d）
+
+| 项目 | 结论 |
+|------|------|
+| BlockComparatorMixin @Shadow | onNeighborBlockChange 存在且签名匹配 ✓ |
+| BlockSnowMixin @Unique 方法 | MITE 中均不存在，@Unique 正确 ✓ |
+| BlockSnowMixin.updateTick getSavedLightValue | MITE World 存在该方法，调用合法 ✓ |
+| CraftingManager getRecipeList / addRecipe | 方法存在，签名匹配 ✓ |
+| GameRegistry / OreDictionary | 调用链合法 ✓ |
+
+### P2（不阻塞功能）
 
 - [ ] **`LaunchMixin`**：KnotClassLoader 侧防止 `launchwrapper.Launch` 二次初始化。
       可先评估是否真的需要（目前未观察到实际问题）。
