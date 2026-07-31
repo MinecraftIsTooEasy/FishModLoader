@@ -40,7 +40,7 @@ public class BlockSnowMixin {
     }
 
     /** NOTE: MITE has no quantityDropped (func_71925_a) on BlockSnow or Block,
-     * so this cannot be an @Unique. Kept inert until rewired. See PLAN.md.
+     * so this cannot be an @Overwrite. Kept inert until rewired. See PLAN.md.
      */
     @Unique
     public int quantityDropped(Random random) {
