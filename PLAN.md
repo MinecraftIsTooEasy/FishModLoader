@@ -241,8 +241,7 @@ mixin 自建辅助方法（本就不该存在于 jar，属预期）。其余需�
 
 - [x] ~~`src/main/resources/mixin.refmap.json`~~ 已从仓库删除（构建期生成，不入库）。
 
-- [ ] 删除 `tasks.gradle` 中已无 `patches/` 目录的 ForgeGradle 流水线（`applyForgePatches`、
-  `compilePatchedSource`、`packagePatchedJar` 等任务），或保留作为备用但加注释说明已废弃。
+- [x] ~~`tasks.gradle` 死代码~~（`applyForgePatches` / `compilePatchedSource` / `packagePatchedJar`）— 已删除（bd8b5d4）。
 - [ ] `ForgeSrgModRemapper` 当前是 identity passthrough（`@Deprecated`），
   SRG → intermediary 实际映射可补全，但不影响现有 mod 加载（运行时已在 intermediary 命名空间）。
 - [ ] 完善 `MixinConfigCreator`（现为空 stub）。
@@ -250,7 +249,7 @@ mixin 自建辅助方法（本就不该存在于 jar，属预期）。其余需�
   `@Overwrite`，避免 `@Unique` 重命名后 `canBlockStay` 绕过 MITE 目标方法。
 - [x] **`BlockNetherStalkMixin` 方法核实**：MITE 的 `BlockNetherStalk` 及父类链均无
   `canBlockStay` / `getBlockDropped`，两者保持 `@Unique` 以添加 Forge API。
-- [ ] 补全 `BlockTorchMixin` 等其余 `@Unique` 方法的调用链，确认 Forge canBlockStay/isReplaceable 语义正确。
+- [x] `BlockTorchMixin.onNotLegal`：MITE Block 基类有同签名方法，已改 `@Overwrite`（3df4084）。其余 `@Unique` 方法（canBlockStay/canPlaceBlockAt 等）在 MITE 中不存在，保持 `@Unique` 正确。
 
 ---
 
