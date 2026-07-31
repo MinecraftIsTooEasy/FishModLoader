@@ -46,3 +46,4 @@ run/
 
 # pi-subagents run artifacts
 .pi-subagents/
+.pi/

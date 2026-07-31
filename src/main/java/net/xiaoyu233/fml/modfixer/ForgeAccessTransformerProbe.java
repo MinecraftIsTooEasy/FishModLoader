@@ -21,47 +21,46 @@ public final class ForgeAccessTransformerProbe {
     private ForgeAccessTransformerProbe() {}
 
     public static void main(String[] args) throws Exception {
-        String owner = "example.mod.ProbeTarget";
         int loaded = ForgeAccessTransformerImporter.importString(
-                "public-f example/mod/ProbeTarget\n" +
-                "protected+f example/mod/ProbeTarget.value\n" +
-                "public-f example/mod/ProbeTarget.run()V\n" +
-                "private example/mod/ProbeTarget.alreadyPublic\n" +
-                "public-f bff.a # reobfuscated owner must be rejected explicitly\n" +
-                "public broken. # malformed target must not abort discovery\n", "behavior-probe");
-        check(loaded == 4, "four runtime/SRG rules loaded; official and malformed rules rejected");
+                "public-f a\n" +
+                "protected+f a.z\n" +
+                "public-f a.b(Ljava/lang/String;)La;\n" +
+                "public-f net/minecraft/util/EnumChatFormatting.toString()Ljava/lang/String;\n" +
+                "public-f a.missing\n" +
+                "public-f a.missing()V\n" +
+                "public-f a.b(Lmissing;)La;\n" +
+                "public broken.\n", "behavior-probe");
+        check(loaded == 4, "official rules map, intermediary rule passes through, unknown rules reject");
 
+        String owner = "net.minecraft.util.EnumChatFormatting";
         ClassNode node = new ClassNode();
-        node.name = "example/mod/ProbeTarget";
+        node.name = "net/minecraft/util/EnumChatFormatting";
         node.access = Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL;
-        node.fields.add(new FieldNode(Opcodes.ACC_PRIVATE, "value", "Ljava/lang/String;", null, null));
-        node.fields.add(new FieldNode(Opcodes.ACC_PUBLIC, "alreadyPublic", "I", null, null));
-        node.methods.add(new MethodNode(Opcodes.ACC_PROTECTED | Opcodes.ACC_FINAL, "run", "()V", null, null));
+        node.fields.add(new FieldNode(Opcodes.ACC_PRIVATE, "field_96329_z", "C", null, null));
+        node.methods.add(new MethodNode(Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL, "func_96300_b", "(Ljava/lang/String;)Lnet/minecraft/util/EnumChatFormatting;", null, null));
+        node.methods.add(new MethodNode(Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL, "toString", "()Ljava/lang/String;", null, null));
         int applied = ForgeAccessTransformerImporter.apply(owner, node);
-        check(applied == 4, "all targets resolve");
-        check((node.access & Opcodes.ACC_PUBLIC) != 0 && (node.access & Opcodes.ACC_FINAL) == 0, "class public-f");
-        check((node.fields.get(0).access & Opcodes.ACC_PROTECTED) != 0 && (node.fields.get(0).access & Opcodes.ACC_FINAL) != 0, "descriptorless field protected+f");
-        check((node.methods.get(0).access & Opcodes.ACC_PUBLIC) != 0 && (node.methods.get(0).access & Opcodes.ACC_FINAL) == 0, "method public-f");
-        check((node.fields.get(1).access & Opcodes.ACC_PUBLIC) != 0, "Forge visibility lattice does not narrow public");
-        check(ForgeAccessTransformerImporter.hasAccessTransform(owner), "non-Minecraft owner registered");
+        check(applied == 4, "official class/field/method and intermediary method all resolve");
+        check((node.access & Opcodes.ACC_PUBLIC) != 0 && (node.access & Opcodes.ACC_FINAL) == 0, "official class maps and applies public-f");
+        check((node.fields.get(0).access & Opcodes.ACC_PROTECTED) != 0 && (node.fields.get(0).access & Opcodes.ACC_FINAL) != 0, "official field maps by owner and name");
+        check((node.methods.get(0).access & Opcodes.ACC_PUBLIC) != 0 && (node.methods.get(0).access & Opcodes.ACC_FINAL) == 0, "official method and object descriptor map exactly");
+        check((node.methods.get(1).access & Opcodes.ACC_PUBLIC) != 0, "intermediary method rule passes through unchanged");
+        check(ForgeAccessTransformerImporter.hasAccessTransform(owner), "mapped owner registered");
+        check(ForgeAccessTransformerImporter.probeRejectsAmbiguousOfficialField(), "descriptorless ambiguous official field rejects");
 
         Path jarPath = Files.createTempFile("forge-at-probe", ".jar");
         Manifest manifest = new Manifest();
         manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
         manifest.getMainAttributes().putValue("FMLAT", "custom_at.cfg META-INF/custom_at.cfg");
         try (OutputStream out = Files.newOutputStream(jarPath); JarOutputStream jar = new JarOutputStream(out, manifest)) {
-            add(jar, "META-INF/custom_at.cfg");
-            add(jar, "META-INF/forge_at.cfg");
-            add(jar, "META-INF/other_at.cfg");
+            add(jar, "META-INF/custom_at.cfg"); add(jar, "META-INF/forge_at.cfg"); add(jar, "META-INF/other_at.cfg");
         }
         try (JarFile jar = new JarFile(jarPath.toFile())) {
             List<String> locations = ForgeAccessTransformerImporter.findLocations(jar);
             check(locations.size() == 3, "manifest/fixed/wildcard discovery is deduplicated: " + locations);
             check(locations.contains("META-INF/custom_at.cfg") && locations.contains("META-INF/forge_at.cfg") && locations.contains("META-INF/other_at.cfg"), "all discovery forms present");
-        } finally {
-            Files.deleteIfExists(jarPath);
-        }
-        System.out.println("ForgeAccessTransformerProbe: 12 assertions passed");
+        } finally { Files.deleteIfExists(jarPath); }
+        System.out.println("ForgeAccessTransformerProbe: 11 assertions passed");
     }
 
     private static void add(JarOutputStream jar, String name) throws Exception {
@@ -69,8 +68,5 @@ public final class ForgeAccessTransformerProbe {
         jar.write("public example/mod/Unused\n".getBytes(StandardCharsets.UTF_8));
         jar.closeEntry();
     }
-
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+    private static void check(boolean condition, String message) { if (!condition) throw new AssertionError(message); }
 }

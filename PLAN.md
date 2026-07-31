@@ -207,10 +207,9 @@ mixin 自建辅助方法（本就不该存在于 jar，属预期）。其余需�
 
 - [x] **历史 49 处 `@Shadow` 目标缺失**：当前 `verifyOverwrites` 检查 340 项、缺失 0。
 
-- [ ] **`LaunchClassLoader.findClass` 死变量清理**
-  `untransformedName` 行的 `codeSource` 局部变量算完后没有传给 `defineClass`，
-  `defineClass` 实际用的是 `getMetadata(...).codeSource`，两者不一致。
-  应合并：删除 `codeSource` 局部变量，统一走 `getMetadata`。
+- [x] **`LaunchClassLoader.findClass` 死变量清理**
+  `codeSource` 局部变量已删除，`defineClass` 统一使用 `getMetadata(...).codeSource`。
+  （仍有未读取的 `signers` 局部变量，仅属后续清理，不影响行为。）
 
 - [ ] **`net.minecraft.launchwrapper.Launch` 在 KnotClassLoader 侧的 Mixin**
   如果 launchwrapper 被 KnotClassLoader 加载（未被 AppCL 预先加载），
@@ -218,7 +217,7 @@ mixin 自建辅助方法（本就不该存在于 jar，属预期）。其余需�
   防止模块加载顺序导致的二次创建。
 
 - [ ] **`ForgeAccessTransformerImporter` 实际应用**
-  已移除 AT→named AccessWidener 翻译，改由 `FMLClassTransformer` 在运行时 intermediary/SRG owner 上直接修改 ASM access flags；已覆盖可见性、`+f`/`-f`、无 descriptor 字段和 AT 文件发现。重混淆 official 规则目前显式拒绝并 warning，仍需补 official → intermediary 映射，并用真实带 AT mod 做服务端验证。
+  已移除 AT→named AccessWidener 翻译，改由 `FMLClassTransformer` 在运行时修改 ASM access flags；已覆盖可见性、`+f`/`-f`、无 descriptor 字段、AT 文件发现，以及基于 `intermediary.tiny` 的 official → intermediary 类/字段/方法和方法描述符映射。无法精确映射或字段映射歧义会显式 warning 并拒绝，`probeForgeAccessTransformer` 已验证。仍需用真实带 AT mod 做服务端验证。
 
 ### P1 — 重要（影响常用 Forge API）
 
