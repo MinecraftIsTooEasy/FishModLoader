@@ -132,7 +132,7 @@ grep -iE "World|Chunk|IllegalAccess" exc.log | tail -20
 ## 7. 已淘汰路径与维护结论
 
 - ForgeGradle 风格 `applyForgePatches` / `compilePatchedSource` / `packagePatchedJar`：**已删除**；Mixin 是最终实现路径。
-- `ForgeSrgModRemapper`：曾被替换为 identity passthrough，但真实 Lucky Block 4.2.1 发布 jar 的 `Laqz;` 引用证明该假设错误；该结论已废止，后续按 [`forge-mod-remap-plan.md`](forge-mod-remap-plan.md) 实现 official → intermediary JAR 级预重映射。
+- `ForgeSrgModRemapper`：曾被替换为 identity passthrough，但真实 Lucky Block 4.2.1 发布 jar 的 `Laqz;` 引用证明该假设错误；该结论已废止。此后已实现 official → intermediary JAR 级预重映射，当前状态见 [`../HANDOFF.md`](../HANDOFF.md)。
 - `MixinConfigCreator`：**保留孤立 stub**；无调用点，不是当前待实现项。
 - `mixin.refmap.json`：**已从仓库删除**；它是构建产物，不应提交。
 - 历史错误计数、提交号和“待完成”复选框只用于追溯，不应复制回当前计划或交接文档。

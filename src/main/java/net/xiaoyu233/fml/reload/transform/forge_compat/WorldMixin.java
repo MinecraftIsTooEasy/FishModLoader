@@ -8,6 +8,8 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EnumCreatureType;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.item.ItemStack;
+import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.EnumFace;
 import net.minecraft.world.ChunkCoordIntPair;
 import net.minecraft.world.Explosion;
@@ -60,6 +62,9 @@ public abstract class WorldMixin {
     @Shadow
     public abstract Explosion createExplosion(Entity source, double x, double y, double z, float strength, float flamingChance, boolean damagesTerrain);
 
+    @Shadow
+    public abstract boolean checkNoEntityCollision(AxisAlignedBB bounds, Entity entity);
+
     // ========================================================================
     // Forge-added fields
     // ========================================================================
@@ -94,6 +99,28 @@ public abstract class WorldMixin {
     // ========================================================================
     // Forge API methods
     // ========================================================================
+
+    /** Legacy vanilla placement query retained by Forge 1.6.4 mods. */
+    @Unique
+    public boolean canPlaceEntityOnSide(int blockId, int x, int y, int z, boolean ignoreEntityCollision,
+                                        int side, Entity entity, ItemStack stack) {
+        if (blockId < 0 || blockId >= Block.blocksList.length) {
+            return false;
+        }
+        Block candidate = Block.blocksList[blockId];
+        if (candidate == null) {
+            return false;
+        }
+        World world = (World) (Object) this;
+        int metadata = stack == null ? 0 : stack.getItemSubtype();
+        if (!ignoreEntityCollision) {
+            AxisAlignedBB bounds = candidate.getCollisionBoundsCombined(world, x, y, z, entity, true);
+            if (bounds != null && !checkNoEntityCollision(bounds, entity)) {
+                return false;
+            }
+        }
+        return candidate.canBePlacedAt(world, x, y, z, metadata);
+    }
 
     /** Legacy vanilla overload retained by Forge 1.6.4 mods. */
     @Unique

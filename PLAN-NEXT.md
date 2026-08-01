@@ -1,6 +1,6 @@
 # 下一阶段计划：真实 Forge mod 兼容矩阵
 
-状态：待执行
+状态：执行中（已有真实样本，尚无完整 PASS 样本）
 前置基线：[`PLAN.md`](PLAN.md) 中的 forge-compat 基础能力和聚合验证均通过。
 
 ## 目标与范围
@@ -39,11 +39,12 @@
 
 ## 优先级
 
-### P0：真实发布 mod 的命名空间重映射
+### P0：真实发布 mod 的成员/API 兼容
 
-- **当前首要 blocker**：真实 Lucky Block 4.2.1 发布 jar 使用 official/Notch 游戏名（例如 `aqz`），而运行时游戏 jar 使用 intermediary。现有 `ForgeSrgModRemapper` identity 假设已被 `NoClassDefFoundError: aqz` 实证推翻；实现计划见 [`docs/forge-mod-remap-plan.md`](docs/forge-mod-remap-plan.md)。完成该计划前，不能把“发现到 jar”或“客户端能进存档”记为 mod 兼容。
-- 完成 official → intermediary 的 Forge mod JAR 级预重映射、命名空间判定、缓存和 fail-closed 行为，并用仓库自建 fixture 自动回归；不得提交或分发第三方 Lucky Block jar。
-- Lucky Block 4.2.1 当前真实客户端状态为 **FAIL**：official remap、构造、active list、preInit/init/postInit 和注册均已走通，但人工验收中方块为紫黑缺失纹理，放置后敲掉只掉落本体，未触发幸运行为。详见 [`docs/lucky-block-compat-handoff.md`](docs/lucky-block-compat-handoff.md)。修复并完成新世界功能路径前不得记为 PASS。
+- official → intermediary JAR 级预重映射、命名空间判定、缓存、fail-closed、source/runtime 双路径和 synthetic 生命周期回归已经实施；不得提交或分发第三方 mod jar。
+- 已有真实样本 Lucky Block 4.2.1。namespace、discovery、construction、active list、preInit/init/postInit、注册、资源包接入和 legacy harvest 回调已通过；多种随机掉落已实际执行。
+- 当前样本总体仍为 **FAIL**：最新决定性 blocker 是 `anviltrap` 路径中的 legacy 静态字段描述符漂移，`SpawnOther.spawnOther:98` 抛出 `NoSuchFieldError: cm`。详见 [`docs/lucky-block-compat-handoff.md`](docs/lucky-block-compat-handoff.md)。
+- 当前重点是为真实样本暴露的 legacy 成员/API 差异建立严格、可审计的兼容规则和正负回归，不能把 namespace remap 成功扩大解释为全部 Forge API 已兼容。
 - 随后审计当前真实 AT 服务端日志中的非致命 `InvalidMixinException` warning，修复或禁用无效 patch；若确属可接受噪声，则建立带原因的允许清单和回归断言。完成前不得把静态“缺失 0”等同于运行时 Mixin 全部生效。
 - 定义样本清单格式、许可证/来源规则、SHA-256 和本地放置约定。
 - 选择少量基础生命周期、注册/事件、配置类别样本。

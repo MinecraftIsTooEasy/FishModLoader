@@ -81,6 +81,15 @@ public final class NamedToIntermediaryTinyGenerator {
             processMember(e.getKey(), e.getValue(), officialToNamed, intermediaryToNamed, namedToIntermediary, false, membersByNamedClass);
         }
 
+        // WorldMixin contributes this missing vanilla/Forge method, so it has no
+        // declaration on MITE's World class from which tiny-remapper can infer
+        // the target-owned rename. Map the named bridge itself explicitly.
+        String worldMixin = "net/xiaoyu233/fml/reload/transform/forge_compat/WorldMixin";
+        namedToIntermediary.put(worldMixin, worldMixin);
+        membersByNamedClass.computeIfAbsent(worldMixin, k -> new ArrayList<>()).add(new MemberMapping(
+                "(IIIIZILnet/minecraft/entity/Entity;Lnet/minecraft/item/ItemStack;)Z",
+                "canPlaceEntityOnSide", "func_72931_a", true));
+
         try (BufferedWriter w = Files.newBufferedWriter(outputPath)) {
             w.write("tiny\t2\t0\tnamed\tintermediary");
             w.newLine();

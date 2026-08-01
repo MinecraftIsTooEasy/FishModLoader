@@ -18,7 +18,7 @@
 - 完成 launchwrapper 兼容桥、Knot/App classloader 隔离与 Forge 生命周期派发，可发现、构造并驱动 legacy Forge mod。
 - Forge Access Transformer 改为运行时 ASM 应用，支持 manifest `FMLAT`、AT 发现、访问级别及 final 标志变更、official → intermediary 映射和明确的失败告警。
 - 建立真实 Forge AT 服务端夹具：在 `FMLServerStartedEvent` 首次加载目标类，断言 AT 生效、生命周期执行、服务端到达 `Done`，随后自动停服。
-- 服务端已验证完整启动；客户端已人工验证到主菜单。真实第三方 mod 兼容矩阵尚未开展，不属于本计划已完成结论。
+- 服务端已验证完整启动；客户端已人工验证到主菜单。后续已开始真实第三方 mod 矩阵，当前状态以 `PLAN-NEXT.md` 和 `docs/lucky-block-compat-handoff.md` 为准。
 
 ## 当前验证基线
 

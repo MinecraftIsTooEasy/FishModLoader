@@ -30,16 +30,38 @@ public final class LegacyForgeModRemapper {
     }
 
     private static final String RESOURCE="/intermediary.tiny";
-    private static final String SCHEMA="legacy-forge-mod-remap-v4-legacy-overrides";
+    private static final String SCHEMA="legacy-forge-mod-remap-v8-lucky-item-drop";
     private static final String TINY_REMAPPER_VERSION="0.14.0";
+    private static final String LEGACY_CHEST_OWNER="net/minecraft/util/WeightedRandomChestContent";
+    private static final String LEGACY_CHEST_NAME="func_76293_a";
+    private static final String LEGACY_CHEST_DESC="(Ljava/util/Random;[Lnet/minecraft/util/WeightedRandomChestContent;Lnet/minecraft/inventory/IInventory;I)V";
+    private static final String LEGACY_CHEST_BRIDGE="net/xiaoyu233/fml/modfixer/LegacyForgeChestContentBridge";
+    private static final String LEGACY_CHEST_BRIDGE_NAME="generateChestContents";
+    private static final String LEGACY_SAND_OWNER="net/minecraft/block/BlockSand";
+    private static final String LEGACY_SAND_NAME="func_72191_e_";
+    private static final String LEGACY_SAND_DESC="(Lnet/minecraft/world/World;III)Z";
+    private static final String LEGACY_SAND_BRIDGE="net/xiaoyu233/fml/modfixer/LegacyForgeBlockSandBridge";
+    private static final String LEGACY_SAND_BRIDGE_NAME="canFallBelow";
+    private static final String LEGACY_LUCKY_BLOCK="mod/lucky/BlockLucky";
+    private static final String LEGACY_LUCKY_DROP_METHOD="func_71893_a";
+    private static final String LEGACY_LUCKY_DROP_DESC="(Lnet/minecraft/world/World;Lnet/minecraft/entity/player/EntityPlayer;IIII)V";
+    private static final String ENTITY_ITEM="net/minecraft/entity/item/EntityItem";
+    private static final String ENTITY_ITEM_CTOR_DESC="(Lnet/minecraft/world/World;DDDLnet/minecraft/item/ItemStack;)V";
+    private static final String LEGACY_LUCKY_DROP_BRIDGE="net/xiaoyu233/fml/modfixer/LegacyLuckyItemDropBridge";
+    private static final String LEGACY_LUCKY_DROP_BRIDGE_NAME="createEntityItem";
+    private static final String LEGACY_LUCKY_DROP_BRIDGE_DESC="(Lnet/minecraft/world/World;DDDLnet/minecraft/item/ItemStack;)Lnet/minecraft/entity/item/EntityItem;";
     private static final Object[] LOCKS=new Object[64];
     static { for (int i=0;i<LOCKS.length;i++) LOCKS[i]=new Object(); }
     private final byte[] mappingBytes;
     private final String schema;
     private final Set<String> official=new HashSet<>(), intermediary=new HashSet<>();
-    private final Map<String,String> fieldMappings=new HashMap<>(), methodMappings=new HashMap<>(), intermediaryToOfficial=new HashMap<>(), intermediaryDescriptors=new HashMap<>();
+    private final Map<String,String> fieldMappings=new HashMap<>(), methodMappings=new HashMap<>(), intermediaryToOfficial=new HashMap<>(), officialToIntermediary=new HashMap<>();
     private final Map<String,String> uniqueFields=new HashMap<>(), uniqueMethods=new HashMap<>();
+    private final Map<String,FieldCandidate> driftFields=new HashMap<>(), targetDriftFields=new HashMap<>();
+    private final Set<String> ambiguousDriftFields=new HashSet<>(), ambiguousTargetDriftFields=new HashSet<>();
     private final Map<String,String> gameSuperclasses=new HashMap<>();
+    private final Map<String,Set<String>> gameInterfaces=new HashMap<>();
+    private final Map<String,Integer> gameFields=new HashMap<>();
 
     public LegacyForgeModRemapper() throws IOException { this(readResource(), SCHEMA); }
     LegacyForgeModRemapper(byte[] mappings, String schemaVersion) throws IOException {
@@ -97,10 +119,10 @@ public final class LegacyForgeModRemapper {
         TinyRemapper remapper=TinyRemapper.newRemapper()
                 .withMappings(TinyUtils.createTinyMappingProvider(new BufferedReader(new InputStreamReader(new ByteArrayInputStream(mappingBytes),StandardCharsets.UTF_8)),"official","intermediary"))
                 .extraRemapper(new org.objectweb.asm.commons.Remapper() {
-                    @Override public String mapFieldName(String owner,String name,String descriptor) { return memberName(fieldMappings,uniqueFields,owner,name,descriptor); }
+                    @Override public String mapFieldName(String owner,String name,String descriptor) { return fieldName(owner,name,descriptor); }
                     @Override public String mapMethodName(String owner,String name,String descriptor) { return memberName(methodMappings,uniqueMethods,owner,name,descriptor); }
                 })
-                .ignoreFieldDesc(true).ignoreConflicts(false).checkPackageAccess(false).build();
+                .ignoreFieldDesc(false).ignoreConflicts(false).checkPackageAccess(false).build();
         Path classes=Files.createTempDirectory(output.getParent(), "forge-remap-classes-");
         try (OutputConsumerPath consumer=new OutputConsumerPath.Builder(classes).build()) {
             remapper.readClassPath(game); remapper.readInputs(source); remapper.apply((className,bytes) -> consumer.accept(className, fixUnmappedMembers(bytes)));
@@ -117,8 +139,10 @@ public final class LegacyForgeModRemapper {
         ClassWriter writer=new ClassWriter(reader,ClassWriter.COMPUTE_MAXS);
         ClassVisitor miteAdapters=new ClassVisitor(Opcodes.ASM9,writer) {
             private boolean directBlockSubclass;
+            private boolean legacyLuckyBlock;
             @Override public void visit(int version,int access,String name,String signature,String superName,String[] interfaces) {
                 directBlockSubclass="net/minecraft/block/Block".equals(superName);
+                legacyLuckyBlock=LEGACY_LUCKY_BLOCK.equals(name);
                 super.visit(version,access,name,signature,superName,interfaces);
             }
             @Override public MethodVisitor visitMethod(int access,String name,String descriptor,String signature,String[] exceptions) {
@@ -131,8 +155,64 @@ public final class LegacyForgeModRemapper {
                     else if(descriptor.equals("(ILjava/util/Random;I)I"))name="func_71885_a";
                 }
                 MethodVisitor next=super.visitMethod(access,name,descriptor,signature,exceptions);
+                final boolean luckyOrdinaryDrop=legacyLuckyBlock&&name.equals(LEGACY_LUCKY_DROP_METHOD)&&descriptor.equals(LEGACY_LUCKY_DROP_DESC);
                 return new MethodVisitor(Opcodes.ASM9,next) {
+                    private boolean pendingLuckyEntityNew;
+                    private boolean suppressLuckyEntityDup;
+                    private boolean luckyEntityRewritten;
+                    private Label skipInvalidLuckyDrop;
+
+                    @Override public void visitTypeInsn(int opcode,String type) {
+                        if(luckyOrdinaryDrop&&!luckyEntityRewritten&&opcode==Opcodes.NEW&&type.equals(ENTITY_ITEM)) {
+                            pendingLuckyEntityNew=true;
+                            suppressLuckyEntityDup=true;
+                            return;
+                        }
+                        super.visitTypeInsn(opcode,type);
+                    }
+                    @Override public void visitInsn(int opcode) {
+                        if(suppressLuckyEntityDup) {
+                            suppressLuckyEntityDup=false;
+                            if(opcode==Opcodes.DUP)return;
+                        }
+                        super.visitInsn(opcode);
+                    }
+                    @Override public void visitVarInsn(int opcode,int varIndex) {
+                        super.visitVarInsn(opcode,varIndex);
+                        if(luckyEntityRewritten&&skipInvalidLuckyDrop==null&&opcode==Opcodes.ASTORE) {
+                            skipInvalidLuckyDrop=new Label();
+                            super.visitVarInsn(Opcodes.ALOAD,varIndex);
+                            super.visitJumpInsn(Opcodes.IFNULL,skipInvalidLuckyDrop);
+                        }
+                    }
+                    @Override public void visitIincInsn(int varIndex,int increment) {
+                        if(skipInvalidLuckyDrop!=null) {
+                            super.visitLabel(skipInvalidLuckyDrop);
+                            skipInvalidLuckyDrop=null;
+                        }
+                        super.visitIincInsn(varIndex,increment);
+                    }
+                    @Override public void visitFieldInsn(int opcode,String owner,String fieldName,String fieldDescriptor) {
+                        FieldCandidate candidate=driftField(opcode,owner,fieldName,fieldDescriptor);
+                        if(candidate!=null) {
+                            owner=candidate.targetOwner;
+                            fieldName=candidate.targetName;
+                            fieldDescriptor=candidate.targetDescriptor;
+                        } else {
+                            FieldCandidate prematurelyMapped=targetDriftFields.get(owner+'\u0000'+fieldName);
+                            if(prematurelyMapped!=null&&!fieldDescriptor.equals(prematurelyMapped.targetDescriptor))fieldName=prematurelyMapped.sourceName;
+                        }
+                        super.visitFieldInsn(opcode,owner,fieldName,fieldDescriptor);
+                    }
                     @Override public void visitMethodInsn(int opcode,String owner,String methodName,String methodDescriptor,boolean isInterface) {
+                        if(pendingLuckyEntityNew&&opcode==Opcodes.INVOKESPECIAL&&owner.equals(ENTITY_ITEM)&&
+                                methodName.equals("<init>")&&methodDescriptor.equals(ENTITY_ITEM_CTOR_DESC)) {
+                            pendingLuckyEntityNew=false;
+                            luckyEntityRewritten=true;
+                            super.visitMethodInsn(Opcodes.INVOKESTATIC,LEGACY_LUCKY_DROP_BRIDGE,
+                                    LEGACY_LUCKY_DROP_BRIDGE_NAME,LEGACY_LUCKY_DROP_BRIDGE_DESC,false);
+                            return;
+                        }
                         // Self-owned calls in a mod subclass have no mapping owner.
                         // Resolve the exact inherited Block members used by legacy
                         // icon registration before emitting the remapped class.
@@ -145,13 +225,25 @@ public final class LegacyForgeModRemapper {
                             super.visitMethodInsn(Opcodes.INVOKESPECIAL,"net/minecraft/block/BlockConstants","<init>","()V",false);
                             methodDescriptor="(ILnet/minecraft/block/material/Material;Lnet/minecraft/block/BlockConstants;)V";
                         }
+                        if(opcode==Opcodes.INVOKESTATIC && owner.equals(LEGACY_CHEST_OWNER) &&
+                                methodName.equals(LEGACY_CHEST_NAME) && methodDescriptor.equals(LEGACY_CHEST_DESC)) {
+                            owner=LEGACY_CHEST_BRIDGE;
+                            methodName=LEGACY_CHEST_BRIDGE_NAME;
+                            isInterface=false;
+                        }
+                        if(opcode==Opcodes.INVOKESTATIC && owner.equals(LEGACY_SAND_OWNER) &&
+                                methodName.equals(LEGACY_SAND_NAME) && methodDescriptor.equals(LEGACY_SAND_DESC)) {
+                            owner=LEGACY_SAND_BRIDGE;
+                            methodName=LEGACY_SAND_BRIDGE_NAME;
+                            isInterface=false;
+                        }
                         super.visitMethodInsn(opcode,owner,methodName,methodDescriptor,isInterface);
                     }
                 };
             }
         };
         reader.accept(new org.objectweb.asm.commons.ClassRemapper(miteAdapters,new org.objectweb.asm.commons.Remapper(){
-            @Override public String mapFieldName(String owner,String name,String descriptor){return memberName(fieldMappings,uniqueFields,owner,name,descriptor);}
+            @Override public String mapFieldName(String owner,String name,String descriptor){return fieldName(owner,name,descriptor);}
             @Override public String mapMethodName(String owner,String name,String descriptor){return memberName(methodMappings,uniqueMethods,owner,name,descriptor);}
         }),0); return writer.toByteArray();
     }
@@ -231,6 +323,9 @@ public final class LegacyForgeModRemapper {
     private static final class Scan {int officialCount,intermediaryCount,classCount;Namespace namespace;final LinkedHashSet<String> evidence=new LinkedHashSet<>();void finish(){namespace=officialCount>0&&intermediaryCount>0?Namespace.MIXED:officialCount>0?Namespace.OFFICIAL:intermediaryCount>0?Namespace.INTERMEDIARY:Namespace.UNKNOWN_NO_GAME_REFS;}}
     private IOException rejected(Path p,Scan s,String why){return new IOException("Rejected Forge mod "+p.getFileName()+" namespace="+s.namespace+", first references="+s.evidence+": "+why);}
     private String toOfficialDescriptor(String desc) { org.objectweb.asm.commons.Remapper r=new org.objectweb.asm.commons.Remapper(){@Override public String map(String name){return intermediaryToOfficial.getOrDefault(name,name);}}; return desc.startsWith("(")?r.mapMethodDesc(desc):r.mapDesc(desc); }
+    private String fieldName(String owner,String name,String desc) {
+        return memberName(fieldMappings,Collections.emptyMap(),owner,name,desc);
+    }
     private String memberName(Map<String,String> exact,Map<String,String> unique,String owner,String name,String desc) {
         String mapped=exact.get(owner+'\u0000'+name+'\u0000'+desc);
         String officialOwner=intermediaryToOfficial.get(owner);
@@ -251,8 +346,41 @@ public final class LegacyForgeModRemapper {
         }
         return mapped==null?name:mapped;
     }
+    private FieldCandidate driftField(int opcode,String owner,String name,String descriptor) {
+        if(opcode!=Opcodes.GETSTATIC&&opcode!=Opcodes.GETFIELD)return null;
+        String sourceOwner=intermediaryToOfficial.get(owner);
+        if(sourceOwner==null)return null;
+        String sourceDescriptor=toOfficialDescriptor(descriptor);
+        if(fieldMappings.containsKey(sourceOwner+'\u0000'+name+'\u0000'+sourceDescriptor))return null;
+        String key=sourceOwner+'\u0000'+name;
+        if(ambiguousDriftFields.contains(key))return null;
+        FieldCandidate candidate=driftFields.get(key);
+        if(candidate==null||!gameFields.containsKey(candidate.targetOwner+'\u0000'+candidate.targetName+'\u0000'+candidate.targetDescriptor))return null;
+        boolean targetStatic=(gameFields.get(candidate.targetOwner+'\u0000'+candidate.targetName+'\u0000'+candidate.targetDescriptor)&Opcodes.ACC_STATIC)!=0;
+        if(targetStatic!=(opcode==Opcodes.GETSTATIC))return null;
+        return isAssignable(candidate.targetDescriptor,descriptor)?candidate:null;
+    }
+    private boolean isAssignable(String actualDescriptor,String expectedDescriptor) {
+        if(actualDescriptor.equals(expectedDescriptor))return true;
+        Type actual,expected;
+        try { actual=Type.getType(actualDescriptor); expected=Type.getType(expectedDescriptor); }
+        catch(IllegalArgumentException e) { return false; }
+        if(actual.getSort()!=Type.OBJECT||expected.getSort()!=Type.OBJECT)return false;
+        String actualName=actual.getInternalName(),expectedName=expected.getInternalName();
+        if("java/lang/Object".equals(expectedName))return true;
+        Set<String> seen=new HashSet<>();
+        ArrayDeque<String> pending=new ArrayDeque<>(); pending.add(actualName);
+        while(!pending.isEmpty()) {
+            String type=pending.removeFirst();
+            if(!seen.add(type))continue;
+            if(expectedName.equals(type))return true;
+            String parent=gameSuperclasses.get(type); if(parent!=null)pending.add(parent);
+            Set<String> interfaces=gameInterfaces.get(type); if(interfaces!=null)pending.addAll(interfaces);
+        }
+        return false;
+    }
     private void loadGameHierarchy(Path game) throws IOException {
-        gameSuperclasses.clear();
+        gameSuperclasses.clear(); gameInterfaces.clear(); gameFields.clear();
         try(JarFile jar=new JarFile(game.toFile())) {
             Enumeration<JarEntry> entries=jar.entries();
             while(entries.hasMoreElements()) {
@@ -260,19 +388,41 @@ public final class LegacyForgeModRemapper {
                 if(entry.isDirectory()||!entry.getName().endsWith(".class"))continue;
                 try(InputStream in=jar.getInputStream(entry)) {
                     new ClassReader(in).accept(new ClassVisitor(Opcodes.ASM9){
-                        @Override public void visit(int v,int a,String n,String s,String parent,String[] i){if(parent!=null)gameSuperclasses.put(n,parent);}
+                        private String owner;
+                        @Override public void visit(int v,int a,String n,String s,String parent,String[] interfaces){owner=n;if(parent!=null)gameSuperclasses.put(n,parent);if(interfaces!=null&&interfaces.length>0)gameInterfaces.put(n,new HashSet<>(Arrays.asList(interfaces)));}
+                        @Override public FieldVisitor visitField(int access,String name,String descriptor,String signature,Object value){gameFields.put(owner+'\u0000'+name+'\u0000'+descriptor,access);return null;}
                     },ClassReader.SKIP_CODE|ClassReader.SKIP_DEBUG|ClassReader.SKIP_FRAMES);
                 }
             }
         }
     }
 
+    private static final class FieldCandidate {
+        final String sourceName,targetOwner,targetName,targetDescriptor;
+        FieldCandidate(String sourceName,String owner,String name,String descriptor){this.sourceName=sourceName;targetOwner=owner;targetName=name;targetDescriptor=descriptor;}
+    }
+
     private void parseMappings() throws IOException {
         Map<String,String> fieldCandidates=new HashMap<>(), methodCandidates=new HashMap<>(); Set<String> ambiguousFields=new HashSet<>(), ambiguousMethods=new HashSet<>();
+        List<String[]> members=new ArrayList<>();
         try(BufferedReader r=new BufferedReader(new InputStreamReader(new ByteArrayInputStream(mappingBytes),StandardCharsets.UTF_8))){String line;while((line=r.readLine())!=null){String[] p=line.split("\\t");
-            if(p.length>=3&&p[0].equals("CLASS")&&!p[1].equals(p[2])){official.add(p[1]);intermediary.add(p[2]);intermediaryToOfficial.put(p[2],p[1]);}
-            else if(p.length>=5&&(p[0].equals("FIELD")||p[0].equals("METHOD"))&&!p[3].equals(p[4])){Map<String,String> exact=p[0].equals("FIELD")?fieldMappings:methodMappings;Map<String,String> candidates=p[0].equals("FIELD")?fieldCandidates:methodCandidates;Set<String> ambiguous=p[0].equals("FIELD")?ambiguousFields:ambiguousMethods;exact.put(p[1]+'\u0000'+p[3]+'\u0000'+p[2],p[4]);String key=p[3]+'\u0000'+p[2],old=candidates.putIfAbsent(key,p[4]);if(old!=null&&!old.equals(p[4]))ambiguous.add(key);}
-        }} fieldCandidates.keySet().removeAll(ambiguousFields);methodCandidates.keySet().removeAll(ambiguousMethods);uniqueFields.putAll(fieldCandidates);uniqueMethods.putAll(methodCandidates);for(Map.Entry<String,String> e:intermediaryToOfficial.entrySet())intermediaryDescriptors.put("L"+e.getKey()+";","L"+e.getValue()+";");
+            if(p.length>=3&&p[0].equals("CLASS")&&!p[1].equals(p[2])){official.add(p[1]);intermediary.add(p[2]);intermediaryToOfficial.put(p[2],p[1]);officialToIntermediary.put(p[1],p[2]);}
+            else if(p.length>=5&&(p[0].equals("FIELD")||p[0].equals("METHOD")))members.add(p);
+        }}
+        for(String[] p:members) {
+            if(!p[3].equals(p[4])){Map<String,String> exact=p[0].equals("FIELD")?fieldMappings:methodMappings;Map<String,String> candidates=p[0].equals("FIELD")?fieldCandidates:methodCandidates;Set<String> ambiguous=p[0].equals("FIELD")?ambiguousFields:ambiguousMethods;exact.put(p[1]+'\u0000'+p[3]+'\u0000'+p[2],p[4]);String key=p[3]+'\u0000'+p[2],old=candidates.putIfAbsent(key,p[4]);if(old!=null&&!old.equals(p[4]))ambiguous.add(key);}
+            if(p[0].equals("FIELD")) {
+                String key=p[1]+'\u0000'+p[3];
+                FieldCandidate candidate=new FieldCandidate(p[3],officialToIntermediary.getOrDefault(p[1],p[1]),p[4],mapDescriptor(p[2],officialToIntermediary));
+                FieldCandidate old=driftFields.putIfAbsent(key,candidate);
+                if(old!=null&&(!old.targetOwner.equals(candidate.targetOwner)||!old.targetName.equals(candidate.targetName)||!old.targetDescriptor.equals(candidate.targetDescriptor)))ambiguousDriftFields.add(key);
+                String targetKey=candidate.targetOwner+'\u0000'+candidate.targetName;
+                FieldCandidate oldTarget=targetDriftFields.putIfAbsent(targetKey,candidate);
+                if(oldTarget!=null&&!oldTarget.sourceName.equals(candidate.sourceName))ambiguousTargetDriftFields.add(targetKey);
+            }
+        }
+        driftFields.keySet().removeAll(ambiguousDriftFields);targetDriftFields.keySet().removeAll(ambiguousTargetDriftFields);
+        fieldCandidates.keySet().removeAll(ambiguousFields);methodCandidates.keySet().removeAll(ambiguousMethods);uniqueFields.putAll(fieldCandidates);uniqueMethods.putAll(methodCandidates);
     }
     private String hashFiles(Path source,Path game) throws IOException {try{MessageDigest d=MessageDigest.getInstance("SHA-256");update(d,source);d.update(mappingBytes);update(d,game);d.update(Constants.VERSION.getBytes(StandardCharsets.UTF_8));d.update(schema.getBytes(StandardCharsets.UTF_8));d.update(TINY_REMAPPER_VERSION.getBytes(StandardCharsets.UTF_8));return hex(d.digest());}catch(Exception e){throw new IOException("Cannot create Forge mod remap cache key",e);}}
     private static void update(MessageDigest d,Path p)throws IOException{try(InputStream in=Files.newInputStream(p)){byte[] b=new byte[8192];for(int n;(n=in.read(b))>=0;)d.update(b,0,n);}}

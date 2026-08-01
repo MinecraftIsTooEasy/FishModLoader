@@ -2,121 +2,147 @@
 
 分支：`classloader-patch`
 
-状态：原 forge-compat 计划已完成；下一阶段进入真实 Forge mod 兼容矩阵。
+状态：Forge 基础链路和 legacy Forge JAR 预重映射已完成；当前正在以 Lucky Block 4.2.1 推进真实成员/API 兼容。样本总体仍为 **FAIL**。
 
-## 文档入口
+## 必读入口
 
-- [`PLAN.md`](PLAN.md)：已完成计划、最终成果、当前验证基线和关键设计。
-- [`PLAN-NEXT.md`](PLAN-NEXT.md)：下一阶段真实 Forge mod 兼容矩阵；尚未宣称任何第三方 mod 已验证。
-- [`docs/forge-compat-history.md`](docs/forge-compat-history.md)：历史错误演进、命名空间、classloader、AW/Mixin 排障记录。
+- [`PLAN-NEXT.md`](PLAN-NEXT.md)：真实 Forge mod 兼容矩阵、状态定义与验收规则。
+- [`docs/lucky-block-compat-handoff.md`](docs/lucky-block-compat-handoff.md)：当前真实样本、最新 blocker 和下一步操作。
+- [`docs/forge-compat-history.md`](docs/forge-compat-history.md)：命名空间、AW、Mixin、classloader 历史与排障原则。
 
-## 环境前提
+已实施完毕的 `docs/forge-mod-remap-plan.md` 已删除；不要再按旧计划从头实现 JAR remapper。
 
-- Windows；仓库脚本也可从 Git Bash 执行。
-- JDK 17（Zulu 17 已验证）。
-- 自备 `libs/1.6.4-MITE.jar`，内容为 official/混淆命名空间的 MITE-HDS jar。该文件被 `.gitignore` 忽略，不入库。
-- 实际运行使用 `build/libs/FishModLoader-*-all-intermediary.jar`，不要使用 named 命名空间的 `*-all.jar`。
-- 客户端需要完整的 1.6.4 libraries/natives/assets。`1.6.4-MITE.json` 声明的 LWJGL `2.9.1-nightly-20130708-debug3` 本地通常不可得；实测以 LWJGL `2.9.0` 替代可启动到主菜单。
+## 环境与不可破坏约束
 
-## 标准验证命令
+- Windows / Zulu JDK 17 / MITE-HDS R196。
+- 本地游戏 jar：`libs/1.6.4-MITE.jar`；运行产物必须使用 `build/libs/FishModLoader-*-all-intermediary.jar`。
+- 第三方样本：`run/mods/lucky-block-forge-1.6.4-1.0.jar`，SHA-256 `97548719a2370da47b4c078911b14a566e1e08066eb8b26ec4da1d4c68d84be7`。
+- 第三方 jar、remap 缓存和运行产物不得提交或复制进 fixture。
+- 开始工作前先执行 `git status --short`。保留全部已有源码、工具和用户未跟踪文档；未经用户要求不要 commit。
+- `run/.fml/remappedForgeMods/` 是运行缓存。改变 remap 规则时必须升级 schema 或清理缓存，并从日志确认使用了新 runtime jar。
 
-### 日常快速验证
+## 当前工作树
 
-```bash
-./gradlew verifyForgeCompatibilityQuick
-```
-
-该聚合任务执行构建、静态 Mixin 目标/注入检查、全游戏 jar JVM 链接验证和 Forge AT 行为探针；**不启动真实服务端**。
-
-### 真实服务端集成验证
-
-```bash
-./gradlew verifyForgeCompatibilityIntegration
-```
-
-该任务依赖 quick 基线，然后构建真实 Forge AT 夹具、启动服务端、检查规则加载与 AT 应用、等待生命周期断言和 `Done`，发送 `stop` 并要求退出码 0。完整日志：
+交接时的生产改动包括：
 
 ```text
-build/forge-at-server-e2e/server-e2e.log
+M  src/main/java/net/xiaoyu233/fml/modfixer/LegacyForgeModRemapper.java
+M  src/main/java/net/xiaoyu233/fml/modfixer/LegacyForgeModRemapperProbe.java
+M  src/main/java/net/xiaoyu233/fml/reload/transform/forge_compat/WeightedRandomChestContentMixin.java
+M  src/main/java/net/xiaoyu233/fml/reload/transform/forge_compat/WorldMixin.java
+M  tools/main/java/org/moddedmite/fish/faloom/NamedToIntermediaryTinyGenerator.java
+?? src/main/java/net/xiaoyu233/fml/modfixer/LegacyForgeChestContentBridge.java
+?? src/main/java/net/xiaoyu233/fml/modfixer/LegacyForgeBlockSandBridge.java
 ```
 
-### 完整入口
+实际状态可能还有用户创建的未跟踪 Markdown；不要删除、覆盖或纳入本专项。
+
+## 已走通的真实链路
+
+Lucky Block 最新证据已证明：
+
+- official namespace 判定和 JAR 预重映射；
+- source/runtime 双路径、发现、构造和 active list；
+- preInit/init/postInit；
+- 方块/物品注册及资源包接入；
+- 放置和 legacy harvest callback；
+- 多种 `Chosen drop`，包括物品、实体、chest 和 falling-block 路径。
+
+因此以下旧结论已经删除，不得恢复为当前状态：
+
+- “official remap 尚待实施”；
+- “Lucky Block 只掉本体、未执行幸运逻辑”；
+- “纹理是当前首要 blocker”；
+- “尚未开始任何真实第三方样本测试”。
+
+纹理旧错误在最新日志中未复现，但视觉效果仍需人工确认，不能仅凭日志写 PASS。
+
+## 当前已实现但未提交的兼容修复
+
+1. `WeightedRandomChestContent.func_76293_a(...)` 精确改写到 loader-owned chest bridge。
+2. `World.canPlaceEntityOnSide(...)` / `func_72931_a` 兼容入口，使用 MITE 放置查询语义。
+3. `BlockSand.func_72191_e_(World,III)` 精确改写到 loader-owned vanilla `canFallBelow` bridge。
+4. remapper probe 包含对应正例和 wrong-owner/wrong-descriptor 负例。
+
+最近记录中 `verifyForgeCompatibilityQuick`、`verifyForgeCompatibilityIntegration` 和 `buildJar` 均曾通过；每次继续修改后必须重新运行，旧成功不能替代当前验证。
+
+## 最新决定性 blocker
+
+最新报告：
+
+```text
+run/crash-reports/crash-2026-08-01_22.39.01-server.txt
+```
+
+触发路径：
+
+```text
+Chosen drop: type=structure,name=anviltrap,relativeToPlayer=true
+SpawnOther.spawnOther(SpawnOther.java:98)
+java.lang.NoSuchFieldError: cm
+```
+
+最新 remapped Lucky jar 仍包含：
+
+```text
+GETSTATIC net/minecraft/block/Block.cm:Lnet/minecraft/block/Block;
+```
+
+映射和 MITE 实际字段指向：
+
+```text
+aqz.cm:Lamv; -> Block.field_82510_ck:BlockAnvil
+```
+
+而第三方字节码使用 `aqz.cm:Laqz;`。源字段 descriptor 为 `Block`，映射声明为更具体的 `BlockAnvil`，导致严格 `owner + name + descriptor` 映射漏命中。修复不能只改字段名；必须同时处理目标 descriptor，并验证类型安全。
+
+## 下一步精确操作
+
+1. 重新读取最新 `git status`、本文件和 Lucky 专项交接；保存当前 diff，不 commit。
+2. 反编译 source/runtime `mod.lucky.drops.SpawnOther`，机械确认 `aqz.cm:Laqz;` 与 remapped `Block.cm:LBlock;`。
+3. 核实 `Block.field_82510_ck` 的声明 owner、descriptor 和 anvil 语义。
+4. 在 `LegacyForgeModRemapper` 增加严格受控的字段 descriptor 漂移处理：
+   - 正常映射失败后才进入；
+   - 候选必须在 owner/name 下唯一；
+   - 校验源/目标字段类型可安全赋值；
+   - 同时改写 owner、name、descriptor；
+   - 不唯一或不安全时 fail closed，不按短名猜测。
+5. 扩展 `LegacyForgeModRemapperProbe`：
+   - 正例 `GETSTATIC aqz.cm:Laqz;` 必须变为正确目标字段和 descriptor；
+   - wrong owner/name/descriptor、候选不唯一和类型不安全必须不误改或明确拒绝；
+   - 输出不得残留 `Block.cm`。
+6. 对最新 remapped Lucky jar 做完整游戏成员链接审计，按 `owner + name + descriptor` 找出下一个潜在 blocker，而不是等用户逐个触发。
+7. 运行：
 
 ```bash
+./gradlew probeLegacyForgeModRemapper
+./gradlew verifyForgeCompatibilityQuick
+./gradlew verifyForgeCompatibilityIntegration
 ./gradlew verifyForgeCompatibility
-```
-
-当前完整入口依赖 integration，因此也覆盖 quick。它是稳定的顶层入口；未来客户端或真实 mod 自动化应追加到该入口。Gradle 会按任务图去重共享的 `buildJar`、映射和编译前置，不需要手工串联多个命令。
-
-### 查看任务图但不执行
-
-```bash
-./gradlew verifyForgeCompatibilityQuick --dry-run
-./gradlew verifyForgeCompatibilityIntegration --dry-run
-```
-
-## 分项排查命令
-
-```bash
 ./gradlew buildJar
-./gradlew verifyOverwrites
-./gradlew verifyInjections
-./gradlew verifyGameJar
-./gradlew probeForgeAccessTransformer
-./gradlew verifyForgeAccessTransformerServer
+git diff --check
 ```
 
-`verifyGameJar` 支持：
+8. 清理 `run/.fml/remappedForgeMods/` 或确认 schema 已变化，重新运行客户端。
+9. 真实验收至少覆盖普通物品、实体、chest、fallingblock 和 anviltrap；要求无新 crash report、未处理 `LinkageError` 或 server tick loop 退出。
+10. 使用与实现方不同家族的 Claude 只读审核当前完整 diff，并由主代理统一处置 findings。
 
-```bash
-./gradlew verifyGameJar -PgameJar=<jar>
-./gradlew verifyGameJar -PgameJar=<jar> -Ptrace=EntityBoneLord
-./gradlew verifyGameJar -PgameJar=<jar> -PawFile=<aw>
-```
+## 独立遗留问题
 
-`verifyOverwrites` / `verifyInjections` 默认消费 `build/tmp/mite-named.jar`。旧的 `tools/verify_overwrites.sh` 可辅助排查，但当前基线与聚合任务使用 Java 验证器。
+- 某些旧物品 ID 产生 `ItemStack.getItem() == null` NPE；当前被 Lucky 自身捕获，但功能结果失败。
+- end portal frame 等 MITE 不可携带方块会产生错误日志。
+- 最新运行日志中有 12 个非致命 Mixin 应用失败：`BlockChestMixin`、`BlockComparatorMixin`、`BlockLadderMixin`、`BlockLogMixin`、`BlockTorchMixin`、`EntityItemMixin`、`EntityLivingBaseMixin`、`EntityLivingMixin`、`EntityMinecartBaseMixin`、`EntityMooshroomMixin`、`EntityPlayerMixin`、`EntitySheepMixin`。多数为 runtime Shadow 目标未命中；`BlockLogMixin` 是 `@Overwrite updateTick` 未命中。当前统一标记为“待逐项核对真实 MITE API，修复或禁用”，不得建立无理由允许清单。静态“缺失 0”不代表这些 Mixin 已成功应用。
+- `pack.mcmeta`、语言资源等资源包 metadata 警告仍需分类。
 
-## 当前决定性基线
+这些不能和 `NoSuchFieldError: cm` 混为一个补丁，也不能通过吞异常伪装兼容。
 
-已确认的最近基线：
+## 完成门槛
 
-- `buildJar`：BUILD SUCCESSFUL。
-- `verifyGameJar`：Linked OK 4559 / DEFECTS 0。
-- `verifyOverwrites`：340 项全部解析，缺失 0。
-- `verifyInjections`：缺陷 0。
-- `probeForgeAccessTransformer`：在 named `runtimeClasspath` 上验证 AT 解析、映射、发现与直接 ASM 行为，通过；真实 intermediary classloader 链由服务端 E2E 覆盖。
-- `verifyForgeAccessTransformerServer`：
-  - 读取夹具 manifest `FMLAT` 与 `META-INF/fixture_at.cfg`；
-  - 日志出现 `Forge AT rules loaded:`；
-  - 日志出现 `[AT] Applied`；
-  - 日志出现 `[Forge AT fixture] ASSERTION PASSED`；
-  - 服务端出现 `Done (`，随后正常停服。
-- 客户端已人工启动到主菜单，无 `VerifyError` 和崩溃报告；客户端未纳入本轮自动聚合。
+Lucky Block 只有在以下条件同时满足后才能从 FAIL 提升：
 
-### 已知基线风险
-
-真实 AT E2E 虽然通过，但其服务端日志仍含若干非致命 `InvalidMixinException` warning（例如 refmap 后的 intermediary `@Shadow`/`@Overwrite` 未命中）。当前集成任务只断言 AT、生命周期、`Done` 和正常退出，不会因这些 warning 失败；因此不能把 `verifyOverwrites` 在 named jar 上的“缺失 0”解释为运行时所有 Mixin 均已成功应用。下一阶段开始真实 mod 判定前，应分类这些 warning，并选择修复、禁用无效 patch 或建立有依据的允许清单。
-
-## 最重要的维护约束
-
-1. **三层命名空间**：原始 jar 是 official，运行时是 intermediary，源码/AW 是 named。`named.tiny` 的成员描述符带 official 形态，且其 vanilla API 信息不能替代 MITE 实际 jar。
-2. **运行产物**：只有 `*-all-intermediary.jar` 含运行时所需重映射、refmap 和 intermediary AW。
-3. **惰性链接**：`defineClass` 不足以验证字节码；`verifyGameJar` 会通过反射强制链接。
-4. **classloader 单例边界**：modfixer/AT/lifecycle 状态不可在 App 与 Knot 之间无意分裂。修改 blocker 或 whitelist 后必须重跑真实服务端 integration。
-5. **Mixin 注解以真实目标为准**：目标不存在时 `@Overwrite`/`@Shadow` 会硬失败；新增 Forge API 才使用 `@Unique`。
-6. **不要把夹具当真实 mod 矩阵**：仓库 AT 夹具证明基础链路，不代表任何第三方 mod 已兼容。
-
-## 下一步（下个对话直接执行）
-
-真实 Lucky Block 的 namespace、构造、注册和三段生命周期现已走通，但最终人工验收仍为 **FAIL**：创造背包中是紫黑缺失纹理，放置后敲掉只掉落本体，没有执行幸运方块行为。
-
-详细证据、当前高风险改动和下一步排查顺序见：
-
-- [`docs/lucky-block-compat-handoff.md`](docs/lucky-block-compat-handoff.md)
-
-下个对话不要继续随机换 mod，也不要把生命周期日志当成功。先修复：
-
-1. Forge 资源 namespace / icon registration，日志当前为 `Missing resource: textures/blocks/MISSING_ICON_TILE_850_blockLucky.png`，而 jar 内实际资源是 `assets/lucky/textures/blocks/blockLucky.png`；
-2. legacy Forge 方块破坏回调到 MITE 实际 harvest/break 路径的 bridge，使 `BlockLucky` 的随机掉落逻辑真正执行并替代默认本体掉落。
-
-必须先补仓库自产的纹理与破坏回调 fixture，再改生产兼容层；清 remap 缓存后跑真实客户端人工验收。第三方 Lucky Block jar不得提交。最新真实 mod 专项修复尚未得到可信 S3AI Claude 复审，完成后必须补审。
+- 已知致命成员/API 路径均有自动回归；
+- 真实客户端重复破坏测试无 crash report 和未处理链接错误；
+- 核心随机掉落有可观察正确结果；
+- 纹理视觉人工确认；
+- quick、integration、full 均通过；
+- 异模型只读审核无未处置 blocker。
