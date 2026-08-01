@@ -487,6 +487,16 @@ public class FishModLoader {
       Mixins.registerConfiguration((InjectionConfig.Builder.of(MOD_ID, MinecraftServerTrans.class.getPackage(), MixinEnvironment.Phase.DEFAULT).build().toConfig(classLoader, MixinService.getService(),MixinEnvironment.getCurrentEnvironment())));
    }
 
+   /**
+    * Import Forge AT rules into the AppClassLoader-owned registry used by
+    * FMLClassTransformer. ForgeModDiscoverer itself runs in Knot, where the
+    * whitelisted modfixer package has a separate set of static fields.
+    */
+   @Deprecated
+   public static void importForgeAccessTransformers(Path jarPath) {
+      net.xiaoyu233.fml.modfixer.ForgeAccessTransformerImporter.importFrom(jarPath);
+   }
+
    /** Forge mod lifecycle: classic 3-phase init. Called by Minecraft startup hooks (stage 5). */
    @Deprecated
    public static void fireForgePreInit()  { invokeForgeLifecycle("firePreInit"); }

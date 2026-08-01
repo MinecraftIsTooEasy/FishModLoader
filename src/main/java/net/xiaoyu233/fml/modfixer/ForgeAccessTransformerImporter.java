@@ -54,7 +54,7 @@ public final class ForgeAccessTransformerImporter {
                 synchronized (RULES) { if (!LOADED_SOURCES.add(source)) continue; }
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(jar.getInputStream(jar.getEntry(loc)), StandardCharsets.UTF_8))) {
                     int count = importStream(reader, source);
-                    FishModLoader.LOGGER.info("Loaded {} Forge AT rules from {}", count, source);
+                    FishModLoader.LOGGER.info("Forge AT rules loaded: {} from {}", count, source);
                 }
             }
         } catch (IOException e) { FishModLoader.LOGGER.warn("Could not read Forge AT from {}", jarPath, e); }

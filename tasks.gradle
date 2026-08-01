@@ -493,6 +493,111 @@ tasks.register('probeForgeAccessTransformer', JavaExec) {
     mainClass = 'net.xiaoyu233.fml.modfixer.ForgeAccessTransformerProbe'
 }
 
+// A real legacy Forge mod fixture. Its target class is deliberately absent from
+// the mod entrypoint's symbolic references and is first loaded by name during
+// FMLServerStartedEvent, after ForgeModDiscoverer has imported META-INF/fixture_at.cfg.
+// Keeping its sources outside sourceSets.main prevents test-only code entering
+// the loader jar; the generated binary remains under ignored build/.
+def forgeAtFixtureSourceDir = file('src/integrationTest/forgeAt/java')
+def forgeAtFixtureResourcesDir = file('src/integrationTest/forgeAt/resources')
+def forgeAtFixtureClassesDir = file("${buildDir}/forge-at-fixture/classes")
+def forgeAtFixtureJarFile = file("${buildDir}/forge-at-fixture/forge-at-fixture.jar")
+
+tasks.register('compileForgeAtFixture', JavaCompile) {
+    group = 'verification'
+    description = 'Compile the real Forge AT integration fixture mod'
+    dependsOn classes
+    source = fileTree(forgeAtFixtureSourceDir) { include '**/*.java' }
+    destinationDirectory = forgeAtFixtureClassesDir
+    classpath = sourceSets.main.output + sourceSets.main.compileClasspath
+    options.release = 8
+    options.encoding = 'UTF-8'
+}
+
+tasks.register('forgeAtFixtureJar', Jar) {
+    group = 'verification'
+    description = 'Package the Forge AT fixture with @Mod, manifest FMLAT, and META-INF/*_at.cfg'
+    dependsOn compileForgeAtFixture
+    archiveFileName = forgeAtFixtureJarFile.name
+    destinationDirectory = forgeAtFixtureJarFile.parentFile
+    from forgeAtFixtureClassesDir
+    from forgeAtFixtureResourcesDir
+    manifest {
+        attributes 'Manifest-Version': '1.0', 'FMLAT': 'fixture_at.cfg'
+    }
+}
+
+tasks.register('verifyForgeAccessTransformerServer') {
+    group = 'verification'
+    description = 'Start a real Forge mod server, assert AT application in its lifecycle, then stop it'
+    dependsOn buildJar, tasks.named('forgeAtFixtureJar')
+
+    doLast {
+        def stage = file("${buildDir}/forge-at-server-e2e")
+        def loaderIntermediaryJarFile = file(shadowJar.archiveFile.get().asFile.path.replace('-all.jar', '-all-intermediary.jar'))
+        def miteJarFile = runConfig.localJar
+        delete stage
+        file("${stage}/mods").mkdirs()
+        copy { from forgeAtFixtureJarFile; into file("${stage}/mods") }
+        copy { from loaderIntermediaryJarFile; into stage }
+        copy { from miteJarFile; into stage; rename { 'MITE-HDS.jar' } }
+        copy { from 'src/main/resources/log4j2.xml'; into stage }
+        file("${stage}/eula.txt").text = 'eula=true\n'
+
+        def loaderJar = file("${stage}/${loaderIntermediaryJarFile.name}")
+        def javaExecutable = new File(System.getProperty('java.home'), 'bin/java' + (org.gradle.internal.os.OperatingSystem.current().isWindows() ? '.exe' : ''))
+        def command = [javaExecutable.absolutePath, '-Xmx1G', '-Xms512M',
+                       '-Dlog4j.configurationFile=log4j2.xml',
+                       '-DLog4jContextSelector=org.apache.logging.log4j.core.selector.BasicContextSelector',
+                       '-Dlog4j2.disableJmx=true', '-Dlog4j2.skipJansi=true',
+                       '-cp', loaderJar.absolutePath,
+                       'net.xiaoyu233.fml.relaunch.server.JarMain', 'nogui']
+        logger.lifecycle('Starting Forge AT server fixture: ' + command.join(' '))
+
+        def process = new ProcessBuilder(command).directory(stage).redirectErrorStream(true).start()
+        def done = new java.util.concurrent.atomic.AtomicBoolean(false)
+        def assertion = new java.util.concurrent.atomic.AtomicBoolean(false)
+        def stopSent = new java.util.concurrent.atomic.AtomicBoolean(false)
+        def output = new StringBuffer()
+        def reader = Thread.start('forge-at-server-output') {
+            process.inputStream.withReader('UTF-8') { stream ->
+                String line
+                while ((line = stream.readLine()) != null) {
+                    synchronized (output) { output.append(line).append('\n') }
+                    println line
+                    if (line.contains('Done (')) done.set(true)
+                    if (line.contains('[Forge AT fixture] ASSERTION PASSED')) assertion.set(true)
+                    if (done.get() && assertion.get() && stopSent.compareAndSet(false, true)) {
+                        try {
+                            process.outputStream.write('stop\n'.getBytes('UTF-8'))
+                            process.outputStream.flush()
+                        } catch (IOException stopFailure) {
+                            logger.warn('Could not send stop to Forge AT fixture server', stopFailure)
+                        }
+                    }
+                }
+            }
+        }
+
+        boolean exited = process.waitFor(180, java.util.concurrent.TimeUnit.SECONDS)
+        if (!exited) {
+            process.destroyForcibly()
+            reader.join(5000)
+            file("${stage}/server-e2e.log").text = output.toString()
+            throw new GradleException('Forge AT server fixture timed out after 180 seconds')
+        }
+        reader.join(5000)
+        file("${stage}/server-e2e.log").text = output.toString()
+        if (process.exitValue() != 0) throw new GradleException("Forge AT server exited with ${process.exitValue()}")
+        if (!done.get()) throw new GradleException('Forge AT server never logged Done')
+        if (!assertion.get()) throw new GradleException('Forge AT lifecycle assertion did not pass')
+        def text = output.toString()
+        if (!text.contains('Forge AT rules loaded:')) throw new GradleException('Forge AT rules-loaded log is missing')
+        if (!text.contains('[AT] Applied')) throw new GradleException('FMLClassTransformer AT-applied log is missing')
+        logger.lifecycle('Forge AT server end-to-end verification passed; log: ' + file("${stage}/server-e2e.log"))
+    }
+}
+
 tasks.register('verifyOverwrites', JavaExec) {
     group = 'fishmodloader'
     description = 'Verify @Shadow/@Overwrite targets exist in the remapped MITE jar (with full descriptor check)'

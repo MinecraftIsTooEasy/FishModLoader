@@ -89,7 +89,10 @@ public final class ForgeModDiscoverer {
         }
 
         if (hasAt) {
-            ForgeAccessTransformerImporter.importFrom(jarPath);
+            // FMLClassTransformer is AppClassLoader-owned, while this whitelisted
+            // modfixer class runs in Knot. Import into the registry that the
+            // transformer actually reads rather than this loader's duplicate.
+            FishModLoader.importForgeAccessTransformers(jarPath);
         }
 
         if (corePluginClass != null) {

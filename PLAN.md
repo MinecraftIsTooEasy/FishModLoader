@@ -217,8 +217,8 @@ mixin 自建辅助方法（本就不该存在于 jar，属预期）。其余需�
   `LaunchClassBlocker` 现阻止 KnotClassLoader 再定义 `net.minecraft.launchwrapper.*`，并回退到
   AppClassLoader 的同一份类，因此无需 `LaunchMixin`，也不会再创建独立的 `Launch.blackboard`。
 
-- [ ] **`ForgeAccessTransformerImporter` 实际应用**
-  已移除 AT→named AccessWidener 翻译，改由 `FMLClassTransformer` 在运行时修改 ASM access flags；已覆盖可见性、`+f`/`-f`、无 descriptor 字段、AT 文件发现，以及基于 `intermediary.tiny` 的 official → intermediary 类/字段/方法和方法描述符映射。无法精确映射或字段映射歧义会显式 warning 并拒绝，`probeForgeAccessTransformer` 已验证。仍需用真实带 AT mod 做服务端验证。
+- [x] **`ForgeAccessTransformerImporter` 实际应用**
+  已移除 AT→named AccessWidener 翻译，改由 `FMLClassTransformer` 在运行时修改 ASM access flags；已覆盖可见性、`+f`/`-f`、无 descriptor 字段、AT 文件发现，以及基于 `intermediary.tiny` 的 official → intermediary 类/字段/方法和方法描述符映射。无法精确映射或字段映射歧义会显式 warning 并拒绝，`probeForgeAccessTransformer` 已验证。新增 `src/integrationTest/forgeAt` 真实 Forge 夹具（`@Mod`、manifest `FMLAT`、`META-INF/fixture_at.cfg`），目标类仅在 `FMLServerStartedEvent` 反射首次加载；`verifyForgeAccessTransformerServer` 已自动断言规则加载、`[AT] Applied`、字段 `private final → public` 且移除 final、生命周期断言及服务端 `Done`，并自动停服。验证同时发现并修复了 modfixer 在 App/Knot 两份 classloader 中造成 AT 静态规则表分裂的问题。
 
 ### P1 — 重要（影响常用 Forge API）
 

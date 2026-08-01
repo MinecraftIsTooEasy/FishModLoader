@@ -11,6 +11,23 @@
 ### 构建
 `./gradlew buildJar` — **BUILD SUCCESSFUL**
 
+### Forge Access Transformer 真实端到端夹具
+`src/integrationTest/forgeAt` 会由 Gradle 本地编译成忽略于 `build/` 的真实 legacy Forge mod jar，包含 `@Mod`、manifest `FMLAT` 与 `META-INF/fixture_at.cfg`。目标 `LateLoadedTarget` 不出现在入口类的符号引用中，只在 `FMLServerStartedEvent` 里反射首次加载并断言字段已从 `private final` 变为 `public` 且非 final。
+
+```bash
+./gradlew probeForgeAccessTransformer verifyForgeAccessTransformerServer
+```
+
+决定性日志：
+```text
+Forge AT rules loaded: 1 from ...forge-at-fixture.jar!/META-INF/fixture_at.cfg
+[AT] Applied 1 rule(s) to fixture.at.LateLoadedTarget
+[Forge AT fixture] ASSERTION PASSED: LateLoadedTarget.secret is public and non-final
+[Server thread/INFO]: Done (...s)! For help, type "help" or "?"
+```
+
+任务在上述断言与 `Done` 都出现后向服务端 stdin 写入 `stop`，要求进程正常退出，并保存完整日志到 `build/forge-at-server-e2e/server-e2e.log`。夹具揭示并修复了一项真实问题：`net.xiaoyu233.fml.modfixer` 在 AppClassLoader/KnotClassLoader 中各有一份，原先 Knot 侧 discovery 导入的 AT 规则对 App 侧 `FMLClassTransformer` 不可见；现在经 `FishModLoader.importForgeAccessTransformers` 导入 App 侧注册表。
+
 ### 验证任务
 | 任务 | 结果 |
 |------|------|
@@ -172,7 +189,7 @@ grep -iE "World|Chunk|IllegalAccess" exc.log | tail -20
 ### P2（不阻塞功能）
 
 - [x] **`LaunchMixin`**：已通过 LaunchClassBlocker 增加 `net.minecraft.launchwrapper` 前缀阻断解决，无需写 Mixin。
-- [ ] **`ForgeAccessTransformerImporter.importFrom`**：已改为运行时 ASM AT 规则模型；支持 manifest FMLAT、固定位置及 META-INF/*_at.cfg 去重，已处于 intermediary/SRG 的规则保持原样，并基于 `intermediary.tiny` 精确映射 official 类、字段、方法及方法描述符。字段映射歧义、缺失成员或描述符中的未知 official 类型会显式 warning 并拒绝，不再假报成功；`probeForgeAccessTransformer` 已覆盖这些行为。仍待用真实带 AT mod 做服务端验证。
+- [x] **`ForgeAccessTransformerImporter.importFrom`**：已改为运行时 ASM AT 规则模型；支持 manifest FMLAT、固定位置及 META-INF/*_at.cfg 去重，已处于 intermediary/SRG 的规则保持原样，并基于 `intermediary.tiny` 精确映射 official 类、字段、方法及方法描述符。字段映射歧义、缺失成员或描述符中的未知 official 类型会显式 warning 并拒绝，不再假报成功；`probeForgeAccessTransformer` 与真实服务端夹具均通过。
 - [x] **`ForgeSrgModRemapper`**：identity passthrough IS 最终正确实现。Forge mod 分发时已用 SRG(intermediary) 名，运行时一致，无需重映射。已含 intermediary.tiny 存在性验证。
 - [x] **`MixinConfigCreator`**：经核实无任何调用处，为孤立 stub，无需实现，保留文件。
 - [x] **`mixin.refmap.json`**：已从仓库删除（构建期生成，不入库）。
