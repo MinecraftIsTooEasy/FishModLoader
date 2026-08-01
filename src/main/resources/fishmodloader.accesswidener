@@ -12,6 +12,9 @@ accessible field net/minecraft/block/Block maxZ [D
 accessible field net/minecraft/block/Block minX [D
 accessible field net/minecraft/block/Block minY [D
 accessible field net/minecraft/block/Block minZ [D
+accessible method net/minecraft/block/Block setHardness (F)Lnet/minecraft/block/Block;
+accessible method net/minecraft/block/Block setResistance (F)Lnet/minecraft/block/Block;
+accessible method net/minecraft/block/Block setStepSound (Lnet/minecraft/block/StepSound;)Lnet/minecraft/block/Block;
 accessible field net/minecraft/block/BlockFurnace isActive Z
 accessible field net/minecraft/block/material/Material durability F
 accessible field net/minecraft/block/material/Material enchantability I

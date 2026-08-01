@@ -84,7 +84,15 @@ public final class ForgeModContainer implements ModContainer {
     @Override public VersionRange acceptableMinecraftVersionRange() { return null; }
     @Override public Certificate getSigningCertificate() { return null; }
     @Override public Map<String,String> getCustomModProperties() { return Collections.emptyMap(); }
-    @Override public Class<?> getCustomResourcePackClass() { return null; }
+    @Override public Class<?> getCustomResourcePackClass() {
+        try {
+            return getSource().isDirectory()
+                    ? Class.forName("cpw.mods.fml.client.FMLFolderResourcePack", true, getClass().getClassLoader())
+                    : Class.forName("cpw.mods.fml.client.FMLFileResourcePack", true, getClass().getClassLoader());
+        } catch (ClassNotFoundException ignored) {
+            return null;
+        }
+    }
     @Override public Map<String, String> getSharedModDescriptor() { return null; }
 
     @Subscribe

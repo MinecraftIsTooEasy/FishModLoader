@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -20,8 +21,8 @@ import java.util.jar.JarFile;
  *
  * <p>A jar is considered a Forge mod if it contains {@code mcmod.info}, a
  * {@code @cpw.mods.fml.common.Mod} class, or a known Forge AT file. The user's
- * original jar is kept on the classpath; Forge SRG names are adapted when class
- * bytes are loaded.
+ * original jar is retained for provenance and AT resources; only the prepared
+ * intermediary runtime jar is published to Knot.
  */
 @Deprecated
 public final class ForgeModDiscoverer {
@@ -77,30 +78,29 @@ public final class ForgeModDiscoverer {
 
         List<McModInfoParser.Entry> mcInfo = McModInfoParser.read(jarPath);
 
-        ForgeSrgModRemapper.registerForgeModJar(jarPath);
-
-        DiscoveredForgeMod mod = new DiscoveredForgeMod(jarPath, modAnns, mcInfo);
-        discovered.add(mod);
-
+        LegacyForgeModRemapper.Result prepared;
         try {
-            Launch.knotLoader.addCodeSource(jarPath);
+            prepared = new LegacyForgeModRemapper().prepare(
+                    jarPath, FishModLoader.getGameJarPath(), Paths.get(Launch.minecraftHome));
+            FishModLoader.LOGGER.info("Forge mod namespace: {} (officialRefs={}, intermediaryRefs={}) for {}",
+                    prepared.namespace, prepared.officialReferences, prepared.intermediaryReferences, jarPath.getFileName());
+            if (prepared.cacheHit) FishModLoader.LOGGER.info("Using cached remapped Forge mod: {}", prepared.runtimePath);
+            else if (!prepared.runtimePath.equals(prepared.sourcePath)) FishModLoader.LOGGER.info("Remapped Forge mod {} -> {}", jarPath.getFileName(), prepared.runtimePath);
+            Launch.knotLoader.addCodeSource(prepared.runtimePath);
         } catch (Throwable t) {
-            FishModLoader.LOGGER.warn("Could not add {} to class loader", jarPath, t);
+            FishModLoader.LOGGER.error("Rejected Forge mod {} (source={}) before classloader publication: {}",
+                    jarPath.getFileName(), jarPath.toAbsolutePath(), t.getMessage(), t);
+            return;
         }
 
-        if (hasAt) {
-            // FMLClassTransformer is AppClassLoader-owned, while this whitelisted
-            // modfixer class runs in Knot. Import into the registry that the
-            // transformer actually reads rather than this loader's duplicate.
-            FishModLoader.importForgeAccessTransformers(jarPath);
-        }
+        // AT resources remain official and the importer maps them, so source is canonical.
+        if (hasAt) FishModLoader.importForgeAccessTransformers(jarPath);
+        // Coreplugin bytecode itself may reference game classes and must come from runtime.
+        if (corePluginClass != null) registerCorePlugin(prepared.runtimePath, corePluginClass);
 
-        if (corePluginClass != null) {
-            registerCorePlugin(jarPath, corePluginClass);
-        }
-
-        FishModLoader.LOGGER.info("Discovered Forge mod: {} ({} @Mod class(es), {} mcmod.info entries{})",
-                jarPath.getFileName(), modAnns.size(), mcInfo.size(),
+        discovered.add(new DiscoveredForgeMod(jarPath, prepared.runtimePath, modAnns, mcInfo));
+        FishModLoader.LOGGER.info("Discovered Forge mod: {} (runtime={}, {} @Mod class(es), {} mcmod.info entries{})",
+                jarPath.getFileName(), prepared.runtimePath.getFileName(), modAnns.size(), mcInfo.size(),
                 corePluginClass != null ? ", coremod=" + corePluginClass : "");
     }
 
@@ -165,14 +165,16 @@ public final class ForgeModDiscoverer {
 
     /** Aggregate of everything known about a Forge mod jar at discovery time. */
     public static final class DiscoveredForgeMod {
-        public final Path jarPath;
+        public final Path sourceJarPath;
+        public final Path runtimeJarPath;
         public final List<LegacyModInfo> modAnnotations;
         public final List<McModInfoParser.Entry> mcModInfo;
 
-        public DiscoveredForgeMod(Path jarPath,
+        public DiscoveredForgeMod(Path sourceJarPath, Path runtimeJarPath,
                                   List<LegacyModInfo> modAnnotations,
                                   List<McModInfoParser.Entry> mcModInfo) {
-            this.jarPath = jarPath;
+            this.sourceJarPath = sourceJarPath;
+            this.runtimeJarPath = runtimeJarPath;
             this.modAnnotations = Collections.unmodifiableList(modAnnotations);
             this.mcModInfo = Collections.unmodifiableList(mcModInfo);
         }
@@ -185,7 +187,7 @@ public final class ForgeModDiscoverer {
             for (McModInfoParser.Entry e : mcModInfo) {
                 if (e.modid != null && !e.modid.isEmpty()) return e.modid;
             }
-            return jarPath.getFileName().toString();
+            return sourceJarPath.getFileName().toString();
         }
     }
 }

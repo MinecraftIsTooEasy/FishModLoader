@@ -21,7 +21,6 @@ import com.google.common.collect.Sets;
 import net.fabricmc.loader.impl.util.SystemProperties;
 import net.xiaoyu233.fml.classloading.dump.DumpClassExtension;
 import net.xiaoyu233.fml.mixin.service.MixinService;
-import net.xiaoyu233.fml.modfixer.ForgeSrgModRemapper;
 import net.xiaoyu233.fml.util.*;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
@@ -590,13 +589,7 @@ public final class KnotClassDelegate<T extends ClassLoader & KnotClassDelegate.C
 				outputStream.write(buffer, 0, len);
 			}
 
-			byte[] bytes = outputStream.toByteArray();
-			if (!localSource || !hasRegularCodeSource(url)) {
-				return bytes;
-			}
-
-			String className = name.substring(0, name.length() - ".class".length()).replace('/', '.');
-			return ForgeSrgModRemapper.remapClass(className, getCodeSource(url, name), bytes);
+			return outputStream.toByteArray();
 		}
 	}
 

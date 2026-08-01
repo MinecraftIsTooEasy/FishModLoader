@@ -10,6 +10,7 @@ import net.minecraft.entity.EnumCreatureType;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.util.EnumFace;
 import net.minecraft.world.ChunkCoordIntPair;
+import net.minecraft.world.Explosion;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldProvider;
 import net.minecraft.world.chunk.Chunk;
@@ -56,6 +57,9 @@ public abstract class WorldMixin {
     @Shadow
     public abstract int getBlockMetadata(int x, int y, int z);
 
+    @Shadow
+    public abstract Explosion createExplosion(Entity source, double x, double y, double z, float strength, float flamingChance, boolean damagesTerrain);
+
     // ========================================================================
     // Forge-added fields
     // ========================================================================
@@ -90,6 +94,12 @@ public abstract class WorldMixin {
     // ========================================================================
     // Forge API methods
     // ========================================================================
+
+    /** Legacy vanilla overload retained by Forge 1.6.4 mods. */
+    @Unique
+    public Explosion func_72876_a(Entity source, double x, double y, double z, float strength, boolean damagesTerrain) {
+        return createExplosion(source, x, y, z, strength, 0.0F, damagesTerrain);
+    }
 
     @Unique
     public void addTileEntity(TileEntity entity) {

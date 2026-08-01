@@ -53,7 +53,7 @@ import java.util.logging.Level;
 
 public class GameRegistry
 {
-    private static Multimap<ModContainer, BlockProxy> blockRegistry = ArrayListMultimap.create();
+    private static Multimap<ModContainer, net.minecraft.block.Block> blockRegistry = ArrayListMultimap.create();
     private static Set<IWorldGenerator> worldGenerators = Sets.newHashSet();
     private static List<IFuelHandler> fuelHandlers = Lists.newArrayList();
     private static List<ICraftingHandler> craftingHandlers = Lists.newArrayList();
@@ -208,13 +208,24 @@ public class GameRegistry
             Item i;
             try
             {
-                itemCtor = itemclass.getConstructor(int.class);
-                i = itemCtor.newInstance(blockItemId);
+                // MITE binds ItemBlock directly to a Block rather than deriving it
+                // from the legacy shifted item id. Prefer the real MITE API.
+                itemCtor = itemclass.getConstructor(net.minecraft.block.Block.class);
+                i = itemCtor.newInstance(block);
+                GameData.newItemAdded(i);
             }
-            catch (NoSuchMethodException e)
+            catch (NoSuchMethodException miteConstructorMissing)
             {
-                itemCtor = itemclass.getConstructor(int.class, net.minecraft.block.Block.class);
-                i = itemCtor.newInstance(blockItemId, block);
+                try
+                {
+                    itemCtor = itemclass.getConstructor(int.class);
+                    i = itemCtor.newInstance(blockItemId);
+                }
+                catch (NoSuchMethodException legacyConstructorMissing)
+                {
+                    itemCtor = itemclass.getConstructor(int.class, net.minecraft.block.Block.class);
+                    i = itemCtor.newInstance(blockItemId, block);
+                }
             }
             GameRegistry.registerItem(i,name, modId);
         }
@@ -223,7 +234,7 @@ public class GameRegistry
             FMLLog.log(Level.SEVERE, e, "Caught an exception during block registration");
             throw new LoaderException(e);
         }
-        blockRegistry.put(Loader.instance().activeModContainer(), (BlockProxy) block);
+        blockRegistry.put(Loader.instance().activeModContainer(), block);
     }
 
     public static void addRecipe(ItemStack output, Object... params)

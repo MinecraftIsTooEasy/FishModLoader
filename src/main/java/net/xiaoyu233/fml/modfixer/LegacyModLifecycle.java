@@ -1,5 +1,6 @@
 package net.xiaoyu233.fml.modfixer;
 
+import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.common.IFMLSidedHandler;
 import cpw.mods.fml.common.LoadController;
 import cpw.mods.fml.common.Loader;
@@ -18,6 +19,7 @@ import net.xiaoyu233.fml.FishModLoader;
 import net.xiaoyu233.fml.relaunch.Launch;
 
 import java.io.File;
+import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.*;
 import java.util.ArrayList;
@@ -122,7 +124,7 @@ public final class LegacyModLifecycle {
                     constructOne(discovered, modInfo);
                 } catch (Throwable thrown) {
                     FishModLoader.LOGGER.error("Failed to construct Forge mod {} ({})",
-                            modInfo.getModId(), discovered.jarPath.getFileName(), thrown);
+                            modInfo.getModId(), discovered.sourceJarPath.getFileName(), thrown);
                 }
             }
         }
@@ -152,7 +154,10 @@ public final class LegacyModLifecycle {
         Object modInstance = modClass.getDeclaredConstructor().newInstance();
 
         ModMetadata metadata = buildMetadata(modInfo, discovered);
-        File jarFile = discovered.jarPath.toFile();
+        if (!java.nio.file.Files.isReadable(discovered.runtimeJarPath)) {
+            throw new IOException("Runtime Forge mod jar is not readable: " + discovered.runtimeJarPath);
+        }
+        File jarFile = discovered.runtimeJarPath.toFile();
         ForgeModContainer container = new ForgeModContainer(metadata, jarFile, modInstance, modClass);
 
         injectInstanceFields(modClass, modInstance);
@@ -326,6 +331,36 @@ public final class LegacyModLifecycle {
             }
         }
         return null;
+    }
+
+    /**
+     * Binds the already-constructed client resource infrastructure and registers
+     * runtime Forge mod jars before texture stitching.  buildModList runs before
+     * Minecraft exists in this launcher, so its normal FML resource-pack hook is
+     * necessarily skipped and must be replayed here.
+     */
+    public static void prepareClientResources(Object minecraft, List<?> resourcePacks, Object resourceManager) {
+        if (FishModLoader.isServer()) return;
+        ensureFMLCommonHandler();
+        try {
+            Object delegate = FMLCommonHandler.instance().getSidedDelegate();
+            Field client = delegate.getClass().getDeclaredField("client");
+            Field packs = delegate.getClass().getDeclaredField("resourcePackList");
+            Field manager = delegate.getClass().getDeclaredField("resourceManager");
+            Field packMap = delegate.getClass().getDeclaredField("resourcePackMap");
+            client.setAccessible(true); packs.setAccessible(true); manager.setAccessible(true); packMap.setAccessible(true);
+            client.set(delegate, minecraft);
+            packs.set(delegate, resourcePacks);
+            manager.set(delegate, resourceManager);
+            if (packMap.get(delegate) == null) packMap.set(delegate, new HashMap<String, Object>());
+            for (LoadedMod loaded : loadedMods) FMLCommonHandler.instance().addModToResourcePack(loaded.container);
+            // Minecraft is still in its constructor and its ResourcePackRepository
+            // is initialized later.  Adding to defaultResourcePacks is sufficient;
+            // forcing refreshResources here dereferences that not-yet-built repository.
+            FishModLoader.LOGGER.info("Registered {} Forge mod resource pack(s)", loadedMods.size());
+        } catch (Throwable thrown) {
+            throw new IllegalStateException("Failed to register Forge mod resource packs", thrown);
+        }
     }
 
     public static void firePreInit() {

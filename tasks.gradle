@@ -485,12 +485,24 @@ tasks.register('verifyGameJar', JavaExec) {
 }
 
 
+// This probe runs on sourceSets.main.runtimeClasspath (named namespace) and
+// validates AT parsing, mapping decisions, discovery, and direct ASM flag changes.
+// The intermediary classloader/runtime chain is covered by the server E2E below.
 tasks.register('probeForgeAccessTransformer', JavaExec) {
     group = 'verification'
-    description = 'Direct behavior probe for Forge AT parsing, discovery, and ASM access changes'
+    description = 'Probe Forge AT parsing, mapping, discovery, and ASM behavior on the named classpath'
     dependsOn classes
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'net.xiaoyu233.fml.modfixer.ForgeAccessTransformerProbe'
+}
+
+tasks.register('probeLegacyForgeModRemapper', JavaExec) {
+    group = 'verification'
+    description = 'Probe legacy Forge official-to-intermediary jar remapping, namespace scanning, and caching'
+    dependsOn classes
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'net.xiaoyu233.fml.modfixer.LegacyForgeModRemapperProbe'
+    jvmArgs '--add-modules=jdk.zipfs'
 }
 
 // A real legacy Forge mod fixture. Its target class is deliberately absent from
@@ -524,6 +536,46 @@ tasks.register('forgeAtFixtureJar', Jar) {
     from forgeAtFixtureResourcesDir
     manifest {
         attributes 'Manifest-Version': '1.0', 'FMLAT': 'fixture_at.cfg'
+    }
+}
+
+
+// Synthetic official-namespace Forge mod lifecycle fixture. Generated from ASM,
+// never from or with a third-party mod binary.
+def forgeRemapFixtureJarFile = file("${buildDir}/forge-remap-fixture/forge-remap-fixture.jar")
+
+tasks.register('forgeRemapFixtureJar', JavaExec) {
+    group = 'verification'
+    description = 'Generate the synthetic official Forge remap lifecycle fixture'
+    dependsOn classes
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'net.xiaoyu233.fml.modfixer.LegacyForgeModRemapperProbe'
+    args forgeRemapFixtureJarFile.path
+}
+
+tasks.register('verifyForgeModRemapIntegration') {
+    group = 'verification'
+    description = 'Start a server and assert official Forge mod remap plus full lifecycle'
+    dependsOn buildJar, tasks.named('forgeRemapFixtureJar')
+    doLast {
+        def stage=file("${buildDir}/forge-remap-server-e2e")
+        def loader=file(shadowJar.archiveFile.get().asFile.path.replace('-all.jar','-all-intermediary.jar'))
+        delete stage; file("${stage}/mods").mkdirs()
+        copy { from forgeRemapFixtureJarFile; into file("${stage}/mods") }
+        copy { from loader; into stage }
+        copy { from runConfig.localJar; into stage; rename { 'MITE-HDS.jar' } }
+        copy { from 'src/main/resources/log4j2.xml'; into stage }
+        file("${stage}/eula.txt").text='eula=true\n'
+        def javaExecutable=new File(System.getProperty('java.home'),'bin/java'+(org.gradle.internal.os.OperatingSystem.current().isWindows()?'.exe':''))
+        def command=[javaExecutable.absolutePath,'-Xmx1G','-Xms512M','-Dlog4j.configurationFile=log4j2.xml','-DLog4jContextSelector=org.apache.logging.log4j.core.selector.BasicContextSelector','-Dlog4j2.disableJmx=true','-Dlog4j2.skipJansi=true','-cp',new File(stage,loader.name).absolutePath,'net.xiaoyu233.fml.relaunch.server.JarMain','nogui']
+        def process=new ProcessBuilder(command).directory(stage).redirectErrorStream(true).start()
+        def output=new StringBuffer();def done=new java.util.concurrent.atomic.AtomicBoolean(false);def post=new java.util.concurrent.atomic.AtomicBoolean(false);def stopped=new java.util.concurrent.atomic.AtomicBoolean(false)
+        def reader=Thread.start('forge-remap-server-output'){process.inputStream.withReader('UTF-8'){stream->String line;while((line=stream.readLine())!=null){synchronized(output){output.append(line).append('\n')};println line;if(line.contains('Done ('))done.set(true);if(line.contains('Dispatched Forge INIT/POSTINIT/AVAILABLE to 1 mod(s)'))post.set(true);if(done.get()&&post.get()&&stopped.compareAndSet(false,true)){process.outputStream.write('stop\n'.getBytes('UTF-8'));process.outputStream.flush()}}}}
+        boolean exited=process.waitFor(180,java.util.concurrent.TimeUnit.SECONDS);if(!exited)process.destroyForcibly();reader.join(5000);file("${stage}/server-e2e.log").text=output.toString()
+        if(!exited||process.exitValue()!=0)throw new GradleException('Forge remap fixture server failed or timed out')
+        def text=output.toString();['Forge mod namespace: OFFICIAL','Remapped Forge mod','Constructed Forge mod: forge_remap_fixture','Forge mod construction complete: 1 active mod(s)','Dispatching cpw.mods.fml.common.event.FMLPreInitializationEvent to 1 handler(s) on Forge mod forge_remap_fixture','Dispatching cpw.mods.fml.common.event.FMLInitializationEvent to 1 handler(s) on Forge mod forge_remap_fixture','Dispatching cpw.mods.fml.common.event.FMLPostInitializationEvent to 1 handler(s) on Forge mod forge_remap_fixture','Done ('].each{needle->if(!text.contains(needle))throw new GradleException('Missing Forge remap assertion: '+needle)}
+        if(text.contains('NoClassDefFoundError: aqz')||text.contains('ClassNotFoundException: aqz'))throw new GradleException('Official aqz reference reached runtime')
+        logger.lifecycle('Forge mod remap lifecycle verification passed; log: '+file("${stage}/server-e2e.log"))
     }
 }
 
@@ -601,7 +653,7 @@ tasks.register('verifyForgeAccessTransformerServer') {
 tasks.register('verifyOverwrites', JavaExec) {
     group = 'fishmodloader'
     description = 'Verify @Shadow/@Overwrite targets exist in the remapped MITE jar (with full descriptor check)'
-    dependsOn ':tools:classes'
+    dependsOn ':tools:classes', remapMiteToNamed
     classpath = project(':tools').sourceSets.main.runtimeClasspath
     mainClass = 'org.moddedmite.fish.faloom.VerifyOverwrites'
     args = [
@@ -619,4 +671,38 @@ tasks.register('verifyInjections', JavaExec) {
             project.findProperty('gameJar') ?: file('build/tmp/mite-named.jar').path,
             'src/main/java/net/xiaoyu233/fml/reload/transform'
     ]
+}
+
+// Daily compatibility gate: build the runtime artifact and run every static or
+// in-process probe. Keep the real server out of this graph so it stays suitable
+// for routine development. Gradle de-duplicates the shared remap/compile/build
+// prerequisites of these tasks.
+tasks.register('verifyForgeCompatibilityQuick') {
+    group = 'verification'
+    description = 'Build and run Forge compatibility static checks and probes (no real server)'
+    dependsOn buildJar
+    dependsOn verifyGameJar
+    dependsOn verifyOverwrites
+    dependsOn verifyInjections
+    dependsOn probeForgeAccessTransformer
+    dependsOn probeLegacyForgeModRemapper
+}
+
+// The server E2E already depends on buildJar and its fixture. Depending on the
+// quick aggregate adds all cheap gates without introducing another build path;
+// shared tasks still execute only once in the Gradle task graph.
+tasks.register('verifyForgeCompatibilityIntegration') {
+    group = 'verification'
+    description = 'Run the quick gate and the real Forge AT server end-to-end verification'
+    dependsOn verifyForgeCompatibilityQuick
+    dependsOn verifyForgeAccessTransformerServer
+    dependsOn verifyForgeModRemapIntegration
+}
+
+// Stable top-level gate. It currently aliases integration; future client or
+// real-mod automation belongs here without changing the documented entrypoint.
+tasks.register('verifyForgeCompatibility') {
+    group = 'verification'
+    description = 'Run the complete Forge compatibility verification suite'
+    dependsOn verifyForgeCompatibilityIntegration
 }
