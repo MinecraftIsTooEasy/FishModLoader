@@ -1,5 +1,6 @@
 package net.xiaoyu233.fml.reload.transform;
 
+import com.llamalad7.mixinextras.sugar.Local;
 import net.minecraft.ServerPlayer;
 import net.minecraft.server.MinecraftServer;
 import net.xiaoyu233.fml.reload.event.MITEEvents;
@@ -24,8 +25,8 @@ public class MinecraftServerTrans {
       info.cancel();
    }
 
-   @Inject(method = "playerLoggedIn", at = @At("HEAD"))
-   private void onPlayerLoggedIn(ServerPlayer par1EntityPlayerMP, CallbackInfo callbackInfo) {
-      MITEEvents.MITE_EVENT_BUS.post(new PlayerLoggedInEvent(par1EntityPlayerMP));
+   @Inject(method = "playerLoggedIn", remap = false, at = @At("HEAD"), require = 1)
+   private void onPlayerLoggedIn(CallbackInfo callbackInfo, @Local(argsOnly = true) ServerPlayer player) {
+      MITEEvents.MITE_EVENT_BUS.post(new PlayerLoggedInEvent(player));
    }
 }

@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Main.class)
 public class ClientEntrypointMixin {
-    @Inject(method = "main", at = @At(value = "NEW", target = "(Lnet/minecraft/Session;IIZZLjava/io/File;Ljava/io/File;Ljava/io/File;Ljava/net/Proxy;Ljava/lang/String;)Lnet/minecraft/Minecraft;", shift = At.Shift.BEFORE))
+    @Inject(method = "main", remap = false, at = @At(value = "NEW", target = "net/minecraft/Minecraft", shift = At.Shift.BEFORE, remap = false), require = 1)
     private static void injectMain(CallbackInfo callbackInfo){
         FishModLoader.invokeEntrypoints("main", ModInitializer.class, modInitializer -> {
             modInitializer.createConfig().ifPresent(configRegistry -> {

@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(MinecraftServer.class)
 public class ServerEntrypointMixin {
-    @Inject(method = "main", at = @At(value = "INVOKE", target = "Lnet/minecraft/StatList;nopInit()V", shift = At.Shift.BEFORE), require = 1)
+    @Inject(method = "main", remap = false, at = @At(value = "INVOKE", target = "net/minecraft/StatList.nopInit()V", shift = At.Shift.BEFORE, remap = false), require = 1)
     private static void injectMain(CallbackInfo callbackInfo){
         FishModLoader.invokeEntrypoints("main", ModInitializer.class, modInitializer -> {
             modInitializer.createConfig().ifPresent(configRegistry -> {
