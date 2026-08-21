@@ -1,0 +1,648 @@
+import groovy.json.JsonSlurper
+
+import java.security.MessageDigest
+
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = providers.gradleProperty('group').getOrElse('net.xiaoyu233')
+version = providers.gradleProperty('version').getOrElse('B0.1.3')
+
+def javaTarget = providers.gradleProperty('javaVersion').map { it.toInteger() }.getOrElse(17)
+def legacyLibsDir = layout.buildDirectory.dir('legacy-libs')
+
+/**
+ * The repository stores the legacy runtime dependencies in one deterministic
+ * archive.  Keeping extraction in Gradle makes a clean checkout reproducible
+ * without committing the generated libs/ directory.
+ */
+def prepareLegacyLibs = tasks.register('prepareLegacyLibs', Sync) {
+    inputs.file(layout.projectDirectory.file('libs.zip'))
+    from { zipTree(layout.projectDirectory.file('libs.zip')) }
+    into(legacyLibsDir)
+}
+
+def legacyFile = { String name ->
+    files(legacyLibsDir.map { it.file(name) })
+}
+
+sourceSets {
+    main {
+        java {
+            // Preserve the current source tree during the migration.  Moving
+            // files to src/main/java can happen independently later.
+            srcDirs = ['src']
+        }
+        resources {
+            srcDirs = ['src']
+            exclude '**/*.java'
+            // The manifest is supplied by the Jar task below so it can carry
+            // the Gradle project version consistently.
+            exclude 'META-INF/MANIFEST.MF'
+        }
+    }
+    test {
+        java.srcDirs = ['src/test/java']
+        resources.srcDirs = ['src/test/resources']
+    }
+}
+
+configurations {
+    shaded
+    implementation.extendsFrom(shaded)
+    gameRuntime
+    natives
+}
+
+dependencies {
+    // The MITE classes are needed to compile loader integrations, but the
+    // game itself remains outside the published loader JAR.
+    compileOnly legacyFile('1.6.4-MITE.jar')
+    compileOnly legacyFile('MITE-HDS.jar')
+    gameRuntime legacyFile('MITE-HDS.jar')
+    gameRuntime legacyFile('1.6.4-MITE.jar')
+
+    shaded legacyFile('gson-2.2.2.jar')
+    shaded legacyFile('guava-28.0-jre.jar')
+    shaded legacyFile('failureaccess-1.0.1.jar')
+    shaded legacyFile('jsr305-3.0.2.jar')
+
+    shaded legacyFile('access-widener-2.1.0.jar')
+    shaded legacyFile('Fabric-ASM-v2.3.jar')
+    shaded legacyFile('mapping-io-0.5.0.jar')
+    shaded legacyFile('tiny-remapper-0.10.4+local.jar')
+
+    shaded legacyFile('asm-9.6.jar')
+    shaded legacyFile('asm-analysis-9.6.jar')
+    shaded legacyFile('asm-commons-9.6.jar')
+    shaded legacyFile('asm-tree-9.6.jar')
+    shaded legacyFile('asm-util-9.6.jar')
+
+    shaded legacyFile('org.ow2.sat4j.core-2.3.6.jar')
+    shaded legacyFile('org.ow2.sat4j.pb-2.3.6.jar')
+    shaded legacyFile('commons-lang3-3.13.0.jar')
+    shaded legacyFile('log4j-api-2.23.1.jar')
+    shaded legacyFile('log4j-core-2.23.1.jar')
+
+    // LWJGL's Java classes are part of the historical standalone artifact.
+    // Native binaries remain external and are selected by runClient.
+    shaded legacyFile('lwjgl-2.9.0.jar')
+    shaded legacyFile('lwjgl_util-2.9.0.jar')
+
+    natives legacyFile('lwjgl-platform-2.9.0-natives-windows.jar')
+}
+
+java {
+    sourceCompatibility = JavaVersion.toVersion(javaTarget)
+    targetCompatibility = JavaVersion.toVersion(javaTarget)
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(javaTarget)
+    }
+    withSourcesJar()
+}
+
+application {
+    mainClass = 'net.xiaoyu233.fml.relaunch.server.Main'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    dependsOn(prepareLegacyLibs)
+    options.encoding = 'UTF-8'
+    options.compilerArgs.addAll(['-Xlint:-options'])
+    // MITE-HDS embeds an old Guava copy. Keep the explicitly selected
+    // Guava API first so EventBus and related sources resolve consistently.
+    if (name == 'compileJava') {
+        classpath = files(legacyFile('guava-28.0-jre.jar'), classpath)
+    }
+}
+
+tasks.withType(ProcessResources).configureEach {
+    dependsOn(prepareLegacyLibs)
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.named('jar', Jar) {
+    archiveBaseName = 'FishModLoader'
+    manifest {
+        from(layout.projectDirectory.file('src/META-INF/MANIFEST.MF'))
+        attributes(
+            'Implementation-Version': project.version,
+            'Build-Gradle': 'true'
+        )
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.named('sourcesJar', Jar) {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+/**
+ * Published loader artifact.  Dependencies are unpacked into one executable
+ * JAR, matching the historical IntelliJ artifact while avoiding duplicate
+ * signature files from third-party libraries.
+ */
+def shadowJar = tasks.register('shadowJar', Jar) {
+    group = 'build'
+    description = 'Build the self-contained FishModLoader Fat JAR.'
+    archiveBaseName = 'FishModLoader'
+    archiveClassifier = 'all'
+    dependsOn(tasks.named('classes'), prepareLegacyLibs)
+
+    from(sourceSets.main.output)
+    from {
+        configurations.shaded.collect { file ->
+            file.isDirectory() ? file : zipTree(file)
+        }
+    }
+    // MITE's FontRenderer expects its own 144-character font table. The
+    // loader source tree also contains a large CJK font.txt for tooling, but
+    // exposing it at runtime makes the language screen index past 256.
+    exclude 'font.txt'
+    exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA'
+    exclude 'META-INF/LICENSE*', 'META-INF/NOTICE*'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        from(layout.projectDirectory.file('src/META-INF/MANIFEST.MF'))
+        attributes(
+            'Implementation-Version': project.version,
+            'Build-Gradle': 'true'
+        )
+    }
+}
+
+/**
+ * HDS carries the legacy launcher/support libraries, but it also contains a
+ * second Minecraft client/server and font.txt. Keep only its support classes
+ * available to the client so neither game classes nor resources are shadowed.
+ */
+def legacySupportJar = tasks.register('legacySupportJar', Jar) {
+    group = 'build'
+    description = 'Build the filtered HDS support runtime.'
+    archiveBaseName = 'MITE-HDS-support'
+    dependsOn(prepareLegacyLibs)
+    from { zipTree(legacyFile('MITE-HDS.jar').singleFile) }
+    exclude 'net/minecraft/**', 'font.txt', 'META-INF/MANIFEST.MF'
+    exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.named('build') {
+    dependsOn(shadowJar)
+}
+
+tasks.register('verifyBundle') {
+    group = 'verification'
+    description = 'Verify the generated Fat JAR contains project classes, resources, and Gson.'
+    dependsOn(shadowJar)
+    doLast {
+        def archive = shadowJar.get().archiveFile.get().asFile
+        def entries = [] as Set
+        zipTree(archive).visit { details ->
+            if (!details.isDirectory()) {
+                entries.add(details.relativePath.pathString)
+            }
+        }
+        ['META-INF/MANIFEST.MF',
+         'fishmodloader.mixin.json',
+         'net/xiaoyu233/fml/FishModLoader.class',
+         'com/google/gson/Gson.class'].each { required ->
+            if (!entries.contains(required)) {
+                throw new GradleException("Fat JAR is missing required entry: ${required}")
+            }
+        }
+        logger.lifecycle("Verified ${archive.name} (${archive.length()} bytes, ${entries.size()} entries)")
+    }
+}
+
+tasks.named('check') {
+    dependsOn('verifyBundle')
+}
+
+tasks.register('extractNatives', Sync) {
+    group = 'run'
+    description = 'Extract available LWJGL native libraries for the legacy runtime.'
+    dependsOn(prepareLegacyLibs)
+    from { configurations.natives.collect { zipTree(it) } }
+    into(layout.buildDirectory.dir('natives'))
+    include '**/*.dll', '**/*.so', '**/*.dylib', '**/*.jnilib'
+}
+
+def defaultMacNativeDir = file(System.getProperty('user.home') + '/.minecraft/versions/1.6.4-MITE/1.6.4-MITE-natives')
+def defaultMinecraftLibrariesDir = file(System.getProperty('user.home') + '/.minecraft/libraries')
+def defaultClientGameDir = file(System.getProperty('user.home') + '/.minecraft')
+def clientNativeDir = {
+    def configured = providers.gradleProperty('nativeDir')
+    if (configured.isPresent()) {
+        return file(configured.get())
+    }
+    if (defaultMacNativeDir.isDirectory()) {
+        return defaultMacNativeDir
+    }
+    return layout.buildDirectory.dir('natives').get().asFile
+}
+
+def nativeLibraryNames = {
+    def osName = System.getProperty('os.name', '').toLowerCase(Locale.ROOT)
+    if (osName.contains('mac')) {
+        return ['liblwjgl.dylib', 'openal.dylib', 'libjinput-osx.jnilib']
+    }
+    if (osName.contains('win')) {
+        return ['lwjgl64.dll', 'OpenAL64.dll']
+    }
+    return ['liblwjgl.so', 'libopenal.so']
+}
+
+def commandResult = { List<String> command ->
+    try {
+        def process = new ProcessBuilder(command).redirectErrorStream(true).start()
+        def output = process.inputStream.getText('UTF-8')
+        def exitCode = process.waitFor()
+        [exitCode: exitCode, output: output]
+    } catch (Exception ignored) {
+        [exitCode: -1, output: '']
+    }
+}
+
+def hostIsAppleSilicon = {
+    def osName = System.getProperty('os.name', '').toLowerCase(Locale.ROOT)
+    def arch = System.getProperty('os.arch', '').toLowerCase(Locale.ROOT)
+    osName.contains('mac') && (arch.contains('aarch64') || arch.contains('arm64'))
+}
+
+def javaArchitecture = { File javaExecutable ->
+    if (!javaExecutable.isFile()) return ''
+    def result = commandResult(['/usr/bin/file', javaExecutable.absolutePath])
+    if (result.output.contains('arm64') || result.output.contains('aarch64')) return 'aarch64'
+    if (result.output.contains('x86_64') || result.output.contains('x86-64')) return 'x86_64'
+    ''
+}
+
+def javaMajorVersion = { File javaExecutable ->
+    if (!javaExecutable.isFile()) return ''
+    def result = commandResult([javaExecutable.absolutePath, '-version'])
+    def match = result.output =~ /version\s+"(\d+)(?:\.(\d+))?/
+    if (!match.find()) return ''
+    match.group(1) == '1' ? match.group(2) : match.group(1)
+}
+
+def clientJavaIsSuitable = { File javaExecutable ->
+    if (!javaExecutable.isFile() || !javaExecutable.canExecute()) return false
+    if (javaMajorVersion(javaExecutable) != javaTarget.toString()) return false
+    if (hostIsAppleSilicon()) return javaArchitecture(javaExecutable) == 'x86_64'
+    true
+}
+
+def rosettaInstalled = {
+    if (!hostIsAppleSilicon()) return true
+    new File('/Library/Apple/usr/libexec/oah/libRosettaRuntime').isFile() ||
+            commandResult(['/usr/bin/pgrep', '-q', 'oahd']).exitCode == 0
+}
+
+def clientRuntimeRoot = {
+    def configured = providers.gradleProperty('clientRuntimeDir')
+    configured.isPresent() ? file(configured.get()) : file(System.getProperty('user.home') + '/.minecraft/runtime')
+}
+
+def clientJavaCandidates = {
+    def candidates = []
+    def explicit = providers.gradleProperty('clientJava')
+    if (explicit.isPresent()) {
+        def explicitPath = file(explicit.get())
+        candidates << (explicitPath.isDirectory() ? new File(explicitPath, 'bin/java') : explicitPath)
+    }
+    def explicitHome = providers.gradleProperty('clientJavaHome')
+    if (explicitHome.isPresent()) candidates << new File(explicitHome.get(), 'bin/java')
+    candidates << new File(clientRuntimeRoot(), 'jre-17-x64/bin/java')
+    candidates << new File(layout.projectDirectory.asFile, 'runtime/jre-17-x64/bin/java')
+    candidates << new File(System.getProperty('java.home'), 'bin/java')
+    candidates.unique { it.absolutePath }
+}
+
+/**
+ * The installer uses LWJGL 2.9.2-nightly-20140822 on macOS.  Its native
+ * library has a different JNI signature from the 2.9.0 classes stored in
+ * libs.zip, so loading 2.9.0 Java classes with the installer's native library
+ * can crash in MacOSXDisplay.nCreateWindow.  Prefer the matching installer
+ * pair when it is present; the bundled 2.9.0 classes remain available for
+ * Windows and for standalone builds that provide matching 2.9.0 natives.
+ */
+def clientLwjglJava = {
+    def configured = providers.gradleProperty('lwjglDir')
+    def roots = []
+    if (configured.isPresent()) roots << file(configured.get())
+    roots << defaultMinecraftLibrariesDir
+
+    def nightlyRoot = { File root ->
+        [
+                new File(root, 'org/lwjgl/lwjgl/lwjgl/2.9.2-nightly-20140822/lwjgl-2.9.2-nightly-20140822.jar'),
+                new File(root, 'org/lwjgl/lwjgl/lwjgl_util/2.9.2-nightly-20140822/lwjgl_util-2.9.2-nightly-20140822.jar')
+        ]
+    }
+    def selected = roots.collect { nightlyRoot(it) }.find { pair -> pair.every { it.isFile() } }
+    selected ?: []
+}
+
+// These are ordinary Minecraft 1.6.4 libraries downloaded by install.sh.
+// They are intentionally kept outside the loader Fat JAR: several are also
+// supplied by the launcher with versions that must remain ahead of FML's
+// shaded compatibility copies (especially Paulscode and LWJGL).
+def clientLibraryRelativePaths = [
+        'net/sf/jopt-simple/jopt-simple/5.0.4/jopt-simple-5.0.4.jar',
+        'com/paulscode/codecjorbis/20101023/codecjorbis-20101023.jar',
+        'com/paulscode/codecwav/20101023/codecwav-20101023.jar',
+        'com/paulscode/libraryjavasound/20101123/libraryjavasound-20101123.jar',
+        'com/paulscode/librarylwjglopenal/20100824/librarylwjglopenal-20100824.jar',
+        'com/paulscode/soundsystem/20120107/soundsystem-20120107.jar',
+        'argo/argo/2.25_fixed/argo-2.25_fixed.jar',
+        'org/bouncycastle/bcprov-jdk15on/1.47/bcprov-jdk15on-1.47.jar',
+        'com/google/guava/guava/32.1.2-jre/guava-32.1.2-jre.jar',
+        'org/apache/commons/commons-lang3/3.14.0/commons-lang3-3.14.0.jar',
+        'commons-io/commons-io/2.15.1/commons-io-2.15.1.jar',
+        'net/java/jinput/jinput/2.0.5/jinput-2.0.5.jar',
+        'net/java/jutils/jutils/1.0.0/jutils-1.0.0.jar',
+        'com/google/code/gson/gson/2.10.1/gson-2.10.1.jar',
+        'it/unimi/dsi/fastutil/8.5.12/fastutil-8.5.12.jar',
+        'org/ow2/asm/asm/9.3/asm-9.3.jar',
+        'org/ow2/asm/asm-analysis/9.3/asm-analysis-9.3.jar',
+        'org/ow2/asm/asm-commons/9.3/asm-commons-9.3.jar',
+        'org/ow2/asm/asm-tree/9.3/asm-tree-9.3.jar',
+        'org/ow2/asm/asm-util/9.3/asm-util-9.3.jar'
+]
+
+def clientExternalLibraries = {
+    def configured = providers.gradleProperty('minecraftLibrariesDir')
+    def root = configured.isPresent() ? file(configured.get()) : defaultMinecraftLibrariesDir
+    clientLibraryRelativePaths.collect { new File(root, it) }.findAll { it.isFile() }
+}
+
+def requiredClientLibraryNames = clientLibraryRelativePaths.collect { new File(it).name }
+
+def sha256File = { File input ->
+    def digest = MessageDigest.getInstance('SHA-256')
+    input.withInputStream { stream ->
+        byte[] buffer = new byte[1024 * 1024]
+        int count
+        while ((count = stream.read(buffer)) >= 0) {
+            if (count > 0) digest.update(buffer, 0, count)
+        }
+    }
+    digest.digest().collect { String.format('%02x', it & 0xff) }.join()
+}
+
+def downloadFile = { String sourceUrl, File destination ->
+    destination.parentFile.mkdirs()
+    def connection = new URL(sourceUrl).openConnection()
+    connection.connectTimeout = 25000
+    connection.readTimeout = 120000
+    connection.setRequestProperty('User-Agent', 'FishModLoader-Gradle/1.0')
+    connection.inputStream.withCloseable { input ->
+        destination.withOutputStream { output -> input.transferTo(output) }
+    }
+}
+
+def downloadPortableClientJre = {
+    if (!rosettaInstalled()) {
+        throw new GradleException('Apple Silicon requires Rosetta 2 for the x86_64 LWJGL natives. Install it with: softwareupdate --install-rosetta')
+    }
+
+    def runtimeRoot = clientRuntimeRoot()
+    def target = new File(runtimeRoot, 'jre-17-x64')
+    def tempRoot = new File(layout.buildDirectory.dir('tmp/client-jre').get().asFile, "jre-17-x64-${System.currentTimeMillis()}")
+    def archive = new File(tempRoot, 'jre.tar.gz')
+    def extracted = new File(tempRoot, 'extracted')
+    tempRoot.mkdirs()
+    extracted.mkdirs()
+
+    try {
+        def metadataUrl = 'https://api.azul.com/metadata/v1/zulu/packages/?java_version=17&os=macos&arch=x64&java_package_type=jre&archive_type=tar.gz&latest=true&release_status=ga&availability_types=CA'
+        logger.lifecycle('Downloading portable x86_64 Java 17 from Azul Zulu...')
+        def metadataConnection = new URL(metadataUrl).openConnection()
+        metadataConnection.connectTimeout = 25000
+        metadataConnection.readTimeout = 25000
+        metadataConnection.setRequestProperty('User-Agent', 'FishModLoader-Gradle/1.0')
+        def metadata = new JsonSlurper().parseText(metadataConnection.inputStream.getText('UTF-8'))
+        def packageInfo = metadata instanceof List ? metadata[0] : metadata
+        def downloadUrl = packageInfo.download_url?.toString()
+        def packageUuid = packageInfo.package_uuid?.toString()
+        if (!downloadUrl) throw new GradleException('Azul metadata did not provide a JRE download URL')
+
+        def expectedSha = ''
+        if (packageUuid) {
+            try {
+                def detailConnection = new URL("https://api.azul.com/metadata/v1/zulu/packages/${packageUuid}").openConnection()
+                detailConnection.connectTimeout = 25000
+                detailConnection.readTimeout = 25000
+                detailConnection.setRequestProperty('User-Agent', 'FishModLoader-Gradle/1.0')
+                def details = new JsonSlurper().parseText(detailConnection.inputStream.getText('UTF-8'))
+                expectedSha = details.sha256_hash?.toString() ?: ''
+            } catch (Exception ignored) {
+                logger.lifecycle('Azul checksum metadata unavailable; continuing with archive validation after extraction.')
+            }
+        }
+
+        downloadFile(downloadUrl, archive)
+        if (expectedSha && sha256File(archive) != expectedSha.toLowerCase(Locale.ROOT)) {
+            throw new GradleException('Downloaded x86_64 Java 17 archive failed SHA-256 verification')
+        }
+        exec {
+            commandLine 'tar', '-xzf', archive.absolutePath, '-C', extracted.absolutePath
+        }
+        def javaFile = extracted.toPath().resolve('bin/java').toFile()
+        if (!javaFile.isFile()) {
+            def nested
+            extracted.eachFileRecurse { candidate ->
+                if (nested == null && candidate.name == 'java' && candidate.parentFile?.name == 'bin') nested = candidate
+            }
+            if (nested) javaFile = nested
+        }
+        if (!javaFile.isFile()) throw new GradleException('Downloaded archive does not contain a Java runtime')
+        def sourceHome = javaFile.parentFile.parentFile
+        if (target.exists()) target.deleteDir()
+        project.copy { from sourceHome; into target }
+        new File(target, 'bin/java').setExecutable(true)
+        if (!clientJavaIsSuitable(new File(target, 'bin/java'))) {
+            throw new GradleException("Downloaded Java runtime is not a usable x86_64 Java ${javaTarget}")
+        }
+        logger.lifecycle("Portable x86_64 Java ${javaTarget} installed at ${target}")
+        new File(target, 'bin/java')
+    } finally {
+        tempRoot.deleteDir()
+    }
+}
+
+def resolveClientJava = {
+    def candidates = clientJavaCandidates()
+    def found = candidates.find { clientJavaIsSuitable(it) }
+    if (found) return found
+    if (hostIsAppleSilicon()) return downloadPortableClientJre()
+    def current = new File(System.getProperty('java.home'), 'bin/java')
+    throw new GradleException("runClient requires Java ${javaTarget}; no suitable Java was found. Set JAVA_HOME or -PclientJava=/path/to/java (current: ${current})")
+}
+
+def runtimeClasspath = {
+    files(
+        shadowJar.flatMap { it.archiveFile },
+        legacyFile('MITE-HDS.jar'),
+        legacyFile('1.6.4-MITE.jar')
+    )
+}
+
+// The client must see the original MITE font.txt before FML's resource. The
+// MITE FontRenderer indexes a 256-entry width table using that resource's
+// character list; putting the FML CJK font first crashes the language screen.
+def clientRuntimeClasspath = {
+    def lwjglJava = clientLwjglJava()
+    files(
+        legacyFile('1.6.4-MITE.jar'),
+        clientExternalLibraries(),
+        lwjglJava,
+        shadowJar.flatMap { it.archiveFile },
+        legacySupportJar.flatMap { it.archiveFile }
+    )
+}
+
+def prepareRunDir = tasks.register('prepareRunDir') {
+    group = 'run'
+    description = 'Create the working directory used by the legacy game tasks.'
+    outputs.dir(layout.projectDirectory.dir('run'))
+    doLast {
+        layout.projectDirectory.dir('run').asFile.mkdirs()
+    }
+}
+
+tasks.register('runServer', JavaExec) {
+    group = 'run'
+    description = 'Run the FishModLoader server entry point with the legacy MITE runtime.'
+    dependsOn(shadowJar, prepareLegacyLibs, prepareRunDir)
+    classpath = runtimeClasspath()
+    mainClass = 'net.xiaoyu233.fml.relaunch.server.Main'
+    workingDir = layout.projectDirectory.dir('run').asFile
+    systemProperty 'minecraft.client.jar', layout.buildDirectory.file('legacy-libs/1.6.4-MITE.jar').get().asFile
+    systemProperty 'log4j.configurationFile', 'log4j2.xml'
+    jvmArgs '-Dfabric.development=true'
+}
+
+tasks.register('runClient', Exec) {
+    group = 'run'
+    description = 'Run the FishModLoader client entry point with the legacy MITE runtime.'
+    dependsOn(shadowJar, legacySupportJar, prepareLegacyLibs, extractNatives, prepareRunDir)
+    workingDir = layout.projectDirectory.dir('run').asFile
+    doFirst {
+        if (hostIsAppleSilicon() && !rosettaInstalled()) {
+            throw new GradleException('Apple Silicon requires Rosetta 2 for the x86_64 LWJGL natives. Install it with: softwareupdate --install-rosetta')
+        }
+        def clientJava = resolveClientJava()
+        executable = clientJava.absolutePath
+        logger.lifecycle("Using client Java ${javaMajorVersion(clientJava)} (${javaArchitecture(clientJava)}): ${clientJava}")
+        def nativeDir = clientNativeDir()
+        def missingNative = nativeLibraryNames().findAll { !new File(nativeDir, it).isFile() }
+        if (!missingNative.empty) {
+            throw new GradleException("Missing client native libraries in ${nativeDir}: ${missingNative.join(', ')}. On Apple Silicon, use the x86_64 LWJGL natives with an x86_64 Java under Rosetta.")
+        }
+        def availableClientLibraries = clientExternalLibraries()
+        def missingClientLibraries = requiredClientLibraryNames.findAll { required ->
+            !availableClientLibraries.any { it.name == required }
+        }
+        if (!missingClientLibraries.empty) {
+            throw new GradleException("Missing Minecraft client libraries in ${defaultMinecraftLibrariesDir}: ${missingClientLibraries.join(', ')}. Run /Users/postyizhan/code/MITE-Installer/install.sh first, or set -PminecraftLibrariesDir=/path/to/libraries.")
+        }
+        def osName = System.getProperty('os.name', '').toLowerCase(Locale.ROOT)
+        if (osName.contains('mac') && javaArchitecture(clientJava) == 'x86_64') {
+            def incompatible = nativeLibraryNames().findAll { nativeName ->
+                !commandResult(['/usr/bin/file', new File(nativeDir, nativeName).absolutePath]).output.contains('x86_64')
+            }
+        if (!incompatible.empty) {
+                throw new GradleException("The macOS natives in ${nativeDir} do not contain x86_64 slices: ${incompatible.join(', ')}. Provide the 1.6.4 x86_64 natives with -PnativeDir=...")
+            }
+        }
+        def gameDir = providers.gradleProperty('gameDir').map { file(it) }.getOrElse(defaultClientGameDir)
+        def assetsDir = providers.gradleProperty('assetsDir').map { file(it) }.getOrElse(new File(gameDir, 'assets/virtual/legacy'))
+        def launchArgs = [
+                '--username', providers.gradleProperty('username').getOrElse('Player'),
+                '--session', providers.gradleProperty('session').getOrElse('0'),
+                '--version', providers.gradleProperty('minecraftVersion').getOrElse('1.6.4-MITE'),
+                '--gameDir', gameDir.absolutePath,
+                '--assetsDir', assetsDir.absolutePath,
+                '--accessToken', providers.gradleProperty('accessToken').getOrElse('0'),
+                '--uuid', providers.gradleProperty('uuid').getOrElse('00000000-0000-0000-0000-000000000000'),
+                '--width', providers.gradleProperty('width').getOrElse('854'),
+                '--height', providers.gradleProperty('height').getOrElse('480')
+        ]
+        commandLine clientJava.absolutePath,
+                '-Dfabric.development=true',
+                '-Dfile.encoding=UTF-8',
+                '-Duser.language=en',
+                '-Duser.country=US',
+                '-Dminecraft.client.jar=' + layout.buildDirectory.file('legacy-libs/1.6.4-MITE.jar').get().asFile.absolutePath,
+                '-Dmixin.debug.countInjections=true',
+                '-Djava.library.path=' + nativeDir.absolutePath,
+                '-Dorg.lwjgl.librarypath=' + nativeDir.absolutePath,
+                '-Dlog4j.configurationFile=log4j2.xml',
+                '-cp', clientRuntimeClasspath().asPath,
+                'net.xiaoyu233.fml.relaunch.client.Main'
+        args launchArgs
+    }
+}
+
+tasks.register('showLaunchParams') {
+    group = 'run'
+    description = 'Print the classpath and entry point used by runServer.'
+    dependsOn(shadowJar, prepareLegacyLibs)
+    doLast {
+        logger.lifecycle("mainClass=net.xiaoyu233.fml.relaunch.server.Main")
+        runtimeClasspath().files.eachWithIndex { file, index ->
+            logger.lifecycle("classpath[${index + 1}]=${file.absolutePath} (${file.exists() ? 'exists' : 'missing'})")
+        }
+    }
+}
+
+tasks.register('showClientJava') {
+    group = 'run'
+    description = 'Resolve and print the Java runtime that runClient will use.'
+    doLast {
+        def javaExecutable = resolveClientJava()
+        logger.lifecycle("clientJava=${javaExecutable.absolutePath}")
+        logger.lifecycle("clientJavaVersion=${javaMajorVersion(javaExecutable)}")
+        logger.lifecycle("clientJavaArchitecture=${javaArchitecture(javaExecutable)}")
+    }
+}
+
+tasks.register('verifyClientClasspath') {
+    group = 'verification'
+    description = 'Verify the client sees the original MITE JAR before FML resources.'
+    dependsOn(shadowJar, legacySupportJar, prepareLegacyLibs)
+    doLast {
+        def entries = clientRuntimeClasspath().files.toList()
+        def first = entries ? entries[0].name : '<empty>'
+        if (first != '1.6.4-MITE.jar') {
+            throw new GradleException("Client classpath must start with 1.6.4-MITE.jar, but starts with ${first}")
+        }
+        def support = legacySupportJar.get().archiveFile.get().asFile
+        def supportEntries = [] as Set
+        zipTree(support).visit { details ->
+            if (!details.isDirectory()) supportEntries.add(details.relativePath.pathString)
+        }
+        ['font.txt', 'net/minecraft/client/main/Main.class', 'net/minecraft/server/MinecraftServer.class'].each { forbidden ->
+            if (supportEntries.contains(forbidden)) {
+                throw new GradleException("Filtered HDS support jar must not contain ${forbidden}")
+            }
+        }
+        if (!supportEntries.contains('joptsimple/OptionSpec.class')) {
+            throw new GradleException('Filtered HDS support jar is missing joptsimple/OptionSpec.class')
+        }
+        logger.lifecycle("Client classpath order: ${entries.collect { it.name }.join(' -> ')}")
+        def lwjglJava = clientLwjglJava()
+        if (hostIsAppleSilicon() && lwjglJava.empty) {
+            throw new GradleException('Apple Silicon client requires the matching LWJGL 2.9.2-nightly Java jars from the installer. Run install.sh first or set -PlwjglDir=/path/to/libraries.')
+        }
+        def missingClientLibraries = requiredClientLibraryNames.findAll { required ->
+            !clientExternalLibraries().any { it.name == required }
+        }
+        if (!missingClientLibraries.empty) {
+            throw new GradleException("Client classpath is missing required installer libraries: ${missingClientLibraries.join(', ')}. Set -PminecraftLibrariesDir=/path/to/libraries.")
+        }
+    }
+}
