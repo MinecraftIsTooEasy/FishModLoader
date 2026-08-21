@@ -1,6 +1,5 @@
 package net.xiaoyu233.fml.config;
 
-import com.google.common.base.Charsets;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -9,6 +8,7 @@ import net.xiaoyu233.fml.FishModLoader;
 import javax.annotation.Nonnull;
 import java.io.*;
 import java.nio.file.Files;
+import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 public class ConfigRoot extends ConfigCategory{
@@ -50,7 +50,7 @@ public class ConfigRoot extends ConfigCategory{
                 if (!configFile.createNewFile()) {
                     FishModLoader.LOGGER.error("Cannot create config file");
                 }else {
-                    try (OutputStreamWriter writer = new OutputStreamWriter(Files.newOutputStream(configFile.toPath()), Charsets.UTF_8)){
+                    try (OutputStreamWriter writer = new OutputStreamWriter(Files.newOutputStream(configFile.toPath()), StandardCharsets.UTF_8)){
                         JsonObject jsonElement = this.writeDefault();
                         jsonElement.addProperty(CONFIG_VERSION_NAME, configVersion);
                         GSON.toJson(jsonElement,writer);
@@ -60,14 +60,14 @@ public class ConfigRoot extends ConfigCategory{
                 FishModLoader.LOGGER.error("Cannot create config file",e);
             }
         }
-        try (InputStreamReader reader = new InputStreamReader(Files.newInputStream(configFile.toPath()), Charsets.UTF_8)){
+        try (InputStreamReader reader = new InputStreamReader(Files.newInputStream(configFile.toPath()), StandardCharsets.UTF_8)){
             read = this.read(new JsonParser().parse(reader));
         }catch (Throwable e) {
             FishModLoader.LOGGER.error("Error in reading config",e);
         }
         try {
             if (read.isDirty()){
-                try (FileWriter writer = new FileWriter(configFile)){
+                try (OutputStreamWriter writer = new OutputStreamWriter(Files.newOutputStream(configFile.toPath()), StandardCharsets.UTF_8)){
                     GSON.toJson(read.getChanged(),writer);
                 }
             }

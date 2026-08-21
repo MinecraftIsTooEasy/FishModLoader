@@ -117,7 +117,7 @@ public class MojangAPI {
          }
 
          StringBuilder response = new StringBuilder();
-         BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
+         BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream(), StandardCharsets.UTF_8));
 
          String inputLine;
          while((inputLine = in.readLine()) != null) {
@@ -153,7 +153,7 @@ public class MojangAPI {
          DataOutputStream wr = new DataOutputStream(con.getOutputStream());
          wr.write(postData);
          StringBuilder response = new StringBuilder();
-         BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
+         BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream(), StandardCharsets.UTF_8));
 
          String inputLine;
          while((inputLine = in.readLine()) != null) {

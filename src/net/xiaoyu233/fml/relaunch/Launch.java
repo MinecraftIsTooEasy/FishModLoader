@@ -23,6 +23,7 @@ import org.spongepowered.asm.mixin.MixinEnvironment;
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -41,10 +42,13 @@ public class Launch {
       arguments.parse(args);
       FishModLoader.setIsServer(server);
       seekGameDir(args);
+      if (!server) {
+         OpenALBootstrap.prepare();
+      }
       //Use parent to prevent preloading
       Path remappedGameJarPath;
       try {
-         IMappingProvider tinyMappingProvider = TinyUtils.createTinyMappingProvider(new BufferedReader(new InputStreamReader(Objects.requireNonNull(Launch.class.getResourceAsStream("/mappings.tiny")))), "official", "named");
+         IMappingProvider tinyMappingProvider = TinyUtils.createTinyMappingProvider(new BufferedReader(new InputStreamReader(Objects.requireNonNull(Launch.class.getResourceAsStream("/mappings.tiny")), StandardCharsets.UTF_8)), "official", "named");
          CachedMappedJar cachedMappedJar = new CachedMappedJar(gameJarPath, tinyMappingProvider, new File(minecraftHome));
          remappedGameJarPath = cachedMappedJar.ensureJarMapped();
          knotInterface.addCodeSource(remappedGameJarPath);

@@ -11,6 +11,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Objects;
 
@@ -36,7 +37,7 @@ public class ModRemapper {
                    .ignoreConflicts(true)
                    .extension(new MixinExtension())
                    .fixPackageAccess(true)
-                   .withMappings(TinyUtils.createTinyMappingProvider(new BufferedReader(new InputStreamReader(Objects.requireNonNull(ModRemapper.class.getResourceAsStream("/migrate.tiny")))), "left", "right"))
+                   .withMappings(TinyUtils.createTinyMappingProvider(new BufferedReader(new InputStreamReader(Objects.requireNonNull(ModRemapper.class.getResourceAsStream("/migrate.tiny")), StandardCharsets.UTF_8)), "left", "right"))
                    .build();
 
            FishModLoader.LOGGER.info("Remapping mod jar with TinyRemapper on FML version " + FishModLoader.VERSION);

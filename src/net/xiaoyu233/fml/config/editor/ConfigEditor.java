@@ -11,8 +11,10 @@ import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.MouseEvent;
 import java.io.File;
-import java.io.FileWriter;
+import java.io.OutputStreamWriter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.ArrayList;
@@ -90,7 +92,7 @@ public class ConfigEditor extends JFrame {
                 saveRun.run();
             }
             for (ConfigRegistry registry : registries) {
-                try (FileWriter writer = new FileWriter(registry.getPathToConfigFile())){
+                try (OutputStreamWriter writer = new OutputStreamWriter(Files.newOutputStream(registry.getPathToConfigFile().toPath()), StandardCharsets.UTF_8)){
                     GSON.toJson(registry.getRoot().write(),writer);
                 } catch (IOException ex) {
                     ex.printStackTrace();

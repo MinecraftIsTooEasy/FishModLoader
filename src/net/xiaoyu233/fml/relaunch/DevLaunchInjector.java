@@ -7,6 +7,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -58,7 +59,7 @@ public final class DevLaunchInjector {
     }
 
     private static void parseConfig(Path file, String env, List<String> extraArgs, Map<String, String> extraProperties) throws IOException {
-        BufferedReader reader = Files.newBufferedReader(file);
+        BufferedReader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8);
         Throwable var9 = null;
 
         try {

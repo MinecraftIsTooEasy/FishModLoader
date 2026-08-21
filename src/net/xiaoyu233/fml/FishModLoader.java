@@ -42,6 +42,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -321,7 +322,7 @@ public class FishModLoader{
          Path path = modContainer.findPath(accessWidener).orElse(null);
          if (path == null) throw new RuntimeException(String.format("Missing accessWidener file %s from mod %s", accessWidener, modContainer.getMetadata().getId()));
 
-         try (BufferedReader reader = Files.newBufferedReader(path)) {
+         try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
             accessWidenerReader.read(reader, "named");
          } catch (Exception e) {
             throw new RuntimeException("Failed to read accessWidener file from mod " + modMetadata.getId(), e);
