@@ -1,5 +1,12 @@
 # FishModLoader
 
+### v3.4.4
+* 修复MITE R196的部分Mixin注入失效问题
+* 修复Windows下UTF-8本地库加载问题
+* 将构建迁移到Gradle，并补齐客户端启动与Release产物构建流程
+
+---
+
 ### v3.4.3
 * 修复了某些情况下GL11.glGetString(GL11.GL_VENDOR)为null导致的崩溃问题
 * 修复了寻找不存在的json语言文件时输出的大量错误日志的问题
