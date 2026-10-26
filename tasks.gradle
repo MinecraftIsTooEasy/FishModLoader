@@ -1,7 +1,13 @@
+import java.util.Locale
+
 ext {
-    runDir = file("${projectDir}/run") as File
-    assetsDir = file("${projectDir}/run/assets/virtual/legacy") as File
-    nativesDir = file("${projectDir}/run/natives") as File
+    // -PrunDir=<dir>: another game directory (own mods/, config/, saves), e.g. run/modpack for the modpack test runs
+    runDir = project.properties.containsKey('runDir') ?
+            file("${project.properties.runDir}") as File :
+            file("${projectDir}/run") as File
+    assetsDir = project.properties.containsKey('assetsDir') ?
+            file("${project.properties.assetsDir}") as File :
+            file("${projectDir}/run/assets/virtual/legacy") as File
 
     def buildClasspath = { ->
         def classpathFiles = []
@@ -13,7 +19,6 @@ ext {
 
     runConfig = [
             localJar: file("libs/1.6.4-MITE.jar"),
-            nativesDir: nativesDir,
             buildClasspath: buildClasspath,
 
             jvmArgs: [
@@ -24,13 +29,17 @@ ext {
                     "-XX:MaxGCPauseMillis=100",
                     "-XX:+DisableExplicitGC",
                     "-Dminecraft.client.jar=libs/1.6.4-MITE.jar",
-                    "-Djava.library.path=${nativesDir.absolutePath}",
                     "-Dlog4j.configurationFile=log4j2.xml",
                     "-DLog4jContextSelector=org.apache.logging.log4j.core.selector.BasicContextSelector",
                     "-Dlog4j2.debug=false",
                     "-Dlog4j2.disableJmx=true",
                     "-Dlog4j2.skipJansi=true",
-                    "-Dfabric.development=true"
+                    "-Dfabric.development=true",
+                    // The manifest attribute Enable-Native-Access only counts for java -jar, FML is always on the class path:
+                    // LWJGL (System::load) and the FFM based OpenAL compat need the option, JDK 24+ warns for every restricted call without it
+                    "--enable-native-access=ALL-UNNAMED",
+                    // LWJGL 3.4's default memory backend still uses sun.misc.Unsafe (JDK 24+ warns on every launch, a later JDK denies it)
+                    "--sun-misc-unsafe-memory-access=allow"
             ],
 
             gameArgs: [
@@ -53,44 +62,75 @@ ext {
     ]
 }
 
-tasks.register('cleanNatives', Delete) {
-    delete runConfig.nativesDir
-}
-
-tasks.register('extractNatives', Copy) {
-    dependsOn cleanNatives
-
-    doFirst {
-        runConfig.nativesDir.mkdirs()
-    }
-
-    from {
-        configurations.natives.collect { zipTree(it) }
-    }
-    into runConfig.nativesDir
-
-    include '**/*.dll'
-    include '**/*.so'
-    include '**/*.dylib'
-    include '**/*.jnilib'
-
-    exclude 'META-INF/**'
-}
-
 tasks.register('runClient', JavaExec) {
     group = 'fishmodloader'
 
-    dependsOn extractNatives
     dependsOn shadowJar
     dependsOn copyLogConfig
 
+    // -Ptestbot: the dev-only test bot (src/devtest, see build.gradle) joins the class path and drives the game: title, world, traversal tour.
+    //   -Ptestbot_tag=<tag>      names the run: report ../docs/testbot/REPORT-<tag>.md, screenshots ../docs/screenshots/<tag>/, CSV ../docs/perf/<tag>-*.csv
+    //   -Ptestbot_only=a,b       steps to run (startup,title,enter,world,traverse; the world is entered automatically when a later step needs it)
+    //   -Ptestbot_skip=a,b       steps to skip; -Ptestbot_scale=0.25 shrinks the route; -Ptestbot_view=16 raises the integrated server view distance;
+    //   -Ptestbot_seed=<long>, -Ptestbot_idleSeconds=<n>, -Ptestbot_noCave=true, -Ptestbot_keepWorld=true (reuse the saved world), -Ptestbot_width/-Ptestbot_height (window, default 1280x720)
+    def testbot = project.hasProperty('testbot')
+    if (testbot) {
+        dependsOn 'devtestClasses'
+    }
+
     mainClass = 'net.xiaoyu233.fml.relaunch.client.Main'
-    classpath = runConfig.buildClasspath.call()
+    classpath = runConfig.buildClasspath.call() + (testbot ? sourceSets.devtest.output : files())
     def jvmArgsList = new ArrayList(runConfig.jvmArgs as Collection)
     jvmArgsList.add("-Dlog.file.prefix=client")
+
+    if (testbot) {
+        def docsDir = new File(rootDir.parentFile, 'docs')
+        def tag = (project.findProperty('testbot_tag') ?: 'run').toString()
+        jvmArgsList.add('-Dfml.vulkan.testbot=true')
+        jvmArgsList.add("-Dfml.vulkan.testbot.docs=${docsDir}".toString())
+        jvmArgsList.add("-Dfml.vulkan.testbot.tag=${tag}".toString())
+        jvmArgsList.add("-Dfml.vulkan.captureDir=${docsDir}/screenshots/${tag}".toString())
+        ['only', 'skip', 'scale', 'seed', 'idleSeconds', 'noCave', 'nopace', 'keepWorld'].each { k ->
+            if (project.hasProperty("testbot_${k}")) {
+                jvmArgsList.add("-Dfml.vulkan.testbot.${k}=${project.property("testbot_${k}")}".toString())
+            }
+        }
+        if (project.hasProperty('testbot_view')) {
+            jvmArgsList.add("-Dfml.vulkan.testbot.viewDistance=${project.property('testbot_view')}".toString())
+        }
+    }
+
+    // -Pxmx=6G / -Pxms=2G: heap size of the dev run (the 2G default is too small for 24+ chunk render distances)
+    if (project.hasProperty('xmx')) {
+        jvmArgsList.removeAll { it.startsWith('-Xmx') }
+        jvmArgsList.add("-Xmx${project.property('xmx')}".toString())
+    }
+    if (project.hasProperty('xms')) {
+        jvmArgsList.removeAll { it.startsWith('-Xms') }
+        jvmArgsList.add("-Xms${project.property('xms')}".toString())
+    }
+
+    // Pass through -Pvk.* properties as -Dfml.vulkan.* system properties
+    project.properties.each { key, value ->
+        if (key.startsWith('vk.')) {
+            String vulkanKey = key.substring(3)
+            jvmArgsList.add("-Dfml.vulkan.${vulkanKey}=${value}")
+        }
+    }
+
+    // macOS: JVM must start on first thread for GLFW
+    if (System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("mac")) {
+        jvmArgsList.add(0, "-XstartOnFirstThread")
+    }
+
     jvmArgs(jvmArgsList)
 
-    args(runConfig.gameArgs)
+    def clientArgs = new ArrayList(runConfig.gameArgs as Collection)
+    if (testbot) {
+        clientArgs[clientArgs.indexOf('--width') + 1] = (project.findProperty('testbot_width') ?: 1280).toString()
+        clientArgs[clientArgs.indexOf('--height') + 1] = (project.findProperty('testbot_height') ?: 720).toString()
+    }
+    args(clientArgs)
 
     workingDir = runConfig.workingDir
 }
@@ -98,7 +138,6 @@ tasks.register('runClient', JavaExec) {
 tasks.register('runServer', JavaExec) {
     group = 'fishmodloader'
 
-    dependsOn extractNatives
     dependsOn shadowJar
     dependsOn copyLogConfig
 
@@ -106,6 +145,15 @@ tasks.register('runServer', JavaExec) {
     classpath = runConfig.buildClasspath.call()
     def jvmArgsList = new ArrayList(runConfig.jvmArgs as Collection)
     jvmArgsList.add("-Dlog.file.prefix=server")
+
+    // Pass through -Pvk.* properties as -Dfml.vulkan.* system properties
+    project.properties.each { key, value ->
+        if (key.startsWith('vk.')) {
+            String vulkanKey = key.substring(3)
+            jvmArgsList.add("-Dfml.vulkan.${vulkanKey}=${value}")
+        }
+    }
+
     jvmArgs(jvmArgsList)
 
     workingDir = runDir
@@ -139,8 +187,15 @@ tasks.register('copyLogConfig', Copy) {
     }
 }
 
-tasks.withType(JavaExec).configureEach { task ->
-    if (task.name.startsWith('launch')) {
-        task.dependsOn extractNatives
-    }
+// The installer embeds the FML jar (src/installer/java/net/xiaoyu233/fmlinstaller/FishModLoader.jar, read as a class path resource
+// of InstallFrame). Nothing in the normal build refreshes it, so an installer built without this task ships a stale FML.
+// Release step: gradlew updateInstallerJar, then build the installer artifact from src/installer.
+tasks.register('updateInstallerJar', Copy) {
+    group = 'fishmodloader'
+    description = 'Replaces the FML jar embedded in the installer sources with the freshly built fat jar'
+
+    dependsOn shadowJar
+    from shadowJar.archiveFile
+    into "${projectDir}/src/installer/java/net/xiaoyu233/fmlinstaller"
+    rename { 'FishModLoader.jar' }
 }

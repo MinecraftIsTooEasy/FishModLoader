@@ -73,6 +73,8 @@ public class FishModLoader {
    public static final File CONFIG_DIR = new File("config");
    public static final String VERSION = Constants.VERSION;
    private static final String MOD_ID = Constants.MOD_ID;
+   /** Mixin config of the Vulkan backend (window/clipboard/test harness mixins in the package net.xiaoyu233.fml.vulkan.mixin). */
+   private static final String VULKAN_MIXIN_CONFIG = "fishmodloader.vulkan.mixins.json";
    public static final Logger LOGGER = LogManager.getLogger(MOD_ID);
    public static final File MOD_DIR = new File("mods");
    private static final Map<String, ModContainerImpl> modsMapForLoginCheck  = new HashMap<>();
@@ -376,6 +378,8 @@ public class FishModLoader {
 
    public static void registerModloaderMixin(ClassLoader classLoader){
       Mixins.registerConfiguration((InjectionConfig.Builder.of(MOD_ID, MinecraftServerTrans.class.getPackage(), MixinEnvironment.Phase.DEFAULT).build().toConfig(classLoader, MixinService.getService(),MixinEnvironment.getCurrentEnvironment())));
+      // The Vulkan mixins are listed per module in a JSON config (resolved through the Knot class loader by MixinService)
+      Mixins.addConfiguration(VULKAN_MIXIN_CONFIG);
    }
 
    public static MixinEnvironment.Side getSide(){

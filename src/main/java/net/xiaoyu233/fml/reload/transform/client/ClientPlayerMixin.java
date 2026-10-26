@@ -28,8 +28,12 @@ public abstract class ClientPlayerMixin extends ClientPlayer{
             }
         } else if (par1Str.startsWith("/configs edit")){
             if (Minecraft.getMinecraft().getIntegratedServer() == null) {
-                this.receiveChatMessage(("你不是局域网主机或服务器控制台,无法更改服务端配置,你的更改只会在你的客户端生效"), EnumChatFormatting.YELLOW);
-                new ConfigEditor(FishModLoader.getAllConfigRegistries()).setVisible(true);
+                if (ConfigEditor.isSupported()) {
+                    this.receiveChatMessage(("你不是局域网主机或服务器控制台,无法更改服务端配置,你的更改只会在你的客户端生效"), EnumChatFormatting.YELLOW);
+                    new ConfigEditor(FishModLoader.getAllConfigRegistries()).setVisible(true);
+                } else {
+                    this.receiveChatMessage(("当前环境(macOS 或无图形界面)无法打开图形化配置编辑器,请直接编辑 config 目录下的 json 配置文件,再执行 /configs reload"), EnumChatFormatting.YELLOW);
+                }
                 callbackInfo.cancel();
             }
         }

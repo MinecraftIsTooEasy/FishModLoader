@@ -1,0 +1,76 @@
+// Owned by module C (pipelines/shaders). Applied from build.gradle ('apply from: shaders.gradle').
+//
+// Build-time GLSL -> SPIR-V compilation:
+//   src/main/shaders/*.vert|*.frag  --(src/shadertool/ShaderCompiler, lwjgl-shaderc with the natives of the build host)-->
+//   build/generated/shaders/assets/fml_vulkan/shaders/*.spv
+// and the generated directory is a main resources root, so the modules end up in the jar under /assets/fml_vulkan/shaders/.
+// Only 'processResources' (and everything that depends on it) runs the compiler; 'compileJava' does not.
+
+// lwjgl-shaderc natives of the machine that runs the build (not of the game's target platforms)
+def shaderHostOs = System.getProperty('os.name').toLowerCase(Locale.ROOT)
+def shaderHostArch = System.getProperty('os.arch').toLowerCase(Locale.ROOT)
+def shaderHostArm = shaderHostArch.contains('aarch64') || shaderHostArch.contains('arm64')
+def shaderHostNatives
+if (shaderHostOs.contains('win')) {
+    shaderHostNatives = shaderHostArm ? 'natives-windows-arm64' : 'natives-windows'
+} else if (shaderHostOs.contains('mac')) {
+    shaderHostNatives = shaderHostArm ? 'natives-macos-arm64' : 'natives-macos'
+} else {
+    shaderHostNatives = shaderHostArm ? 'natives-linux-arm64' : 'natives-linux'
+}
+
+configurations {
+    shadertool
+}
+
+dependencies {
+    // org.lwjgl:lwjgl and its natives are needed besides shaderc: the shaderc natives are loaded through the LWJGL core
+    shadertool "org.lwjgl:lwjgl:${lwjglVersion}"
+    shadertool "org.lwjgl:lwjgl:${lwjglVersion}:${shaderHostNatives}"
+    shadertool "org.lwjgl:lwjgl-shaderc:${lwjglVersion}"
+    shadertool "org.lwjgl:lwjgl-shaderc:${lwjglVersion}:${shaderHostNatives}"
+}
+
+sourceSets {
+    shadertool {
+        java.srcDir 'src/shadertool/java'
+    }
+}
+
+configurations {
+    // the shadertool source set compiles and runs against the 'shadertool' configuration (IDEs resolve it from here as well)
+    shadertoolCompileClasspath.extendsFrom shadertool
+    shadertoolRuntimeClasspath.extendsFrom shadertool
+}
+
+def shaderSourceDir = layout.projectDirectory.dir('src/main/shaders')
+def shaderGeneratedDir = layout.buildDirectory.dir('generated/shaders')
+def shaderSpvDir = layout.buildDirectory.dir('generated/shaders/assets/fml_vulkan/shaders')
+
+def compileShadersTask = tasks.register('compileShaders', JavaExec) {
+    group = 'fishmodloader'
+    description = 'Compiles the fixed-function GLSL in src/main/shaders to SPIR-V (build/generated/shaders)'
+
+    dependsOn 'shadertoolClasses'
+    classpath = sourceSets.shadertool.output + configurations.shadertoolRuntimeClasspath
+    mainClass = 'net.xiaoyu233.fml.vulkan.shadertool.ShaderCompiler'
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+
+    inputs.dir(shaderSourceDir)
+    outputs.dir(shaderGeneratedDir)
+
+    // resolved when the task runs: a Provider handed to args() would be stringified instead of resolved
+    argumentProviders.add({
+        [shaderSourceDir.asFile.absolutePath, shaderSpvDir.get().asFile.absolutePath]
+    } as CommandLineArgumentProvider)
+
+    doFirst {
+        shaderSpvDir.get().asFile.mkdirs()
+    }
+}
+
+// The generated directory is a resources root; the mapped provider carries the compileShaders task dependency
+sourceSets.main.resources.srcDir(compileShadersTask.map { shaderGeneratedDir.get() })
+tasks.named('processResources') {
+    dependsOn compileShadersTask
+}

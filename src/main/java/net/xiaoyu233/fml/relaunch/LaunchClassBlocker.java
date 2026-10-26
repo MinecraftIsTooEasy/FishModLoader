@@ -16,5 +16,7 @@ public class LaunchClassBlocker {
         classLoaderInterface.whitelistClassPrefix("net.xiaoyu233.fml.reload.util");
         classLoaderInterface.whitelistClassPrefix("net.xiaoyu233.fml.reload.event");
         classLoaderInterface.whitelistClassPrefix("net.xiaoyu233.fml.api");
+        // Vulkan backend: must live in Knot together with the LWJGL 3 classes (see ../docs/ARCHITECTURE.md (outside the repo) section 3)
+        classLoaderInterface.whitelistClassPrefix("net.xiaoyu233.fml.vulkan");
     }
 }

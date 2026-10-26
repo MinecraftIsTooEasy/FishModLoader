@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "fishmodloader_vulkan_testbot",
+  "version": "0.0.0",
+  "name": "FML Vulkan Test Bot (dev only)",
+  "description": "Automated client test bot for the Vulkan port of FishModLoader (title, world, traversal run, perf CSV). Dev runs only, never packed into the release jar. Active only with -Dfml.vulkan.testbot=true (runClient -Ptestbot).",
+  "authors": [
+    "XMRhapsody"
+  ],
+  "license": "LGPL-2.1",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "net.xiaoyu233.fml.vulkan.testbot.TestBotInit"
+    ]
+  },
+  "mixins": [
+    "fishmodloader_vulkan_testbot.mixins.json"
+  ],
+  "depends": {
+    "fishmodloader": ">=4.0.0",
+    "minecraft": "1.6.4-mite",
+    "java": ">=25"
+  }
+}
