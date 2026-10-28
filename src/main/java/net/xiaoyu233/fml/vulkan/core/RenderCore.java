@@ -101,6 +101,14 @@ public final class RenderCore {
     private static int windowHeight;
     private static Swapchain swapchain;
     private static boolean swapchainDirty;
+    /** macOS with vsync off: IOSurface/CALayer presentation instead of the CAMetalLayer swapchain (see LayerPresenter); null otherwise. */
+    private static LayerPresenter presenter;
+    private static long glfwWindowHandle;
+    private static final boolean MAC = org.lwjgl.system.Platform.get() == org.lwjgl.system.Platform.MACOSX;
+    /** Frames handed to the display (swapchain present or layer publish), and the nanoTime of the last PRESENT_RING ones. */
+    private static final int PRESENT_RING = 8192;
+    private static final long[] PRESENT_AT = new long[PRESENT_RING];
+    private static volatile long presentCount;
     private static boolean vsyncSet;
     private static boolean vsyncRequested;
 
@@ -181,6 +189,11 @@ public final class RenderCore {
         try {
             lowLatency = "low".equals(VulkanConfig.latency());
             framesInFlight = lowLatency ? 1 : VulkanConfig.framesInFlight();
+            if (!lowLatency && MAC && "auto".equals(VulkanConfig.macPresenter()) && !VulkanConfig.framesInFlightSet()) {
+                // measured (docs/runtime-notes.md, NR-29 v3): with the layer presenter 3 frames in flight give +30..60% presented FPS and about
+                // 1.6x the 1% low over 2 (MoltenVK's completion latency is hidden); under vsync the drawable wait bounds the queue anyway
+                framesInFlight = 3;
+            }
             activeTarget = null;
             debug = VulkanConfig.debug();
             windowWidth = fbWidth;
@@ -191,6 +204,7 @@ public final class RenderCore {
             endingPass = false;
             swapchainDirty = false;
 
+            glfwWindowHandle = glfwWindow;
             ctx = DeviceSetup.create(glfwWindow);
             instance = ctx.instance;
             physicalDevice = ctx.physicalDevice;
@@ -207,8 +221,14 @@ public final class RenderCore {
             chooseFormats();
             createRenderPasses();
             createFrameResources();
-            swapchain = Swapchain.create(surface, windowWidth, windowHeight, effectiveVsync(), null);
-            VkLog.LOGGER.info("Swapchain image count: {} (latency low: {})", swapchainImageCount(), lowLatency);
+            if (usePresenter()) {
+                presenter = LayerPresenter.create(device, glfwWindow, windowWidth, windowHeight, presenterSurfaces());
+            }
+            if (presenter == null) {
+                swapchain = Swapchain.create(surface, windowWidth, windowHeight, effectiveVsync(), null);
+            }
+            VkLog.LOGGER.info("Presentation: {}, {} images (latency low: {}, present limiter {})", presentationName(), swapchainImageCount(),
+                    lowLatency, PRESENT_MIN_MS > 0 ? PRESENT_MIN_MS + " ms (fml.vulkan.presentMinMs)" : "off");
 
             int width = clampTargetSize(fbWidth);
             int height = clampTargetSize(fbHeight);
@@ -289,6 +309,13 @@ public final class RenderCore {
      * Display.update: ends the frame (listeners), blits the offscreen colour to the swapchain, submits upload + main command buffers,
      * presents, then moves to the next frame slot (fence wait, deferred deletions, stream reset, fresh command buffers).
      */
+    /**
+     * Opt-in presentation limiter (fml.vulkan.presentMinMs > 0, vsync off): frames that arrive sooner than this after the last presented one
+     * are rendered but not presented. OFF by default: every frame is presented.
+     */
+    private static final double PRESENT_MIN_MS = VulkanConfig.presentMinMs();
+    private static long lastPresentStart;
+    private static final long[] PX = new long[6];
     public static void present() {
         if (!initialized) {
             return;
@@ -300,17 +327,29 @@ public final class RenderCore {
         ensureNoRenderPass();
         fireBeforePresent();
 
-        int imageIndex = acquireImage(slot);
+        long pT0 = System.nanoTime();
+        if (presenter != null) {
+            presenter.publishCompleted(); // the previous frame is usually done by now: hand it to the compositor right away
+        }
         boolean capturing = capture != null && capture.isDue(frame);
+        boolean gated = false;
+        if (PRESENT_MIN_MS > 0 && !capturing && !swapchainDirty && windowWidth > 0 && windowHeight > 0 && !effectiveVsync()) {
+            gated = pT0 - lastPresentStart < (long) (PRESENT_MIN_MS * 1e6);
+        }
+        int imageIndex = gated ? -1 : acquireImage(slot);
+        long pT1 = System.nanoTime();
         recordPresentCommands(imageIndex, capturing, frame);
 
         endUploadCommandBuffer();
         VkUtil.check(vkEndCommandBuffer(mainCommandBuffer), "vkEndCommandBuffer (main)");
         flushStreams(slot);
+        long pT2 = System.nanoTime();
         submit(slot, imageIndex);
+        long pT3 = System.nanoTime();
         if (imageIndex >= 0) {
-            presentImage(imageIndex);
-        } else {
+            presentImage(slot, imageIndex);
+            lastPresentStart = pT1;
+        } else if (!gated) {
             LockSupport.parkNanos(8_000_000L); // nothing is shown (minimised / occluded window): do not spin
         }
 
@@ -321,8 +360,17 @@ public final class RenderCore {
             perfSample(frame);
         }
 
-        long waitStart = debug ? System.nanoTime() : 0L;
+        long waitStart = System.nanoTime();
         nextFrame();
+        {
+            long pT5 = System.nanoTime();
+            net.xiaoyu233.fml.vulkan.render.frame.FrameStats.noteFrameTiming(pT3 - pT2, imageIndex >= 0, pT5 - waitStart);
+            PX[0] += pT1 - pT0; PX[1] += pT2 - pT1; PX[2] += pT3 - pT2; PX[3] += waitStart - pT3; PX[4] += pT5 - waitStart; PX[5]++;
+            if (PX[5] == 600) {
+                VkLog.LOGGER.info("PROF per-frame ms: acquire {} record+flush {} submit {} present {} nextFrame(fence) {}", PX[0] / 6.0e8, PX[1] / 6.0e8, PX[2] / 6.0e8, PX[3] / 6.0e8, PX[4] / 6.0e8);
+                java.util.Arrays.fill(PX, 0L);
+            }
+        }
         if (debug) {
             perfFrameBegin = System.nanoTime();
             perfWaitMs += (perfFrameBegin - waitStart) / 1.0e6;
@@ -383,8 +431,43 @@ public final class RenderCore {
 
     /** Number of images of the current swapchain (0 before the first one exists or while minimised). */
     public static int swapchainImageCount() {
+        LayerPresenter lp = presenter;
+        if (lp != null) {
+            return lp.poolSize();
+        }
         Swapchain sc = swapchain;
         return sc == null ? 0 : sc.images.length;
+    }
+
+    /** How frames reach the display right now, e.g. "swapchain IMMEDIATE" or "layer presenter (IOSurface)"; for logs and the bench. */
+    public static String presentationName() {
+        LayerPresenter lp = presenter;
+        if (lp != null) {
+            return "layer presenter (IOSurface -> CALayer contents, " + lp.poolSize() + " surfaces)";
+        }
+        Swapchain sc = swapchain;
+        return sc == null ? "none" : "swapchain " + Swapchain.presentModeName(sc.presentMode);
+    }
+
+    /** Number of frames handed to the display so far (swapchain presents or layer publishes). Any thread. */
+    public static long presentCount() {
+        return presentCount;
+    }
+
+    /** nanoTime at which present number {@code index} (0-based) was handed to the display; 0 when it fell out of the ring. Any thread. */
+    public static long presentTime(long index) {
+        long n = presentCount;
+        if (index < 0 || index >= n || index < n - PRESENT_RING + 64) {
+            return 0L;
+        }
+        return PRESENT_AT[(int) (index % PRESENT_RING)];
+    }
+
+    /** Render thread: a frame was handed to the display at {@code nanos}. */
+    static void notePresent(long nanos) {
+        long n = presentCount;
+        PRESENT_AT[(int) (n % PRESENT_RING)] = nanos;
+        presentCount = n + 1;
     }
 
     /**
@@ -1218,7 +1301,7 @@ public final class RenderCore {
             VkSubmitInfo submitInfo = VkSubmitInfo.calloc(stack)
                     .sType(VK_STRUCTURE_TYPE_SUBMIT_INFO)
                     .pCommandBuffers(stack.pointers(uploadCommandBuffer, mainCommandBuffer));
-            if (imageIndex >= 0) {
+            if (imageIndex >= 0 && presenter == null) {
                 // waitSemaphoreCount is shared by two arrays: LWJGL does not derive it from either buffer
                 submitInfo.waitSemaphoreCount(1)
                         .pWaitSemaphores(stack.longs(slot.imageAvailable))
@@ -1228,6 +1311,9 @@ public final class RenderCore {
             // the fence is reset only now that a submit that signals it is certain
             VkUtil.check(vkResetFences(device, slot.fence), "vkResetFences");
             VkUtil.check(vkQueueSubmit(queue, submitInfo, slot.fence), "vkQueueSubmit");
+            if (imageIndex >= 0 && presenter != null) {
+                presenter.submitted(imageIndex, slot.fence);
+            }
         }
     }
 
@@ -1243,6 +1329,9 @@ public final class RenderCore {
         FrameSlot slot = slots[currentSlot];
 
         VkUtil.waitFence(device, slot.fence, "frame slot " + currentSlot);
+        if (presenter != null) {
+            presenter.publishCompleted(); // consumes this slot's fence before it is reset
+        }
         if (capture != null) {
             capture.collect(currentSlot);
         }
@@ -1304,6 +1393,18 @@ public final class RenderCore {
         if (windowWidth <= 0 || windowHeight <= 0) {
             return -1;
         }
+        if (usePresenter() || presenter != null) {
+            if (!usePresenter()) {
+                switchToSwapchain();
+            } else {
+                if (presenter == null || swapchainDirty || presenter.width != windowWidth || presenter.height != windowHeight) {
+                    if (!ensurePresenter()) {
+                        return acquireImage(slot); // presenter failed: swapchain from now on
+                    }
+                }
+                return presenter.acquire();
+            }
+        }
         for (int attempt = 0; attempt < 3; attempt++) {
             if (swapchain == null || swapchainDirty) {
                 recreateSwapchain();
@@ -1332,8 +1433,72 @@ public final class RenderCore {
         return -1;
     }
 
-    private static void presentImage(int imageIndex) {
+    /** Presenter off for good after a failure (logged once), the swapchain is used from then on. */
+    private static boolean presenterFailed;
+
+    /** Surfaces of the layer presenter: the frames in flight + the shown one + one the compositor may still read, at least the configured count. */
+    private static int presenterSurfaces() {
+        return Math.max(VulkanConfig.presenterSurfaces(), framesInFlight + 2);
+    }
+
+    /** macOS, vsync off, fml.vulkan.macPresenter=auto: present through the IOSurface layer presenter (no drawable wait). */
+    private static boolean usePresenter() {
+        return MAC && !presenterFailed && !effectiveVsync() && "auto".equals(VulkanConfig.macPresenter());
+    }
+
+    /** Creates or resizes the layer presenter (and drops the swapchain); false when it is not available. */
+    private static boolean ensurePresenter() {
+        VkUtil.check(vkDeviceWaitIdle(device), "vkDeviceWaitIdle (presenter)");
+        if (presenter != null) {
+            presenter.publishCompleted();
+        }
+        if (swapchain != null) {
+            swapchain.destroy();
+            swapchain = null;
+        }
+        swapchainDirty = false;
+        try {
+            if (presenter == null) {
+                presenter = LayerPresenter.create(device, glfwWindowHandle, windowWidth, windowHeight, presenterSurfaces());
+            } else {
+                presenter.resize(windowWidth, windowHeight);
+            }
+        } catch (RuntimeException e) {
+            VkLog.LOGGER.warn("Layer presenter failed, falling back to the swapchain", e);
+            if (presenter != null) {
+                LayerPresenter p = presenter;
+                presenter = null;
+                guard("layer presenter", p::destroy);
+            }
+        }
+        if (presenter == null) {
+            presenterFailed = true;
+            swapchainDirty = true;
+            return false;
+        }
+        return true;
+    }
+
+    /** vsync was turned on (or the presenter disabled): back to the swapchain, which recreates itself at the next acquire. */
+    private static void switchToSwapchain() {
+        VkUtil.check(vkDeviceWaitIdle(device), "vkDeviceWaitIdle (presenter)");
+        LayerPresenter p = presenter;
+        presenter = null;
+        if (p != null) {
+            p.publishCompleted();
+            p.destroy();
+        }
+        swapchainDirty = true;
+    }
+
+    private static void presentImage(FrameSlot slot, int imageIndex) {
+        if (presenter != null) {
+            return; // published by LayerPresenter.publishCompleted once the frame's fence has signalled
+        }
         int result = swapchain.present(queue, imageIndex);
+        if (result >= 0) {
+            notePresent(System.nanoTime());
+        }
         if (result == KHRSwapchain.VK_SUBOPTIMAL_KHR) {
             noteSuboptimal();
         } else if (result == KHRSwapchain.VK_ERROR_OUT_OF_DATE_KHR) {
@@ -1375,7 +1540,10 @@ public final class RenderCore {
         VkCommandBuffer cb = mainCommandBuffer;
         VkUtil.beginLabel(cb, "Present");
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            long swapImage = presenting ? swapchain.images[imageIndex] : 0;
+            LayerPresenter lp = presenter;
+            long swapImage = !presenting ? 0 : lp != null ? lp.images[imageIndex] : swapchain.images[imageIndex];
+            int dstWidth = !presenting ? 0 : lp != null ? lp.width : swapchain.width;
+            int dstHeight = !presenting ? 0 : lp != null ? lp.height : swapchain.height;
 
             // offscreen colour: attachment -> transfer source; swapchain image: undefined -> transfer destination (the semaphore wait
             // is at the TRANSFER stage, so the barrier's source stage chains with it)
@@ -1395,15 +1563,14 @@ public final class RenderCore {
             }
 
             if (presenting) {
-                Swapchain sc = swapchain;
-                boolean sameSize = sc.width == t.width && sc.height == t.height;
+                boolean sameSize = dstWidth == t.width && dstHeight == t.height;
                 VkImageBlit.Buffer region = VkImageBlit.calloc(1, stack);
                 region.srcSubresource().aspectMask(VK_IMAGE_ASPECT_COLOR_BIT).mipLevel(0).baseArrayLayer(0).layerCount(1);
                 region.srcOffsets(0).set(0, 0, 0);
                 region.srcOffsets(1).set(t.width, t.height, 1);
                 region.dstSubresource().aspectMask(VK_IMAGE_ASPECT_COLOR_BIT).mipLevel(0).baseArrayLayer(0).layerCount(1);
                 region.dstOffsets(0).set(0, 0, 0);
-                region.dstOffsets(1).set(sc.width, sc.height, 1);
+                region.dstOffsets(1).set(dstWidth, dstHeight, 1);
                 vkCmdBlitImage(cb, t.colorImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, swapImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                         region, sameSize || !linearBlit ? VK_FILTER_NEAREST : VK_FILTER_LINEAR);
             }
@@ -1412,8 +1579,9 @@ public final class RenderCore {
             VkUtil.fillImageBarrier(post.position(0), t.colorImage, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0, VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
             if (presenting) {
+                // an IOSurface image is read by the window server after the fence: GENERAL (no Vulkan consumer); a swapchain image is presented
                 VkUtil.fillImageBarrier(post.position(1), swapImage, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                        KHRSwapchain.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_ACCESS_TRANSFER_WRITE_BIT, 0);
+                        lp != null ? VK_IMAGE_LAYOUT_GENERAL : KHRSwapchain.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_ACCESS_TRANSFER_WRITE_BIT, 0);
             }
             post.position(0);
             vkCmdPipelineBarrier(cb, VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -1710,6 +1878,9 @@ public final class RenderCore {
             if (swapchain != null) {
                 guard("swapchain", swapchain::destroy);
             }
+            if (presenter != null) {
+                guard("layer presenter", presenter::destroy);
+            }
             if (target != null) {
                 guard("offscreen target", target::destroy);
             }
@@ -1738,6 +1909,8 @@ public final class RenderCore {
         renderPassClear = 0;
         target = null;
         swapchain = null;
+        presenter = null;
+        glfwWindowHandle = 0L;
         swapchainDirty = false;
         slots = null;
         currentSlot = 0;

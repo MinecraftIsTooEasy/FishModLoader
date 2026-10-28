@@ -27,7 +27,7 @@ public record DeviceInfo(String vendorName, String deviceName, String driverInfo
                          boolean wideLines, boolean fillModeNonSolid, boolean samplerAnisotropy, float maxAnisotropy,
                          boolean logicOp, int maxImageDimension2D, long minUniformBufferOffsetAlignment,
                          float[] lineWidthRange, float[] pointSizeRange, boolean portabilityImageViewFormatSwizzle,
-                         boolean portabilitySamplerMipLodBias) {
+                         boolean portabilitySamplerMipLodBias, int deviceType) {
     public DeviceInfo {
         if (lineWidthRange == null || lineWidthRange.length != 2 || pointSizeRange == null || pointSizeRange.length != 2) {
             throw new IllegalArgumentException("lineWidthRange and pointSizeRange must have exactly 2 elements");

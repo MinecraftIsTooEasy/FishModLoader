@@ -483,13 +483,21 @@ final class DeviceSetup {
         }
 
         Candidate best = null;
+        Candidate forced = null;
+        String wanted = VulkanConfig.gpu();
         List<String> rejected = new ArrayList<>();
-        for (VkPhysicalDevice device : devices) {
+        for (int index = 0; index < devices.size(); index++) {
+            VkPhysicalDevice device = devices.get(index);
             Candidate candidate = evaluate(c, device);
             if (candidate.usable()) {
-                VkLog.LOGGER.debug("Vulkan device candidate: {} (type {}, score {})", candidate.name(), candidate.type(), candidate.score());
+                VkLog.LOGGER.info("Vulkan device candidate #{}: {} ({}, score {})", index, candidate.name(), deviceTypeName(candidate.type()),
+                        candidate.score());
                 if (best == null || candidate.score() > best.score()) {
                     best = candidate;
+                }
+                if (forced == null && !wanted.isEmpty() && (wanted.equals(Integer.toString(index))
+                        || candidate.name().toLowerCase(Locale.ROOT).contains(wanted.toLowerCase(Locale.ROOT)))) {
+                    forced = candidate;
                 }
             } else {
                 VkLog.LOGGER.info("Vulkan device {} rejected: {}", candidate.name(), candidate.rejectReason());
@@ -499,11 +507,27 @@ final class DeviceSetup {
         if (best == null) {
             throw new IllegalStateException("No suitable Vulkan device found. Rejected devices: " + rejected);
         }
+        if (forced != null) {
+            best = forced;
+            VkLog.LOGGER.info("Vulkan device forced by {}={}: {}", VulkanConfig.PROP_GPU, wanted, best.name());
+        } else if (!wanted.isEmpty()) {
+            VkLog.LOGGER.warn("{}={} matches no usable Vulkan device, using {}", VulkanConfig.PROP_GPU, wanted, best.name());
+        }
         c.physicalDevice = best.device();
         c.queueFamily = best.queueFamily();
         c.deviceApiVersion = best.apiVersion();
         c.deviceExtensions = enumerateDeviceExtensions(best.device());
         queryDeviceInfo(c);
+    }
+
+    private static String deviceTypeName(int type) {
+        return switch (type) {
+            case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU -> "discrete";
+            case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU -> "integrated";
+            case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU -> "virtual";
+            case VK_PHYSICAL_DEVICE_TYPE_CPU -> "cpu";
+            default -> "other";
+        };
     }
 
     private static Candidate evaluate(Context c, VkPhysicalDevice device) {
@@ -719,7 +743,8 @@ final class DeviceSetup {
                     new float[]{props.limits().lineWidthRange(0), props.limits().lineWidthRange(1)},
                     new float[]{props.limits().pointSizeRange(0), props.limits().pointSizeRange(1)},
                     portabilitySwizzle,
-                    portabilityLodBias);
+                    portabilityLodBias,
+                    props.deviceType());
 
             c.maxTargetDimension = Math.max(1, Math.min(props.limits().maxImageDimension2D(),
                     Math.min(props.limits().maxFramebufferWidth(), props.limits().maxFramebufferHeight())));

@@ -75,8 +75,9 @@ final class Swapchain {
                 return null;
             }
 
-            // fml.vulkan.latency=low: the minimum image count (the GPU cannot queue frames ahead); otherwise one more than the minimum
-            int minImages = caps.minImageCount() + 1;
+            // image count: max(3, min + 1) so the GPU can queue a frame while one is shown and one is being written (triple buffering);
+            // fml.vulkan.latency=low / fml.vulkan.swapchainMinImages: the minimum (or the given count). Clamped to [min, max].
+            int minImages = Math.max(3, caps.minImageCount() + 1);
             String minProp = System.getProperty(net.xiaoyu233.fml.vulkan.render.frame.FramePacer.PROP_MIN_SWAPCHAIN);
             if (RenderCore.isLowLatency() || (minProp != null && !minProp.isBlank() && !"false".equalsIgnoreCase(minProp.trim()))) {
                 minImages = caps.minImageCount();
@@ -92,6 +93,7 @@ final class Swapchain {
             if (caps.maxImageCount() > 0) {
                 minImages = Math.min(minImages, caps.maxImageCount());
             }
+            minImages = Math.max(minImages, caps.minImageCount());
 
             int usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
             usage &= caps.supportedUsageFlags();
@@ -117,6 +119,10 @@ final class Swapchain {
             IntBuffer modes = stack.mallocInt(pCount.get(0));
             VkUtil.check(KHRSurface.vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, pCount, modes), "vkGetPhysicalDeviceSurfacePresentModesKHR");
             int presentMode = choosePresentMode(modes, pCount.get(0), vsync);
+            StringBuilder offered = new StringBuilder();
+            for (int i = 0; i < pCount.get(0); i++) {
+                offered.append(i == 0 ? "" : ",").append(presentModeName(modes.get(i)));
+            }
 
             VkSwapchainCreateInfoKHR info = VkSwapchainCreateInfoKHR.calloc(stack)
                     .sType(KHRSwapchain.VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR)
@@ -158,8 +164,8 @@ final class Swapchain {
                 KHRSwapchain.vkDestroySwapchainKHR(device, swapchain, null);
                 throw t;
             }
-            VkLog.LOGGER.info("Swapchain {}x{}, {} images, format {}, present mode {}{}", width, height, images.length,
-                    format, presentModeName(presentMode), vsync ? " (vsync)" : "");
+            VkLog.LOGGER.info("Swapchain {}x{}, {} images (surface min {} max {}), format {}, present mode {}{} (offered: {})", width, height,
+                    images.length, caps.minImageCount(), caps.maxImageCount(), format, presentModeName(presentMode), vsync ? " (vsync)" : "", offered);
             Swapchain result = new Swapchain(device, swapchain, format, width, height, presentMode, images, semaphores);
             for (int i = 0; i < images.length; i++) {
                 VkUtil.setObjectName(device, VK_OBJECT_TYPE_IMAGE, images[i], "Swapchain image " + i);
@@ -196,7 +202,7 @@ final class Swapchain {
         throw new IllegalStateException("No swapchain format of the window surface supports being a blit destination");
     }
 
-    /** auto: vsync -> FIFO, else MAILBOX -> IMMEDIATE -> FIFO; explicit modes fall back to FIFO when unsupported. */
+    /** auto: vsync -> FIFO, else IMMEDIATE -> MAILBOX -> FIFO; explicit modes fall back to FIFO when unsupported. */
     private static int choosePresentMode(IntBuffer modes, int count, boolean vsync) {
         boolean mailbox = false;
         boolean immediate = false;
@@ -225,14 +231,20 @@ final class Swapchain {
                 if (vsync) {
                     return KHRSurface.VK_PRESENT_MODE_FIFO_KHR;
                 }
+                // vsync off = what GL's swap interval 0 does: IMMEDIATE (every frame reaches the screen, may tear), else MAILBOX (never
+                // blocks, the newest frame wins at each refresh), else FIFO. fml.vulkan.presentMode=mailbox picks MAILBOX explicitly.
+                if (immediate) {
+                    return KHRSurface.VK_PRESENT_MODE_IMMEDIATE_KHR;
+                }
                 if (mailbox) {
                     return KHRSurface.VK_PRESENT_MODE_MAILBOX_KHR;
                 }
-                return immediate ? KHRSurface.VK_PRESENT_MODE_IMMEDIATE_KHR : KHRSurface.VK_PRESENT_MODE_FIFO_KHR;
+                VkLog.LOGGER.warn("Neither IMMEDIATE nor MAILBOX is offered by this surface: vsync off is not possible, FIFO (display paced)");
+                return KHRSurface.VK_PRESENT_MODE_FIFO_KHR;
         }
     }
 
-    private static String presentModeName(int mode) {
+    static String presentModeName(int mode) {
         return switch (mode) {
             case KHRSurface.VK_PRESENT_MODE_IMMEDIATE_KHR -> "IMMEDIATE";
             case KHRSurface.VK_PRESENT_MODE_MAILBOX_KHR -> "MAILBOX";

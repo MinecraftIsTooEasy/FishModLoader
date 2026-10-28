@@ -56,6 +56,11 @@ public final class VulkanConfig {
     public static final String PROP_INPUT_GUI_PER_FRAME = "fml.vulkan.input.guiPerFrame";
     public static final String PROP_INPUT_RESTORE_HELD_KEYS = "fml.vulkan.input.restoreHeldKeys";
     public static final String PROP_GPU_TIMERS = "fml.vulkan.gpuTimers";
+    public static final String PROP_PRESENT_MIN_MS = "fml.vulkan.presentMinMs";
+    public static final String PROP_DEBUG_OVERLAY = "fml.vulkan.debugOverlay";
+    public static final String PROP_GPU = "fml.vulkan.gpu";
+    public static final String PROP_MAC_PRESENTER = "fml.vulkan.macPresenter";
+    public static final String PROP_PRESENTER_SURFACES = "fml.vulkan.presenterSurfaces";
 
     private static final Set<String> WARNED = ConcurrentHashMap.newKeySet();
 
@@ -75,7 +80,7 @@ public final class VulkanConfig {
         return raw(PROP_VSYNC) != null;
     }
 
-    /** fml.vulkan.presentMode: one of auto|fifo|mailbox|immediate (lower case, default auto: vsync -> FIFO, else MAILBOX -> IMMEDIATE -> FIFO). */
+    /** fml.vulkan.presentMode: one of auto|fifo|mailbox|immediate (lower case, default auto: vsync -> FIFO, else IMMEDIATE -> MAILBOX -> FIFO). */
     public static String presentMode() {
         String v = raw(PROP_PRESENT_MODE);
         if (v == null) return "auto";
@@ -91,9 +96,29 @@ public final class VulkanConfig {
         }
     }
 
-    /** fml.vulkan.framesInFlight: default 2, clamped to 1..3. */
+    /** fml.vulkan.framesInFlight: default 2, clamped to 1..3 (the macOS layer presenter uses 3 unless this is set, see RenderCore). */
     public static int framesInFlight() {
         return Math.max(1, Math.min(3, integer(PROP_FRAMES_IN_FLIGHT, 2)));
+    }
+
+    /** fml.vulkan.debugOverlay: the Vulkan information lines of the F3 screen, default true. */
+    public static boolean debugOverlay() {
+        return bool(PROP_DEBUG_OVERLAY, true);
+    }
+
+    /** True when fml.vulkan.framesInFlight is set explicitly (system property or config file). */
+    public static boolean framesInFlightSet() {
+        String v = raw(PROP_FRAMES_IN_FLIGHT);
+        return v != null && !v.isBlank();
+    }
+
+    /**
+     * fml.vulkan.gpu: force a physical device, by index in vkEnumeratePhysicalDevices order ("0", "1") or by a case-insensitive part of its
+     * name ("nvidia", "intel"); empty (default) = best score (discrete GPU before integrated, then the larger device-local heap).
+     */
+    public static String gpu() {
+        String v = raw(PROP_GPU);
+        return v == null ? "" : v.trim();
     }
 
     /** fml.vulkan.retina: macOS full-resolution framebuffer, default true. */
@@ -299,6 +324,36 @@ public final class VulkanConfig {
     /** fml.vulkan.particles.sort: sort particles back to front (D10), default false. */
     public static boolean particlesSort() {
         return bool(PROP_PARTICLES_SORT, false);
+    }
+
+    /**
+     * fml.vulkan.presentMinMs: OPT-IN presentation limiter, minimum ms between presented frames while vsync is off (frames rendered in
+     * between are not shown). Default 0 = off: every rendered frame is presented. Never set by the benchmark.
+     */
+    public static double presentMinMs() {
+        String v = raw(PROP_PRESENT_MIN_MS);
+        if (v == null || v.isBlank()) {
+            return 0;
+        }
+        try {
+            return Math.max(0, Double.parseDouble(v.trim()));
+        } catch (NumberFormatException e) {
+            warnInvalid(PROP_PRESENT_MIN_MS, v, "0");
+            return 0;
+        }
+    }
+
+    /**
+     * fml.vulkan.macPresenter (macOS): {@code auto} (default) = with vsync off present through the IOSurface layer presenter (every frame is
+     * handed to the compositor, no CAMetalLayer drawable wait); with vsync on, or {@code swapchain}, the MoltenVK swapchain is used.
+     */
+    public static String macPresenter() {
+        return choice(PROP_MAC_PRESENTER, "auto", "auto", "swapchain");
+    }
+
+    /** fml.vulkan.presenterSurfaces: IOSurfaces of the macOS layer presenter, default 5 (3..8). */
+    public static int presenterSurfaces() {
+        return Math.max(3, Math.min(8, integer(PROP_PRESENTER_SURFACES, 5)));
     }
 
     /** fml.vulkan.latency: normal | low (4.2), default normal. */
