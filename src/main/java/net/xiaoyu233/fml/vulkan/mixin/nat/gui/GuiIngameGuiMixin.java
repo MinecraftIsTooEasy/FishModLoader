@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Random;
 import net.minecraft.*;
 import net.minecraft.server.MinecraftServer;
+import net.xiaoyu233.fml.vulkan.render.gui.VulkanDebugOverlay;
 import net.xiaoyu233.fml.vulkan.render.state.BlendFactor;
 import net.xiaoyu233.fml.vulkan.render.state.Draw;
 import org.spongepowered.asm.mixin.Final;
@@ -515,6 +516,8 @@ public abstract class GuiIngameGuiMixin extends Gui {
                this.drawString(var8, "" + Minecraft.last_fps, 2, 2 + 10 * row++, 14737632);
             }
          }
+
+         VulkanDebugOverlay.draw(this.mc, var8, var6);
 
          if (this.recordPlayingUpFor > 0) {
             this.mc.mcProfiler.startSection("overlayMessage");

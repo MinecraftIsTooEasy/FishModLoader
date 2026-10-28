@@ -12,7 +12,8 @@ import java.util.function.Consumer;
  */
 public final class FrameStats {
     public record Frame(long index, long cpuNanos, long presentNanos, double gpuMs, int draws, int encodedDraws, int sectionsVisible,
-                        long captureNanos, int captures, int inlineCopies, int pipelineMisses, int pipelinesCreatedRenderThread, long heapUsed) {
+                        long captureNanos, int captures, int inlineCopies, int pipelineMisses, int pipelinesCreatedRenderThread, long heapUsed,
+                        long submitNanos, boolean presented, long fenceWaitNanos) {
     }
 
     public static final int RING = 1024;
@@ -33,6 +34,10 @@ public final class FrameStats {
     private static final long[] HEAP = new long[RING];
     private static final long[] POLL_AT = new long[RING];
     private static final long[] PRESENT_END_AT = new long[RING];
+    /** vkQueueSubmit time of the frame (inside presentNanos), whether an image was presented, and the fence wait of nextFrame(). */
+    private static final long[] SUBMIT = new long[RING];
+    private static final boolean[] PRESENTED = new boolean[RING];
+    private static final long[] FENCE_WAIT = new long[RING];
 
     // counters of the frame being built
     private static int curDraws;
@@ -43,6 +48,9 @@ public final class FrameStats {
     private static int curInlineCopies;
     private static int curMisses;
     private static int curCreated;
+    private static long curSubmitNanos;
+    private static boolean curPresented;
+    private static long curFenceWaitNanos;
 
     /** Number of frames recorded since start (the index of the next frame). */
     private static long count;
@@ -92,6 +100,16 @@ public final class FrameStats {
         curCreated += createdOnRenderThread;
     }
 
+    /**
+     * Presentation timing of the frame being built (render thread, called by the core once per present): time spent in vkQueueSubmit,
+     * whether an image was actually presented (false for a skipped / gated frame) and the fence wait of the next frame slot. Last value wins.
+     */
+    public static void noteFrameTiming(long submitNanos, boolean presented, long fenceWaitNanos) {
+        curSubmitNanos = submitNanos;
+        curPresented = presented;
+        curFenceWaitNanos = fenceWaitNanos;
+    }
+
     /** Called by {@link FramePacer#pollInput()}: the time (nanoTime) at which the frame being built sampled the input. */
     static void notePoll(long nanos) {
         POLL_AT[(int) (count & MASK)] = nanos;
@@ -114,11 +132,17 @@ public final class FrameStats {
         INLINE_COPIES[i] = curInlineCopies;
         MISSES[i] = curMisses;
         CREATED[i] = curCreated;
+        SUBMIT[i] = curSubmitNanos;
+        PRESENTED[i] = curPresented;
+        FENCE_WAIT[i] = curFenceWaitNanos;
         Runtime rt = Runtime.getRuntime();
         HEAP[i] = rt.totalMemory() - rt.freeMemory();
         curDraws = curEncoded = curCaptures = curInlineCopies = curMisses = curCreated = 0;
         curCaptureNanos = 0L;
         curSections = 0;
+        curSubmitNanos = 0L;
+        curPresented = false;
+        curFenceWaitNanos = 0L;
         long index = count++;
         Consumer<Frame>[] l = listeners;
         if (l.length > 0) {
@@ -231,14 +255,48 @@ public final class FrameStats {
         latestCacheIndex = -1L;
         curDraws = curEncoded = curCaptures = curInlineCopies = curMisses = curCreated = curSections = 0;
         curCaptureNanos = 0L;
+        curSubmitNanos = 0L;
+        curPresented = false;
+        curFenceWaitNanos = 0L;
     }
 
     private static Frame at(long index) {
         if (index < 0) {
-            return new Frame(0L, 0L, 0L, 0.0, 0, 0, 0, 0L, 0, 0, 0, 0, 0L);
+            return new Frame(0L, 0L, 0L, 0.0, 0, 0, 0, 0L, 0, 0, 0, 0, 0L, 0L, false, 0L);
         }
         int i = (int) (index & MASK);
         return new Frame(index, CPU[i], PRESENT[i], GPU[i], DRAWS[i], ENCODED[i], SECTIONS[i], CAPTURE_NANOS[i], CAPTURES[i],
-                INLINE_COPIES[i], MISSES[i], CREATED[i], HEAP[i]);
+                INLINE_COPIES[i], MISSES[i], CREATED[i], HEAP[i], SUBMIT[i], PRESENTED[i], FENCE_WAIT[i]);
+    }
+
+    /**
+     * Sums over the frames {@code [fromIndex, frameCount())} still in the ring, without allocating: {@code l} = {frames, presented
+     * frames, cpu nanos, frames with a GPU time}, {@code d[0]} = sum of the GPU milliseconds of those frames. Render thread (F3 overlay).
+     */
+    public static void summarize(long fromIndex, long[] l, double[] d) {
+        long n = count;
+        long from = Math.max(Math.max(fromIndex, 0L), n - RING);
+        long frames = 0L;
+        long presented = 0L;
+        long cpu = 0L;
+        long gpuFrames = 0L;
+        double gpu = 0.0;
+        for (long k = from; k < n; k++) {
+            int i = (int) (k & MASK);
+            frames++;
+            if (PRESENTED[i]) {
+                presented++;
+            }
+            cpu += CPU[i];
+            if (GPU[i] > 0.0) {
+                gpuFrames++;
+                gpu += GPU[i];
+            }
+        }
+        l[0] = frames;
+        l[1] = presented;
+        l[2] = cpu;
+        l[3] = gpuFrames;
+        d[0] = gpu;
     }
 }

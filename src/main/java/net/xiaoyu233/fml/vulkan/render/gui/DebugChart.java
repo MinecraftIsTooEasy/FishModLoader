@@ -15,7 +15,7 @@ import net.xiaoyu233.fml.vulkan.render.tess.TessBridge;
 public final class DebugChart {
     private static final int GL_TRIANGLE_STRIP = 5, GL_TRIANGLE_FAN = 6;
     /** Render-thread only: DecimalFormat is not thread-safe, so one shared instance is kept. */
-    private static final DecimalFormat PERCENT = new DecimalFormat("##0.00");
+    private static final DecimalFormat PERCENT = new DecimalFormat("##0.00", java.text.DecimalFormatSymbols.getInstance(java.util.Locale.ROOT));
 
     private DebugChart() {
     }
