@@ -1,0 +1,46 @@
+# Capture scenes of NR-28 (integration, whole-route scenes). Format: scene <id> <T0|T1|T2> <kind> [key=value ...]  ('+' in a value is a space); see CaptureRunner.
+# Tolerance classes per ARCHITECTURE-NATIVE.md 7.2: T0 GUI/static over a solid background, T1 lit/fogged 3D, T2 where a D10 item applies (masked by masks/<scene id>.png).
+# Set-up command cmd name=nr28Route: args rd=<tiny|short|normal|far> is implemented. args dim=<end|underworld> is NOT implemented: Commands.route only emits
+# s.warn("NOT SUPPORTED"), which does not fail the scene and captures the museum world, so such a scene would compare equal and pass falsely. The dim= scenes are
+# therefore not listed here (see GAPS below) until the dimension switch exists.
+# Title screen with the panorama pinned (T0: panorama step is fixed by the fake clock) and survival HUD.
+scene nr28_title T0 menu name=title panorama=40
+scene nr28_hud_survival T1 cmd name=hud args=survival pose=0,0,-8,0,12 time=12000
+# Terrain at render distance Far, day and dusk (cave culling on).
+scene nr28_terrain_far_day T1 cmd name=nr28Route args=rd=far pose=0,0,-8,0,12 time=12000
+scene nr28_terrain_far_dusk T1 cmd name=nr28Route args=rd=far pose=18,0,0,90,5 time=19000
+# Entity zoo (every living entity in frozen grids; entity order overlaps and rescale-normal objects are D10, hence T2).
+scene nr28_entity_zoo T2 cmd name=nr13.zoo pose=0,1,-8,0,8
+# Every container screen: GUI over the frozen world, T0 (NR-19 screens) and T0 (NR-25 simple containers).
+scene nr28_container_inventory T0 cmd name=containerScreens args=inventory
+scene nr28_container_chest T0 cmd name=containerScreens args=chest
+scene nr28_container_chestcarry T0 cmd name=containerScreens args=chestcarry
+scene nr28_container_crafting T0 cmd name=containerScreens args=crafting
+scene nr28_container_creative T0 cmd name=containerScreens args=creative
+scene nr28_container_enchanting T0 cmd name=containerScreens args=enchantment
+scene nr28_container_merchant T0 cmd name=containerScreens args=merchant
+scene nr28_container_anvil T0 cmd name=containerScreens args=anvil
+scene nr28_container_beacon T0 cmd name=containerScreens args=beacon
+scene nr28_container_horse T0 cmd name=containerScreens args=horse
+scene nr28_container_achievements T0 cmd name=containerScreens args=achievements
+scene nr28_container_furnace T0 cmd name=guiFurnace
+scene nr28_container_dispenser T0 cmd name=guiDispenser
+scene nr28_container_hopper T0 cmd name=guiHopper
+scene nr28_container_brewing T0 cmd name=guiBrewingStand
+scene nr28_container_crafting_table T0 cmd name=guiCrafting
+# Terrain at render distance Tiny, Short and Normal (day view as nr28_terrain_far_day). Kept last: each rd= call changes the render distance for the scenes after it.
+scene nr28_terrain_tiny_day T1 cmd name=nr28Route args=rd=tiny pose=0,0,-8,0,12 time=12000
+scene nr28_terrain_short_day T1 cmd name=nr28Route args=rd=short pose=0,0,-8,0,12 time=12000
+scene nr28_terrain_normal_day T1 cmd name=nr28Route args=rd=normal pose=0,0,-8,0,12 time=12000
+
+# GAPS (7.2 scenes not run by any scene in this file). Checked against the NR-<NN>.txt lists of this tree:
+#   End sky (7.2 "End sky"): no scene. Needs nr28Route dim=end, not implemented.
+#   Underworld: no scene. Needs nr28Route dim=underworld, not implemented.
+#   Nether, whole route: only NR-09 terrain-nether (a terrain pass), no route scene.
+#   End portal and dragon: NR-20 nr20_portal_* and nr20_dragon_* (not in this file).
+#   Caves (BFS): no scene in any list.
+#   Ice translucency: no scene. Water translucency: NR-09 terrain-translucent-water. Portal translucency: NR-20 nr20_portal_*.
+#   Tile entities, items in every context, screenshots, anaglyph, fullscreen: no scene in any list.
+#   Loading screen: no scene in any list. Options: NR-27 nr27_options. World select: NR-26 nr26_world_select.
+#   Resize: NR-05 title-after-resize (title only). Particles: NR-15 commands. Signs and books: NR-26 and NR-25.
+# Until these gaps have scenes, the integration report must not count the 7.2 route as complete.

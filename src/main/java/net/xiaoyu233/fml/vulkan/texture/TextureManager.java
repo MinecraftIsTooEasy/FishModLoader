@@ -45,7 +45,7 @@ import java.util.Set;
  * descriptor sets) is released through {@code RenderCore.deferDestroy}; samplers are shared and owned by {@link TextureSamplers}.
  */
 public final class TextureManager {
-    private static final int MAX_UNITS = 32;
+    static final int MAX_UNITS = 32;
     /** Value reported for GL_MAX_TEXTURE_UNITS (fixed function units; the backend only samples units 0 and 1). */
     private static final int REPORTED_TEXTURE_UNITS = 8;
     private static final int MAX_TEXTURE_SIZE = 16384;
@@ -58,11 +58,11 @@ public final class TextureManager {
     private static TextureObject[] dense = new TextureObject[1024];
     private static final HashMap<Integer, TextureObject> sparse = new HashMap<>();
     private static int nextName = 1;
-    private static final int[] bound = new int[MAX_UNITS];
+    static final int[] bound = new int[MAX_UNITS];
     private static TextureObject defaultTexture;
 
     private static TextureObject white;
-    private static long whiteSet;
+    static long whiteSet;
 
     private static final PixelStore unpack = new PixelStore();
     private static final PixelStore pack = new PixelStore();
@@ -73,16 +73,16 @@ public final class TextureManager {
     private static int proxyInternalFormat = 1;
 
     // host readback (glGetTexImage) buffer and glReadPixels scratch
-    private static long readbackBuffer;
-    private static long readbackAllocation;
-    private static long readbackAddress;
+    static long readbackBuffer;
+    static long readbackAllocation;
+    static long readbackAddress;
     private static long readbackSize;
     private static ByteBuffer readScratch;
 
     // result of the last stagingAlloc call (avoids a per-upload allocation)
-    private static long stagingBuffer;
-    private static long stagingOffset;
-    private static long stagingAddress;
+    static long stagingBuffer;
+    static long stagingOffset;
+    static long stagingAddress;
 
     private static final Set<String> WARNED = new HashSet<>();
     private static boolean initialized;
@@ -98,6 +98,7 @@ public final class TextureManager {
         resetState();
         TextureDescriptors.init();
         TextureSamplers.init();
+        TextureFrameHooks.install();
 
         defaultTexture = new TextureObject(0);
         defaultTexture.created = true;
@@ -149,6 +150,10 @@ public final class TextureManager {
         }
         destroyReadback();
         freeReadScratch();
+        UploadEngine.reset();
+        AtlasData.clear();
+        VersionPool.reset();
+        TextureFrameHooks.reset();
         TextureSamplers.shutdown();
         TextureDescriptors.shutdown();
         resetState();
@@ -183,9 +188,20 @@ public final class TextureManager {
         if (unit < 0 || unit >= MAX_UNITS) {
             return whiteSet;
         }
-        TextureObject tex = lookup(bound[unit]);
+        return descriptorSetOf(lookup(bound[unit]));
+    }
+
+    /** The descriptor set of the texture with GL name {@code name} (white 1x1 when unknown / without an image); marks it used in this frame. */
+    public static long descriptorSetFor(int name) {
+        return descriptorSetOf(lookup(name));
+    }
+
+    private static long descriptorSetOf(TextureObject tex) {
         if (tex == null || tex.image == 0L) {
             return whiteSet;
+        }
+        if (tex.pendingCount != 0) {
+            UploadEngine.flushTexture(tex); // coalesced uploads must be recorded before the texture is sampled
         }
         if (tex.mipsStale) {
             settleMips(tex); // GL_GENERATE_MIPMAP: once per sampled texture, on the upload command buffer (never ends the render pass)
@@ -199,6 +215,35 @@ public final class TextureManager {
         }
         tex.lastUsedFrame = RenderCore.frameNumber();
         return set;
+    }
+
+    public static int widthOf(int name) {
+        TextureObject t = lookup(name);
+        return t == null ? 0 : t.width;
+    }
+
+    public static int heightOf(int name) {
+        TextureObject t = lookup(name);
+        return t == null ? 0 : t.height;
+    }
+
+    /** The texture object of a GL name (null when unknown). */
+    static TextureObject find(int name) {
+        return lookup(name);
+    }
+
+    /** The texture object of a GL name, created on first use like the first glBindTexture of a generated name does. */
+    static TextureObject obtain(int name) {
+        if (name <= 0) {
+            return null;
+        }
+        TextureObject t = lookup(name);
+        if (t == null) {
+            t = new TextureObject(name);
+            store(name, t);
+        }
+        t.created = true;
+        return t;
     }
 
     /** Draw trace ({@code fml.vulkan.traceFrame}): the texture bound to {@code unit} and what a draw would really sample. */
@@ -371,6 +416,7 @@ public final class TextureManager {
             return;
         }
         remove(name);
+        AtlasData.forget(name);
         for (int u = 0; u < MAX_UNITS; u++) {
             if (bound[u] == name) {
                 bound[u] = 0;
@@ -396,7 +442,7 @@ public final class TextureManager {
         return t != null && t.created;
     }
 
-    private static TextureObject lookup(int name) {
+    static TextureObject lookup(int name) {
         if (name == 0) {
             return defaultTexture;
         }
@@ -409,7 +455,7 @@ public final class TextureManager {
         return name < DENSE_LIMIT ? null : sparse.get(name);
     }
 
-    private static void store(int name, TextureObject t) {
+    static void store(int name, TextureObject t) {
         if (name < DENSE_LIMIT) {
             if (name >= dense.length) {
                 dense = Arrays.copyOf(dense, Math.max(name + 1, dense.length * 2));
@@ -499,7 +545,7 @@ public final class TextureManager {
      * @return false when the level was not defined (unsupported, a size that does not fit level 0, out of memory); the caller must then
      * not touch the level
      */
-    private static boolean specifyLevel(TextureObject tex, int level, int internalFormat, int cls, int width, int height, int format,
+    static boolean specifyLevel(TextureObject tex, int level, int internalFormat, int cls, int width, int height, int format,
                                         int type, long srcRow0, long srcStride, boolean regenerate) {
         boolean newImage = false;
         if (level == 0) {
@@ -732,7 +778,7 @@ public final class TextureManager {
      *
      * @return false when nothing was copied (the clipped rectangle is empty)
      */
-    private static boolean copyFromFramebuffer(TextureObject tex, int level, int xoffset, int yoffset, int x, int y, int width, int height) {
+    static boolean copyFromFramebuffer(TextureObject tex, int level, int xoffset, int yoffset, int x, int y, int width, int height) {
         long fbW = RenderCore.framebufferWidth();
         long fbH = RenderCore.framebufferHeight();
         long x0 = Math.max((long) x, 0L);
@@ -746,6 +792,7 @@ public final class TextureManager {
         int dstY = (int) (yoffset + (y0 - y));
         settleMips(tex); // this write goes to the main command buffer: nothing may be left pending on the upload one
         RenderCore.ensureNoRenderPass();
+        TextureFrameHooks.countInlineCopy();
         VkCommandBuffer cb = RenderCore.mainCommandBuffer();
         TextureCommands.barrier(cb, tex.image, level, 1, VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -753,6 +800,7 @@ public final class TextureManager {
         TextureCommands.barrier(cb, tex.image, level, 1, VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         tex.lastUsedFrame = RenderCore.frameNumber(); // the main command buffer now holds a write to this texture
+        tex.mainWriteFrame = tex.lastUsedFrame;
         return true;
     }
 
@@ -760,7 +808,7 @@ public final class TextureManager {
      * The GL window framebuffer MITE creates has no alpha bits, so a copy of it reads alpha 1. The offscreen target is RGBA, so the
      * view sampling the texture maps alpha to ONE when the device supports view swizzles.
      */
-    private static void setCopyOpaque(TextureObject tex) {
+    static void setCopyOpaque(TextureObject tex) {
         if (!tex.copyOpaque) {
             tex.copyOpaque = true;
             if (TextureSamplers.viewSwizzleSupported()) {
@@ -800,7 +848,7 @@ public final class TextureManager {
      * command buffer branch, and every path that marks a texture used or writes it on the main command buffer settles it first), so
      * the regeneration can always be recorded on the upload command buffer, in front of everything the main one does.
      */
-    private static void afterLevel0Write(TextureObject tex) {
+    static void afterLevel0Write(TextureObject tex) {
         if (!tex.params.generateMipmap) {
             return;
         }
@@ -812,7 +860,7 @@ public final class TextureManager {
     }
 
     /** Regenerates a stale mip chain now (on the upload command buffer); a no-op for a texture that is up to date. */
-    private static void settleMips(TextureObject tex) {
+    static void settleMips(TextureObject tex) {
         if (tex.mipsStale) {
             generateLevels(tex, true);
         }
@@ -824,7 +872,7 @@ public final class TextureManager {
      * @param uploadOnly record on the upload command buffer even if the texture was used by the main one in this frame (only valid
      *                   when no write to the texture was recorded on the main command buffer after the level 0 data being mipped)
      */
-    private static void generateLevels(TextureObject tex, boolean uploadOnly) {
+    static void generateLevels(TextureObject tex, boolean uploadOnly) {
         tex.mipsStale = false;
         int levels = fullLevels(tex.width, tex.height);
         if (tex.params.maxLevelSet) {
@@ -1315,7 +1363,7 @@ public final class TextureManager {
     }
 
     /** (Re)creates the host readback buffer so it holds at least {@code size} bytes; only called between flushAndWait pairs. */
-    private static boolean ensureReadback(long size) {
+    static boolean ensureReadback(long size) {
         if (readbackBuffer != 0L && readbackSize >= size) {
             return true;
         }
@@ -1365,8 +1413,11 @@ public final class TextureManager {
     // Vulkan objects: image creation, views, descriptor sets, deferred destruction
     // =========================================================================================================
 
-    /** Creates a VkImage (+ VMA allocation) for the texture. On failure the texture keeps no image and GL_OUT_OF_MEMORY is raised. */
-    private static boolean allocateImage(TextureObject tex, int width, int height, int levels) {
+    /**
+     * Creates a B8G8R8A8 VkImage (+ VMA allocation) in UNDEFINED layout; {@code out[0]} receives the image, {@code out[1]} the allocation.
+     * False (after logging and raising GL_OUT_OF_MEMORY) when the allocation failed.
+     */
+    static boolean createImage(int width, int height, int levels, long[] out) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkImageCreateInfo info = VkImageCreateInfo.calloc(stack)
                 .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO)
@@ -1389,21 +1440,35 @@ public final class TextureManager {
                 GLErrors.set(GL11.GL_OUT_OF_MEMORY);
                 return false;
             }
-            tex.image = pImage.get(0);
-            tex.allocation = pAllocation.get(0);
-            tex.width = width;
-            tex.height = height;
-            tex.mipLevels = levels;
-            tex.imageView = 0L;
-            tex.viewKey = -1;
-            tex.lastUsedFrame = -1L;
-            tex.setDirty = true;
+            out[0] = pImage.get(0);
+            out[1] = pAllocation.get(0);
             return true;
         }
     }
 
+    /** Creates a VkImage (+ VMA allocation) for the texture. On failure the texture keeps no image and GL_OUT_OF_MEMORY is raised. */
+    static boolean allocateImage(TextureObject tex, int width, int height, int levels) {
+        long[] handles = new long[2];
+        if (!createImage(width, height, levels, handles)) {
+            return false;
+        }
+        tex.image = handles[0];
+        tex.allocation = handles[1];
+        tex.width = width;
+        tex.height = height;
+        tex.mipLevels = levels;
+        tex.imageView = 0L;
+        tex.viewKey = -1;
+        tex.lastUsedFrame = -1L;
+        tex.mainWriteFrame = -1L;
+        tex.setDirty = true;
+        return true;
+    }
+
     /** Detaches the Vulkan objects from the texture and schedules their destruction after the frames in flight. */
-    private static void releaseImage(TextureObject tex) {
+    static void releaseImage(TextureObject tex) {
+        UploadEngine.discard(tex);
+        VersionPool.releaseSpares(tex);
         final long view = tex.imageView;
         final long image = tex.image;
         final long allocation = tex.allocation;
@@ -1425,7 +1490,7 @@ public final class TextureManager {
         }
     }
 
-    private static void destroyImageObjects(long view, long image, long allocation) {
+    static void destroyImageObjects(long view, long image, long allocation) {
         if (view != 0L) {
             VK10.vkDestroyImageView(RenderCore.device(), view, null);
         }
@@ -1436,6 +1501,7 @@ public final class TextureManager {
 
     /** Synchronous destruction at shutdown (device idle, descriptor pools are destroyed afterwards). */
     private static void destroyNow(TextureObject tex) {
+        VersionPool.destroySparesNow(tex);
         destroyImageObjects(tex.imageView, tex.image, tex.allocation);
         tex.image = 0L;
         tex.allocation = 0L;
@@ -1450,7 +1516,7 @@ public final class TextureManager {
      * chosen by the texture's frame usage (always the upload one with {@code uploadOnly}, see {@link #generateLevels}). The old image is
      * destroyed after the frames in flight; cached descriptor sets are rebuilt on the next use.
      */
-    private static boolean growMipChain(TextureObject tex, int newLevels, boolean uploadOnly) {
+    static boolean growMipChain(TextureObject tex, int newLevels, boolean uploadOnly) {
         newLevels = Math.min(newLevels, fullLevels(tex.width, tex.height));
         if (newLevels <= tex.mipLevels) {
             return true;
@@ -1467,6 +1533,7 @@ public final class TextureManager {
             return false;
         }
         tex.lastUsedFrame = oldLastUsed; // the contents continue the old image's history in this frame
+        VersionPool.releaseSpares(tex); // spare versions have the old level count
         VkCommandBuffer cb = commandBufferFor(tex, uploadOnly);
         long newImage = tex.image;
         TextureCommands.barrier(cb, newImage, 0, newLevels, VK10.VK_IMAGE_LAYOUT_UNDEFINED, VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -1484,7 +1551,7 @@ public final class TextureManager {
     }
 
     /** Number of levels a freshly specified level 0 is created with (see {@link #growTarget} for later growth). */
-    private static int initialLevels(TextureObject.Params p, int w, int h) {
+    static int initialLevels(TextureObject.Params p, int w, int h) {
         int full = fullLevels(w, h);
         if (p.maxLevelSet) {
             return Math.max(1, Math.min(full, p.maxLevel + 1)); // MITE style: GL_TEXTURE_MAX_LEVEL first, then every level
@@ -1500,7 +1567,7 @@ public final class TextureManager {
     }
 
     /** Builds / replaces the image view, picks the sampler and makes sure a descriptor set for (view, sampler) exists. */
-    private static void resolveDescriptor(TextureObject tex) {
+    static void resolveDescriptor(TextureObject tex) {
         TextureObject.Params p = tex.params;
         int base = Math.min(Math.max(p.baseLevel, 0), tex.mipLevels - 1);
         int limit = Math.max(base, Math.min(p.maxLevel, tex.mipLevels - 1));
@@ -1587,20 +1654,22 @@ public final class TextureManager {
      * The command buffer a write to the texture is recorded on: the main one (outside a render pass) when the main command buffer
      * already references the texture in this frame, so the write is ordered after those uses; otherwise the upload command buffer.
      */
-    private static VkCommandBuffer commandBufferFor(TextureObject tex) {
+    static VkCommandBuffer commandBufferFor(TextureObject tex) {
         if (tex.lastUsedFrame == RenderCore.frameNumber()) {
             RenderCore.ensureNoRenderPass();
+            TextureFrameHooks.countInlineCopy();
+            tex.mainWriteFrame = RenderCore.frameNumber();
             return RenderCore.mainCommandBuffer();
         }
         return RenderCore.uploadCommandBuffer();
     }
 
-    private static VkCommandBuffer commandBufferFor(TextureObject tex, boolean uploadOnly) {
+    static VkCommandBuffer commandBufferFor(TextureObject tex, boolean uploadOnly) {
         return uploadOnly ? RenderCore.uploadCommandBuffer() : commandBufferFor(tex);
     }
 
     /** Reserves {@code bytes} (4 byte aligned) of staging memory; the result is left in the stagingBuffer / Offset / Address fields. */
-    private static void stagingAlloc(long bytes) {
+    static void stagingAlloc(long bytes) {
         StreamSlice slice = RenderCore.streamStaging((int) bytes + 3);
         long shift = (4L - (slice.offset() & 3L)) & 3L; // vkCmdCopyBufferToImage needs a multiple of the texel size (4)
         stagingBuffer = slice.buffer();
@@ -1609,15 +1678,120 @@ public final class TextureManager {
     }
 
     /** The GL_TEXTURE_2D object bound on the active texture unit (null for an out of range unit). */
-    private static TextureObject current2D() {
+    static TextureObject current2D() {
         int unit = GLState.get().activeTexture();
         if (unit < 0 || unit >= MAX_UNITS) {
             return null;
         }
-        return lookup(bound[unit]);
+        TextureObject tex = lookup(bound[unit]);
+        if (tex != null && tex.pendingCount != 0) {
+            UploadEngine.flushTexture(tex); // every emulated operation on the texture sees the coalesced uploads
+        }
+        return tex;
     }
 
-    private static int maxTextureSize() {
+    /** Minification filter a native NEAREST / LINEAR request maps to (an atlas with mip levels samples them). */
+    private static int minFilterFor(TextureObject tex, boolean linear) {
+        if (tex.atlasLevels > 1) {
+            return linear ? GL11.GL_LINEAR_MIPMAP_LINEAR : GL11.GL_NEAREST_MIPMAP_LINEAR;
+        }
+        return linear ? GL11.GL_LINEAR : GL11.GL_NEAREST;
+    }
+
+    /** Whether {@link #applyFilter} would change the sampler. */
+    static boolean filterChanges(TextureObject tex, boolean linear) {
+        return tex.params.minFilter != minFilterFor(tex, linear) || tex.params.magFilter != (linear ? GL11.GL_LINEAR : GL11.GL_NEAREST);
+    }
+
+    /** Native filter state (1.11): NEAREST / LINEAR for min and mag, with the mip chain of an atlas sampled. */
+    static void applyFilter(TextureObject tex, boolean linear) {
+        if (filterChanges(tex, linear)) {
+            tex.params.minFilter = minFilterFor(tex, linear);
+            tex.params.magFilter = linear ? GL11.GL_LINEAR : GL11.GL_NEAREST;
+            tex.setDirty = true;
+        }
+    }
+
+    /** Whether {@link #applyWrap} would change the sampler. */
+    static boolean wrapChanges(TextureObject tex, boolean clamp) {
+        int wrap = clamp ? GL11.GL_CLAMP : GL11.GL_REPEAT;
+        return tex.params.wrapS != wrap || tex.params.wrapT != wrap;
+    }
+
+    /** Native wrap state: REPEAT or CLAMP on both axes. */
+    static void applyWrap(TextureObject tex, boolean clamp) {
+        if (wrapChanges(tex, clamp)) {
+            int wrap = clamp ? GL11.GL_CLAMP : GL11.GL_REPEAT;
+            tex.params.wrapS = wrap;
+            tex.params.wrapT = wrap;
+            tex.setDirty = true;
+        }
+    }
+
+    /**
+     * Native {@code Textures.allocate}: (re)creates level 0 of {@code name} as an empty (all zero) {@code width x height} texture with
+     * {@code levels} mip levels, without touching any binding. Returns false after raising a GL error when the size is invalid.
+     */
+    static boolean allocateNative(int name, int width, int height, int levels, float anisotropy) {
+        TextureObject tex = obtain(name);
+        if (tex == null || width <= 0 || height <= 0 || width > maxTextureSize() || height > maxTextureSize()) {
+            GLErrors.set(GL11.GL_INVALID_VALUE);
+            return false;
+        }
+        UploadEngine.flushTexture(tex);
+        tex.atlasLevels = 1;
+        TextureObject.Params p = tex.params;
+        int wanted = Math.max(1, Math.min(levels, fullLevels(width, height)));
+        p.maxLevelSet = wanted > 1;
+        p.maxLevel = wanted > 1 ? wanted - 1 : 1000;
+        p.maxAnisotropy = wanted > 1 ? Math.max(1f, anisotropy) : 1f;
+        if (!specifyLevel(tex, 0, GL11.GL_RGBA8, PixelFormatConverter.CLASS_RGBA, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, 0L, 0L,
+            false)) {
+            return false;
+        }
+        tex.atlasLevels = tex.mipLevels;
+        if (tex.mipLevels > 1) {
+            tex.definedMask = (1 << tex.mipLevels) - 1; // the allocation cleared every level
+        }
+        tex.setDirty = true;
+        return true;
+    }
+
+    /**
+     * Copies a rectangle of a render target's colour image (GL coordinates, bottom-left origin; {@code srcImage} rests in
+     * COLOR_ATTACHMENT_OPTIMAL between passes) into level 0 of {@code tex}. This is the sanctioned inline copy (it ends the render pass
+     * and is counted); the rectangle is clipped against the source and the destination follows.
+     *
+     * @return false when nothing was copied (empty clipped rectangle)
+     */
+    static boolean copyFromTargetImage(TextureObject tex, long srcImage, int srcWidth, int srcHeight, int dstX, int dstY, int srcX, int srcY,
+                                       int width, int height) {
+        long x0 = Math.max((long) srcX, 0L);
+        long y0 = Math.max((long) srcY, 0L);
+        long x1 = Math.min((long) srcX + width, srcWidth);
+        long y1 = Math.min((long) srcY + height, srcHeight);
+        if (x0 >= x1 || y0 >= y1) {
+            return false;
+        }
+        int dx = (int) (dstX + (x0 - srcX));
+        int dy = (int) (dstY + (y0 - srcY));
+        settleMips(tex);
+        RenderCore.ensureNoRenderPass();
+        TextureFrameHooks.countInlineCopy();
+        VkCommandBuffer cb = RenderCore.mainCommandBuffer();
+        TextureCommands.targetBarrier(cb, srcImage, true);
+        TextureCommands.barrier(cb, tex.image, 0, 1, VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        TextureCommands.blitFlipped(cb, srcImage, srcHeight, (int) x0, (int) y0, (int) x1, (int) y1, tex.image, 0, dx, dy);
+        TextureCommands.barrier(cb, tex.image, 0, 1, VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        TextureCommands.targetBarrier(cb, srcImage, false);
+        tex.lastUsedFrame = RenderCore.frameNumber();
+        tex.mainWriteFrame = tex.lastUsedFrame;
+        return true;
+    }
+
+    static int maxTextureSize() {
         return Math.min(MAX_TEXTURE_SIZE, RenderCore.deviceInfo().maxImageDimension2D());
     }
 
@@ -1647,7 +1821,7 @@ public final class TextureManager {
         GLUnsupported.call(function + "(target 0x" + Integer.toHexString(target) + ")");
     }
 
-    private static void warnOnce(String key, String message) {
+    static void warnOnce(String key, String message) {
         if (WARNED.add(key)) {
             VkLog.LOGGER.warn(message);
         }

@@ -90,7 +90,7 @@ tasks.register('runClient', JavaExec) {
         jvmArgsList.add("-Dfml.vulkan.testbot.docs=${docsDir}".toString())
         jvmArgsList.add("-Dfml.vulkan.testbot.tag=${tag}".toString())
         jvmArgsList.add("-Dfml.vulkan.captureDir=${docsDir}/screenshots/${tag}".toString())
-        ['only', 'skip', 'scale', 'seed', 'idleSeconds', 'noCave', 'nopace', 'keepWorld'].each { k ->
+        ['only', 'skip', 'cmd', 'scale', 'seed', 'idleSeconds', 'noCave', 'nopace', 'keepWorld'].each { k ->
             if (project.hasProperty("testbot_${k}")) {
                 jvmArgsList.add("-Dfml.vulkan.testbot.${k}=${project.property("testbot_${k}")}".toString())
             }
@@ -199,3 +199,7 @@ tasks.register('updateInstallerJar', Copy) {
     into "${projectDir}/src/installer/java/net/xiaoyu233/fmlinstaller"
     rename { 'FishModLoader.jar' }
 }
+
+// Per-package Gradle logic of the native rewrite: gradle/native/<WP>.gradle (NR-02 shaders, NR-08 scans, NR-27 bench/testbot/baseline, ...)
+// is applied automatically, nobody edits this file for it (ARCHITECTURE-NATIVE 5.1).
+fileTree('gradle/native').include('*.gradle').sort { it.name }.each { apply from: it }

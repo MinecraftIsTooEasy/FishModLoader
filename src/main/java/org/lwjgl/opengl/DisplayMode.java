@@ -16,6 +16,11 @@ public final class DisplayMode {
         this(width, height, 0, 0, false);
     }
 
+    /** A monitor video mode (fullscreen capable); not part of LWJGL 2, used by {@code NativeWindow}. */
+    public static DisplayMode ofVideoMode(int width, int height, int bpp, int freq) {
+        return new DisplayMode(width, height, bpp, freq);
+    }
+
     DisplayMode(int width, int height, int bpp, int freq) {
         this(width, height, bpp, freq, true);
     }

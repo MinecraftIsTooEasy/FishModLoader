@@ -2,7 +2,7 @@ package net.xiaoyu233.fml.vulkan.core;
 
 import net.xiaoyu233.fml.vulkan.VkLog;
 import net.xiaoyu233.fml.vulkan.VulkanConfig;
-import net.xiaoyu233.fml.vulkan.pipeline.CommandRecorder;
+import net.xiaoyu233.fml.vulkan.render.gpu.CommandStream;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
@@ -91,6 +91,10 @@ public final class RenderCore {
     private static long renderPassLoad;
     private static long renderPassClear;
     private static OffscreenTarget target;
+    /** Target the game draws into right now: null = the MAIN target (see {@link #setActiveTarget}). */
+    private static OffscreenTarget activeTarget;
+    private static DeviceCaps deviceCaps = DeviceCaps.NONE;
+    private static boolean lowLatency;
 
     // window / swapchain state
     private static int windowWidth;
@@ -175,7 +179,9 @@ public final class RenderCore {
             return;
         }
         try {
-            framesInFlight = VulkanConfig.framesInFlight();
+            lowLatency = "low".equals(VulkanConfig.latency());
+            framesInFlight = lowLatency ? 1 : VulkanConfig.framesInFlight();
+            activeTarget = null;
             debug = VulkanConfig.debug();
             windowWidth = fbWidth;
             windowHeight = fbHeight;
@@ -195,12 +201,14 @@ public final class RenderCore {
             surface = ctx.surface;
             deviceInfo = ctx.info;
             uma = ctx.uma;
+            deviceCaps = ctx.caps;
             maxTargetDimension = ctx.maxTargetDimension;
 
             chooseFormats();
             createRenderPasses();
             createFrameResources();
             swapchain = Swapchain.create(surface, windowWidth, windowHeight, effectiveVsync(), null);
+            VkLog.LOGGER.info("Swapchain image count: {} (latency low: {})", swapchainImageCount(), lowLatency);
 
             int width = clampTargetSize(fbWidth);
             int height = clampTargetSize(fbHeight);
@@ -290,6 +298,7 @@ public final class RenderCore {
 
         fireBeforeFrameEnd();
         ensureNoRenderPass();
+        fireBeforePresent();
 
         int imageIndex = acquireImage(slot);
         boolean capturing = capture != null && capture.isDue(frame);
@@ -350,6 +359,113 @@ public final class RenderCore {
 
     public static DeviceInfo deviceInfo() {
         return deviceInfo;
+    }
+
+    /** Optional capabilities that were enabled on the device (multi-draw-indirect, extended dynamic state, present wait, timestamps). */
+    public static DeviceCaps deviceCaps() {
+        return deviceCaps;
+    }
+
+    /** True on unified-memory devices while static buffers use the direct host write path (may turn false at run time, see createStatic). */
+    public static boolean isUnifiedMemory() {
+        return uma;
+    }
+
+    /** Frames in flight actually in use (fml.vulkan.framesInFlight, or 1 with fml.vulkan.latency=low). */
+    public static int framesInFlight() {
+        return framesInFlight;
+    }
+
+    /** fml.vulkan.latency=low: one frame in flight and the minimum swapchain image count. */
+    public static boolean isLowLatency() {
+        return lowLatency;
+    }
+
+    /** Number of images of the current swapchain (0 before the first one exists or while minimised). */
+    public static int swapchainImageCount() {
+        Swapchain sc = swapchain;
+        return sc == null ? 0 : sc.images.length;
+    }
+
+    /**
+     * Blocks until the most recent presented frame has reached the screen (VK_KHR_present_wait), at most {@code timeoutNanos}. Returns
+     * false without waiting when the extension is not enabled, nothing was presented yet or the wait timed out / failed. Render thread.
+     */
+    public static boolean waitForPresent(long timeoutNanos) {
+        Swapchain sc = swapchain;
+        if (!initialized || sc == null || !deviceCaps.presentWait()) {
+            return false;
+        }
+        return sc.waitForLastPresent(timeoutNanos);
+    }
+
+    /** The MAIN offscreen target (replaced when the window is resized: do not cache). */
+    public static OffscreenTarget mainTarget() {
+        return target;
+    }
+
+    /** The target draws currently go to (MAIN unless {@link #setActiveTarget} selected another one). */
+    public static OffscreenTarget activeTarget() {
+        OffscreenTarget t = activeTarget;
+        return t != null ? t : target;
+    }
+
+    /** Width of the target draws currently go to; {@link #framebufferWidth()} stays the MAIN size. */
+    public static int activeWidth() {
+        return activeTarget().width;
+    }
+
+    public static int activeHeight() {
+        return activeTarget().height;
+    }
+
+    /**
+     * Redirects draws, clears and readbacks to {@code t} (null = MAIN). The running render pass is ended first (pending merged draws are
+     * recorded into the old target); the next draw begins a LOAD pass on the new one. Targets must come from
+     * {@link #createTarget}; one may be selected only while it is alive. Listeners are told through {@code onCommandBufferReset}-free
+     * means: viewport and scissor are marked dirty by the caller ({@code CommandStream.invalidate}).
+     */
+    public static void setActiveTarget(OffscreenTarget t) {
+        OffscreenTarget wanted = t == target ? null : t;
+        if (wanted == activeTarget) {
+            return;
+        }
+        ensureNoRenderPass();
+        activeTarget = wanted;
+        CommandStream.onTargetChanged();
+    }
+
+    /**
+     * Creates an extra colour+depth target (clamped to the device limit) that is compatible with {@link #renderPass()}. Its images are
+     * brought to their attachment layout by an empty CLEAR pass recorded into this frame's upload command buffer, so the running pass of
+     * the main command buffer is not interrupted and the target is usable by every command recorded afterwards.
+     */
+    public static OffscreenTarget createTarget(int width, int height) {
+        OffscreenTarget t = OffscreenTarget.create(clampTargetSize(width), clampTargetSize(height), colorFormat, depthFormat, renderPassLoad);
+        try {
+            beginPass(uploadCommandBuffer, t, renderPassClear, true, 0f, 0f, 0f, 1f, 1f);
+            vkCmdEndRenderPass(uploadCommandBuffer);
+        } catch (Throwable e) {
+            t.destroy();
+            throw e;
+        }
+        return t;
+    }
+
+    /** Destroys a target made by {@link #createTarget} once the frames in flight that may use it have completed. */
+    public static void destroyTarget(OffscreenTarget t) {
+        if (t == null || t == target) {
+            return;
+        }
+        if (activeTarget == t) {
+            setActiveTarget(null);
+        }
+        deferDestroy(t::destroy);
+    }
+
+    /** The CLEAR render pass (clears both attachments, initial layout UNDEFINED); compatible with {@link #renderPass()}. */
+    public static long renderPassClear() {
+        return renderPassClear;
     }
 
     // ---------------------------------------------------------------------------------------------------------
@@ -480,6 +596,8 @@ public final class RenderCore {
         default void beforePassEnd() {}
         default void beforeFrameEnd() {}
         default void onResize(int w, int h) {}
+        /** The frame's drawing is complete (render pass ended, every pending draw recorded); the present commands follow. Render thread. */
+        default void beforePresent() {}
     }
 
     // ---------------------------------------------------------------------------------------------------------
@@ -487,6 +605,11 @@ public final class RenderCore {
     // ---------------------------------------------------------------------------------------------------------
 
     public static StreamSlice streamVertex(int bytes) {
+        return vertexStream.allocate(bytes);
+    }
+
+    /** Stream slice that may be used as the buffer of drawIndexedIndirect (the vertex stream carries INDIRECT_BUFFER usage). */
+    public static StreamSlice streamIndirect(int bytes) {
         return vertexStream.allocate(bytes);
     }
 
@@ -668,7 +791,7 @@ public final class RenderCore {
         if (!color && !depth) {
             return;
         }
-        OffscreenTarget t = target;
+        OffscreenTarget t = activeTarget();
         long x0 = Math.max(0L, x);
         long y0 = Math.max(0L, y);
         long x1 = Math.min((long) x + w, t.width);
@@ -718,7 +841,7 @@ public final class RenderCore {
         if (!initialized || w <= 0 || h <= 0 || dst == null) {
             return;
         }
-        OffscreenTarget t = target;
+        OffscreenTarget t = activeTarget();
         long x0 = Math.max(0L, glX);
         long y0 = Math.max(0L, glY);
         long x1 = Math.min((long) glX + w, t.width);
@@ -802,10 +925,14 @@ public final class RenderCore {
      * ended the pass and moved {@code dstImage} to TRANSFER_DST_OPTIMAL; it stays there.
      */
     public static void blitColorToImage(long dstImage, int dstMip, int dstX, int dstY, int glSrcX, int glSrcY, int w, int h) {
+        blitColorToImage(activeTarget(), dstImage, dstMip, dstX, dstY, glSrcX, glSrcY, w, h);
+    }
+
+    /** {@link #blitColorToImage(long, int, int, int, int, int, int, int)} from an explicit source target instead of the active one. */
+    public static void blitColorToImage(OffscreenTarget t, long dstImage, int dstMip, int dstX, int dstY, int glSrcX, int glSrcY, int w, int h) {
         if (!initialized || w <= 0 || h <= 0) {
             return;
         }
-        OffscreenTarget t = target;
         // clip the source to the framebuffer (the main menu copies 256x256 even when the window is smaller); the destination follows
         long sx0 = Math.max(0L, glSrcX);
         long sy0 = Math.max(0L, glSrcY);
@@ -933,7 +1060,12 @@ public final class RenderCore {
     }
 
     private static void beginPass(long renderPass, boolean clearValues, float r, float g, float b, float a, float depth) {
-        OffscreenTarget t = target;
+        beginPass(mainCommandBuffer, activeTarget(), renderPass, clearValues, r, g, b, a, depth);
+        inRenderPass = true;
+    }
+
+    private static void beginPass(VkCommandBuffer cb, OffscreenTarget t, long renderPass, boolean clearValues, float r, float g, float b,
+                                  float a, float depth) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkRenderPassBeginInfo info = VkRenderPassBeginInfo.calloc(stack)
                     .sType(VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO)
@@ -950,9 +1082,8 @@ public final class RenderCore {
                 values.position(0);
                 info.pClearValues(values);
             }
-            vkCmdBeginRenderPass(mainCommandBuffer, info, VK_SUBPASS_CONTENTS_INLINE);
+            vkCmdBeginRenderPass(cb, info, VK_SUBPASS_CONTENTS_INLINE);
         }
-        inRenderPass = true;
     }
 
     private static void endPass() {
@@ -964,8 +1095,8 @@ public final class RenderCore {
 
     /** A (re)created target is UNDEFINED: one empty CLEAR pass gives both images their attachment layout and black / depth 1. */
     private static void initializeTarget() {
-        beginPass(renderPassClear, true, 0f, 0f, 0f, 1f, 1f);
-        endPass();
+        beginPass(mainCommandBuffer, target, renderPassClear, true, 0f, 0f, 0f, 1f, 1f);
+        vkCmdEndRenderPass(mainCommandBuffer);
     }
 
     private static int clampTargetSize(int size) {
@@ -1009,10 +1140,10 @@ public final class RenderCore {
                 VkUtil.setObjectName(device, VK_OBJECT_TYPE_COMMAND_BUFFER, slot.upload.address(), "Upload CB " + i);
 
                 slot.vertex = new StreamAllocator("vertex", allocator, VERTEX_CHUNK_BYTES,
-                        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 16, true);
+                        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, 16, true);
                 // like the vertex stream: a caller may bind an index-stream slice as a vertex buffer (and the other way round)
                 slot.index = new StreamAllocator("index", allocator, INDEX_CHUNK_BYTES,
-                        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 16, true);
+                        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, 16, true);
                 // uniform chunk buffers are cached by the pipeline module (descriptor sets): keep their handles stable
                 slot.uniform = new StreamAllocator("uniform", allocator, UNIFORM_CHUNK_BYTES, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                         uniformAlignment, false);
@@ -1065,11 +1196,11 @@ public final class RenderCore {
             VkMemoryBarrier.Buffer barrier = VkMemoryBarrier.calloc(1, stack)
                     .sType(VK_STRUCTURE_TYPE_MEMORY_BARRIER)
                     .srcAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT)
-                    .dstAccessMask(VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT | VK_ACCESS_INDEX_READ_BIT | VK_ACCESS_UNIFORM_READ_BIT
+                    .dstAccessMask(VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT | VK_ACCESS_INDEX_READ_BIT | VK_ACCESS_UNIFORM_READ_BIT | VK_ACCESS_INDIRECT_COMMAND_READ_BIT
                             | VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT);
             vkCmdPipelineBarrier(uploadCommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
                     VK_PIPELINE_STAGE_VERTEX_INPUT_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
-                            | VK_PIPELINE_STAGE_TRANSFER_BIT,
+                            | VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
                     0, barrier, null, null);
         }
         VkUtil.check(vkEndCommandBuffer(uploadCommandBuffer), "vkEndCommandBuffer (upload)");
@@ -1103,6 +1234,11 @@ public final class RenderCore {
     /** Advances to the next frame slot and prepares it: fence wait, deferred deletions, stream reset, new command buffers. */
     private static void nextFrame() {
         frameNumber++;
+        if (activeTarget != null) {
+            VkLog.LOGGER.warn("A frame ended while an extra render target was still selected: back to MAIN");
+            activeTarget = null;
+            CommandStream.onTargetChanged();
+        }
         selectSlot((int) (frameNumber % framesInFlight));
         FrameSlot slot = slots[currentSlot];
 
@@ -1363,6 +1499,13 @@ public final class RenderCore {
         }
     }
 
+    private static void fireBeforePresent() {
+        FrameListener[] l = listeners;
+        for (int i = 0; i < l.length; i++) {
+            l[i].beforePresent();
+        }
+    }
+
     private static void fireResize(int w, int h) {
         FrameListener[] l = listeners;
         for (int i = 0; i < l.length; i++) {
@@ -1392,7 +1535,7 @@ public final class RenderCore {
             if (perfFrameBegin != 0L) {
                 perfCpuMs += (now - perfFrameBegin) / 1.0e6;
             }
-            CommandRecorder.Stats st = CommandRecorder.currentStats();
+            CommandStream.Stats st = CommandStream.currentStats();
             perfDraws += st.drawCalls();
             perfIndexed += st.indexedDrawCalls();
             perfPipelineBinds += st.pipelineBinds();
@@ -1609,6 +1752,9 @@ public final class RenderCore {
         uniformStream = null;
         stagingStream = null;
         capture = null;
+        activeTarget = null;
+        deviceCaps = DeviceCaps.NONE;
+        lowLatency = false;
         listeners = new FrameListener[0];
     }
 

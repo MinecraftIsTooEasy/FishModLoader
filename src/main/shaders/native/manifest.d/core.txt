@@ -1,0 +1,14 @@
+# Shader jobs of the native renderer: core, include/, terrain/, stream/, static/, lines/, blit/ (owner NR-02).
+# One job per line: <source relative to src/main/shaders> <output relative to the generated shader directory> [NAME[=VALUE] ...]
+# The stage follows from the extension (.vert/.frag); trailing words are macro definitions. Everything after '#' is a comment.
+# The shadertool concatenates manifest.d/*.txt in name order; outputs live below native/ in the jar (/assets/fml_vulkan/shaders/native/).
+native/terrain/terrain.vert native/terrain.vert.spv
+native/terrain/terrain.frag native/terrain.frag.spv
+native/stream/stream.vert native/stream.vert.spv
+native/stream/stream.frag native/stream.frag.spv
+native/static/static.vert native/static.vert.spv
+native/static/static.frag native/static.frag.spv
+native/lines/lines.vert native/lines.vert.spv
+native/lines/lines.frag native/lines.frag.spv
+native/blit/blit.vert native/blit.vert.spv
+native/blit/blit.frag native/blit.frag.spv

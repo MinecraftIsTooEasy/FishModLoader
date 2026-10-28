@@ -1,0 +1,17 @@
+{
+  "required": true,
+  "package": "vkbench.mixin",
+  "minVersion": "0.8.7",
+  "compatibilityLevel": "JAVA_21",
+  "target": "DEFAULT",
+  "mixins": [
+    "BenchMinecraftMixin",
+    "BenchMinecraftServerMixin",
+    "BenchMouseHelperMixin",
+    "BenchIntegratedPlayerListMixin",
+    "BenchNetClientHandlerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

@@ -19,7 +19,7 @@ import static org.lwjgl.vulkan.VK10.*;
  * caller initialises them (clear pass) before the first use. Destruction is immediate: the caller makes sure the GPU is done with the
  * target ({@link RenderCore} defers the destruction of a replaced target until the frames that could use it have completed).
  */
-final class OffscreenTarget {
+public final class OffscreenTarget {
     final int width;
     final int height;
 
@@ -30,6 +30,39 @@ final class OffscreenTarget {
     long depthAllocation;
     long depthView;
     long framebuffer;
+
+    /** Width in pixels. */
+    public int width() {
+        return width;
+    }
+
+    /** Height in pixels. */
+    public int height() {
+        return height;
+    }
+
+    /** Colour image (TRANSFER_SRC / SAMPLED capable); between passes it is in COLOR_ATTACHMENT_OPTIMAL. */
+    public long colorImage() {
+        return colorImage;
+    }
+
+    /** View of the colour image (for sampling it, e.g. the anaglyph composite). */
+    public long colorView() {
+        return colorView;
+    }
+
+    public long depthImage() {
+        return depthImage;
+    }
+
+    public long depthView() {
+        return depthView;
+    }
+
+    /** Framebuffer compatible with {@code RenderCore.renderPass()} and the CLEAR pass. */
+    public long framebuffer() {
+        return framebuffer;
+    }
 
     private OffscreenTarget(int width, int height) {
         this.width = width;

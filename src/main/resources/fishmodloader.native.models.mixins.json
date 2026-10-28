@@ -1,0 +1,26 @@
+{
+  "required": true,
+  "minVersion": "0.8.7",
+  "package": "net.xiaoyu233.fml.vulkan.mixin.nat.models",
+  "compatibilityLevel": "JAVA_21",
+  "mixinPriority": 500,
+  "plugin": "net.xiaoyu233.fml.vulkan.mixin.nat.NativeMixinPlugin",
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  },
+  "mixins": [],
+  "client": [
+    "ModelBipedModelsMixin",
+    "ModelChickenModelsMixin",
+    "ModelDragonModelsMixin",
+    "ModelEnderCrystalModelsMixin",
+    "ModelGhastModelsMixin",
+    "ModelHorseModelsMixin",
+    "ModelOcelotModelsMixin",
+    "ModelQuadrupedModelsMixin",
+    "ModelWolfModelsMixin"
+  ]
+}

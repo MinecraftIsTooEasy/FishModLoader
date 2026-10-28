@@ -1,0 +1,9 @@
+# Capture scenes of NR-27 (testbot core). Format: scene <id> <T0|T1|T2> <kind> [key=value ...]  ('+' in a value is a space); see CaptureRunner.
+# These scenes prove the capture set-up itself: with -Pvk.native=false two consecutive runs (or -Pvk.testbot_repeat) must give byte-identical files.
+scene nr27_title T0 menu name=title panorama=40
+scene nr27_options T0 menu name=options
+scene nr27_terrain_front T1 world pose=0,0,-8,0,12 time=12000
+scene nr27_terrain_down T1 world pose=0,0,-8,0,55 time=12000
+scene nr27_museum_sunset T1 world pose=18,0,0,90,5 time=19000
+scene nr27_hud_survival T1 world pose=0,0,-8,0,12 mode=survival
+scene nr27_inventory T1 world pose=0,0,-8,0,12 gui=inventory

@@ -102,7 +102,13 @@ public final class FrameLimiter {
         }
     }
 
-    void limit(int newFps) {
+    /** A limiter of its own (devtest measurements); the game uses the shared one through {@link #sync(int)}. */
+    public static FrameLimiter create() {
+        return new FrameLimiter(SYSTEM);
+    }
+
+    /** Waits until the end of the frame slot of {@code newFps} frames per second; nothing for fps <= 0. */
+    public void limit(int newFps) {
         if (newFps <= 0) {
             return;
         }

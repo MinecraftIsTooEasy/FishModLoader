@@ -4,6 +4,8 @@ import net.xiaoyu233.fml.vulkan.core.RenderCore;
 import net.xiaoyu233.fml.vulkan.gl.draw.DrawSystem;
 import net.xiaoyu233.fml.vulkan.gl.state.GLState;
 import net.xiaoyu233.fml.vulkan.pipeline.Pipelines;
+import net.xiaoyu233.fml.vulkan.render.NativeRenderer;
+import net.xiaoyu233.fml.vulkan.render.gpu.GpuCore;
 import net.xiaoyu233.fml.vulkan.texture.TextureManager;
 import org.lwjgl.vulkan.VK10;
 
@@ -11,19 +13,24 @@ import org.lwjgl.vulkan.VK10;
  * Bootstrap of the whole backend, called by module E ({@code Display.create}/{@code Display.destroy}) on the render thread.
  */
 public final class VulkanBackend {
-    // number of completed init steps: RenderCore 1, Pipelines 2, TextureManager 3, GLState 4, DrawSystem 5
+    // number of completed init steps: RenderCore 1, Pipelines 2, TextureManager 3, GLState 4, DrawSystem 5, GpuCore 6, NativeRenderer 7
     private static final int STEP_RENDER_CORE = 1;
     private static final int STEP_PIPELINES = 2;
     private static final int STEP_TEXTURES = 3;
     private static final int STEP_GL_STATE = 4;
     private static final int STEP_DRAW = 5;
+    private static final int STEP_GPU_CORE = 6;
+    private static final int STEP_NATIVE = 7;
 
     private static volatile boolean running;
 
     private VulkanBackend() {
     }
 
-    /** RenderCore.init -> Pipelines.init -> TextureManager.init -> GLState.init -> DrawSystem.init. */
+    /**
+     * RenderCore.init -> Pipelines.init -> TextureManager.init -> GLState.init -> DrawSystem.init (the phase-1 modules), then
+     * GpuCore.init and, with {@code fml.vulkan.native=true}, NativeRenderer.init (ARCHITECTURE-NATIVE 1.1 start order).
+     */
     public static synchronized void start(long glfwWindow, int framebufferWidth, int framebufferHeight) {
         if (running) {
             VkLog.LOGGER.warn("VulkanBackend.start() called while the backend is already running, ignored");
@@ -42,6 +49,12 @@ public final class VulkanBackend {
             done = STEP_GL_STATE;
             DrawSystem.init();
             done = STEP_DRAW;
+            GpuCore.init();
+            done = STEP_GPU_CORE;
+            if (NativeRenderer.enabled()) {
+                NativeRenderer.init();
+                done = STEP_NATIVE;
+            }
         } catch (Throwable t) {
             VkLog.LOGGER.error("Vulkan backend failed to start", t);
             teardown(done);
@@ -57,7 +70,7 @@ public final class VulkanBackend {
         }
         running = false;
         VkLog.LOGGER.info("Stopping Vulkan backend");
-        teardown(STEP_DRAW);
+        teardown(STEP_NATIVE);
     }
 
     public static boolean isRunning() {
@@ -67,6 +80,12 @@ public final class VulkanBackend {
     private static void teardown(int done) {
         if (done >= STEP_RENDER_CORE) {
             waitDeviceIdle();
+        }
+        if (done >= STEP_NATIVE) {
+            shutdownStep("NativeRenderer", NativeRenderer::shutdown);
+        }
+        if (done >= STEP_GPU_CORE) {
+            shutdownStep("GpuCore", GpuCore::shutdown);
         }
         if (done >= STEP_DRAW) {
             shutdownStep("DrawSystem", DrawSystem::shutdown);

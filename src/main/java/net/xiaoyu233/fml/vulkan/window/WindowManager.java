@@ -322,6 +322,7 @@ public final class WindowManager {
         fbW = width;
         fbH = height;
         resized = true;
+        InputManager.discardMotion(); // INP-07: no delta across a resize
         if (VulkanBackend.isRunning()) {
             RenderCore.onFramebufferResized(width, height);
         }
@@ -388,7 +389,17 @@ public final class WindowManager {
                 callbackFailed("content scale", t);
             }
         });
-        glfwSetWindowFocusCallback(window, (win, isFocused) -> focused = isFocused);
+        glfwSetWindowFocusCallback(window, (win, isFocused) -> {
+            focused = isFocused;
+            if (isFocused) {
+                InputManager.discardMotion(); // INP-07: the first delta after a focus gain is a jump of the virtual cursor
+            }
+            try {
+                InputManager.onFocus(isFocused);
+            } catch (Throwable t) {
+                callbackFailed("focus", t);
+            }
+        });
         glfwSetWindowIconifyCallback(window, (win, isIconified) -> iconified = isIconified);
         glfwSetWindowCloseCallback(window, win -> closeRequested = true);
         glfwSetKeyCallback(window, (win, key, scancode, action, mods) -> {
@@ -788,6 +799,11 @@ public final class WindowManager {
         return fullscreen;
     }
 
+    /** True while fullscreen is a borderless window covering the monitor (WIN-02: such a window keeps fullscreen when it loses focus). */
+    public static boolean isFullscreenBorderless() {
+        return fullscreen && fullscreenBorderless;
+    }
+
     /**
      * Fullscreen as a borderless window covering the monitor ({@code fml.vulkan.borderless}, default true) or as a window
      * attached to the monitor (GLFW "exclusive", the video mode only changes when the requested size differs from the
@@ -875,6 +891,7 @@ public final class WindowManager {
         fullscreen = true;
         fullscreenBorderless = borderless;
         refreshSizes();
+        InputManager.discardMotion();
     }
 
     private static void leaveFullscreen(int modeWidth, int modeHeight) {
@@ -895,6 +912,7 @@ public final class WindowManager {
         fullscreen = false;
         fullscreenBorderless = false;
         refreshSizes();
+        InputManager.discardMotion();
     }
 
     private static boolean isOnAnyMonitor(int x, int y) {

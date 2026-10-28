@@ -68,6 +68,12 @@ public final class VulkanConfigLoader {
             "# attached to the monitor (it hides the menu bar and the Dock); set borderless=true there to use a plain borderless window.",
             "#rawMouse=true",
             "#borderless=true",
+            "",
+            "# Non-render optimisations (areas: net, regionio, entity, input, fps, quality, reload). Documented in vulkan/opt/OptFlags.",
+            "# Areas are switched off automatically when a conflicting mod (MithrilCore, Better Game Setting, ...) is present.",
+            "#opt=true",
+            "#opt.quality=true",
+            "#opt.workers=2",
             "");
 
     private VulkanConfigLoader() {

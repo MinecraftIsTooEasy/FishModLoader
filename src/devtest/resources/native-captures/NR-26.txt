@@ -1,0 +1,20 @@
+# Capture scenes of NR-26 (GUI lists and remaining screens). Format: scene <id> <T0|T1|T2> <kind> [key=value ...]  ('+' in a value is a space); see CaptureRunner.
+# All scenes are GUI screens over a solid background (dirt / options background), so each is T0 (exact); the commands are in cmd/nr26/Commands.java.
+# world select (GuiSelectWorld): the save list of the deterministic test world
+scene nr26_world_select T0 menu name=singleplayer
+# multiplayer list (GuiMultiplayer): server list, no servers added by the bot
+scene nr26_multiplayer_list T0 menu name=multiplayer
+# resource pack selection (GuiScreenTemporaryResourcePackSelect), via command resourcePacks
+scene nr26_resource_packs T0 cmd name=resourcePacks
+# statistics screen (GuiStats), general list, via command statsScreen
+scene nr26_stats T0 cmd name=statsScreen
+# statistics list after scripted wheel and drag scroll (GuiSlot offsets logged by slotScroll)
+scene nr26_stats_scrolled T0 cmd name=slotScroll args=4+30
+# flat world presets (GuiFlatPresets), via command flatPresets
+scene nr26_flat_presets T0 cmd name=flatPresets
+# credits (GuiWinGame) at fixed scroll tick 300, via command credits
+scene nr26_credits_fixed T0 cmd name=credits args=300
+# sign editor (GuiEditSign) at T0 (counter 0), via command signEdit
+scene nr26_sign_edit_t0 T0 cmd name=signEdit args=t0
+# sign editor (GuiEditSign) at T1 (counter 20, other cursor blink phase), via command signEdit
+scene nr26_sign_edit_t1 T0 cmd name=signEdit args=t1

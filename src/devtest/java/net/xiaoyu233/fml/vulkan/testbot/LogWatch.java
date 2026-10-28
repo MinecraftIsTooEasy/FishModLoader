@@ -42,6 +42,7 @@ public final class LogWatch {
      * cuts the localized name of iron tools with {@code substring(5)} and gets a 2 character name (translation lookup of FML's language loader, resource pack +
      * en_US); the exception and its stack follow the message on the same thread.</li>
      * <li>{@code Realms: Server not available!}: the Realms thread of vanilla MITE has no network in the dev run.</li>
+     * <li>{@code ... not found in sound pool!}: the dev run directory has no sound assets; {@code Resource not found: lang/zh_CN.*}: the language of options.txt has no file.</li>
      * <li>{@code Resource not found: lang/en_US.json} / {@code lang/MITE.json}: FML's language loader probes for json language files the resource packs do not have.</li>
      * <li>{@code Warning: Not all pending chunks were saved to disk!}: printed by MITE's chunk loader whenever the integrated server stops with queued saves.</li>
      * <li>{@code Error processing element Queue ...: CLASS_NOT_FOUND}: dev log4j2.xml uses an appender type log4j-core does not know (harmless).</li>
@@ -53,6 +54,12 @@ public final class LogWatch {
         }
         if (line.contains("Realms: Server not available!")) {
             return "Realms: Server not available (no network in the dev run)";
+        }
+        if (line.contains("not found in sound pool!")) {
+            return "SoundManager: sound event not found in sound pool (the dev run has no sound assets, pre-existing)";
+        }
+        if (line.contains("Resource not found: lang/zh_CN.json") || line.contains("Resource not found: lang/zh_CN.lang")) {
+            return "FML language loader: Resource not found lang/zh_CN.json|lang (options.txt language without a file, pre-existing)";
         }
         if (line.contains("Resource not found: lang/en_US.json") || line.contains("Resource not found: lang/MITE.json")) {
             return "FML language loader: Resource not found lang/en_US.json|MITE.json (pre-existing)";
@@ -136,6 +143,9 @@ public final class LogWatch {
                 String logger = event.getLoggerName();
                 boolean backend = logger != null && logger.startsWith("FML-Vulkan");
                 // the backend's own warnings/errors (unsupported GL call, pipeline failures, validation messages) are always findings
+                if (warnOrWorse && backend && msg.startsWith("[Vulkan")) {
+                    NativeChecks.onVulkanMessage(msg);
+                }
                 handle((warnOrWorse && backend ? "[FML-Vulkan] " : "") + event.getLevel().name() + " " + msg, warnOrWorse && backend);
                 Throwable t = event.getThrown();
                 if (t != null) {

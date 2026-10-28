@@ -1,0 +1,7 @@
+# NR-10 capture scenes (off-thread meshing). Format: <scene> <tolerance class T0|T1|T2> <description>
+# NR-10 is checked by byte-equality commands (meshCompare, snapCompare, visTest, flowerPot, stress), not by image captures; the scenes below
+# only confirm that terrain meshed on workers looks like terrain meshed on the render thread.
+mesh-day-worker        T0  fml.vulkan.meshThreads=4 frozen day view of the testbot world, SHA-256 equal to the same view with fml.vulkan.meshThreads=0 (render thread meshing)
+mesh-dusk-worker       T0  frozen dusk (adjusted time 19000, skylightSubtracted > 0), workers vs render thread meshing
+mesh-nether-worker     T0  frozen Nether view (hasNoSky), workers vs render thread meshing
+flowerpot-museum       T1  museum flower pot row with contents 1..11, workers vs safety net

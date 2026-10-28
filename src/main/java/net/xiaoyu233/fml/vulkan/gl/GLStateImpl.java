@@ -1,5 +1,7 @@
 package net.xiaoyu233.fml.vulkan.gl;
 
+import net.xiaoyu233.fml.vulkan.render.legacy.LegacyInterop;
+import net.xiaoyu233.fml.vulkan.render.legacy.StateMirror;
 import net.xiaoyu233.fml.vulkan.core.RenderCore;
 import net.xiaoyu233.fml.vulkan.gl.draw.ClientState;
 import net.xiaoyu233.fml.vulkan.gl.draw.DisplayLists;
@@ -25,7 +27,7 @@ import java.util.Arrays;
  * {@link GLState}.
  *
  * <p>Display lists (ARCHITECTURE 5.2): every state changing function is written as
- * {@code if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().foo(a))) return; GLState.get().foo(a);} -
+ * {@code if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().foo(a))) return; GLState.facade().foo(a);} -
  * the recorded closure calls the internal setter, never the public facade, and Buffer arguments are copied at call time.
  * Current-attribute functions additionally report through {@code DisplayLists.compileAttrib}.
  */
@@ -142,51 +144,51 @@ public final class GLStateImpl {
     private static void loadMatrix(float[] m) {
         if (DisplayLists.isCompiling()) {
             final float[] copy = m.clone();
-            if (!DisplayLists.record(() -> GLState.get().loadMatrix(copy))) {
+            if (!DisplayLists.record(() -> GLState.facade().loadMatrix(copy))) {
                 return;
             }
         }
-        GLState.get().loadMatrix(m);
+        GLState.facade().loadMatrix(m);
     }
 
     private static void multMatrix(float[] m) {
         if (DisplayLists.isCompiling()) {
             final float[] copy = m.clone();
-            if (!DisplayLists.record(() -> GLState.get().multMatrix(copy))) {
+            if (!DisplayLists.record(() -> GLState.facade().multMatrix(copy))) {
                 return;
             }
         }
-        GLState.get().multMatrix(m);
+        GLState.facade().multMatrix(m);
     }
 
     private static void color(float r, float g, float b, float a) {
         if (DisplayLists.isCompiling()) {
             DisplayLists.compileAttrib(VertexLayout.ATTR_COLOR, r, g, b, a);
-            if (!DisplayLists.record(() -> GLState.get().setColor(r, g, b, a))) {
+            if (!DisplayLists.record(() -> GLState.facade().setColor(r, g, b, a))) {
                 return;
             }
         }
-        GLState.get().setColor(r, g, b, a);
+        GLState.facade().setColor(r, g, b, a);
     }
 
     private static void normal(float x, float y, float z) {
         if (DisplayLists.isCompiling()) {
             DisplayLists.compileAttrib(VertexLayout.ATTR_NORMAL, x, y, z, 1f);
-            if (!DisplayLists.record(() -> GLState.get().setNormal(x, y, z))) {
+            if (!DisplayLists.record(() -> GLState.facade().setNormal(x, y, z))) {
                 return;
             }
         }
-        GLState.get().setNormal(x, y, z);
+        GLState.facade().setNormal(x, y, z);
     }
 
     private static void texCoord(float s, float t, float r, float q) {
         if (DisplayLists.isCompiling()) {
             DisplayLists.compileAttrib(VertexLayout.ATTR_TEX0, s, t, r, q);
-            if (!DisplayLists.record(() -> GLState.get().setTexCoord(0, s, t, r, q))) {
+            if (!DisplayLists.record(() -> GLState.facade().setTexCoord(0, s, t, r, q))) {
                 return;
             }
         }
-        GLState.get().setTexCoord(0, s, t, r, q);
+        GLState.facade().setTexCoord(0, s, t, r, q);
     }
 
     private static void multiTexCoord(int target, float s, float t, float r, float q) {
@@ -202,21 +204,21 @@ public final class GLStateImpl {
             } else if (unit == 1) {
                 DisplayLists.compileAttrib(VertexLayout.ATTR_TEX1, s, t, r, q);
             }
-            if (!DisplayLists.record(() -> GLState.get().setTexCoord(unit, s, t, r, q))) {
+            if (!DisplayLists.record(() -> GLState.facade().setTexCoord(unit, s, t, r, q))) {
                 return;
             }
         }
-        GLState.get().setTexCoord(unit, s, t, r, q);
+        GLState.facade().setTexCoord(unit, s, t, r, q);
     }
 
     private static void fog(int pname, float[] v, int n) {
         if (DisplayLists.isCompiling()) {
             final float[] copy = Arrays.copyOf(v, n);
-            if (!DisplayLists.record(() -> GLState.get().setFog(pname, copy))) {
+            if (!DisplayLists.record(() -> GLState.facade().setFog(pname, copy))) {
                 return;
             }
         }
-        GLState.get().setFog(pname, v);
+        GLState.facade().setFog(pname, v);
     }
 
     private static void light(int light, int pname, float[] v, int n) {
@@ -227,51 +229,51 @@ public final class GLStateImpl {
         }
         if (DisplayLists.isCompiling()) {
             final float[] copy = Arrays.copyOf(v, n);
-            if (!DisplayLists.record(() -> GLState.get().setLight(index, pname, copy))) {
+            if (!DisplayLists.record(() -> GLState.facade().setLight(index, pname, copy))) {
                 return;
             }
         }
-        GLState.get().setLight(index, pname, v);
+        GLState.facade().setLight(index, pname, v);
     }
 
     private static void lightModel(int pname, float[] v, int n) {
         if (DisplayLists.isCompiling()) {
             final float[] copy = Arrays.copyOf(v, n);
-            if (!DisplayLists.record(() -> GLState.get().setLightModel(pname, copy))) {
+            if (!DisplayLists.record(() -> GLState.facade().setLightModel(pname, copy))) {
                 return;
             }
         }
-        GLState.get().setLightModel(pname, v);
+        GLState.facade().setLightModel(pname, v);
     }
 
     private static void material(int face, int pname, float[] v, int n) {
         if (DisplayLists.isCompiling()) {
             final float[] copy = Arrays.copyOf(v, n);
-            if (!DisplayLists.record(() -> GLState.get().setMaterial(face, pname, copy))) {
+            if (!DisplayLists.record(() -> GLState.facade().setMaterial(face, pname, copy))) {
                 return;
             }
         }
-        GLState.get().setMaterial(face, pname, v);
+        GLState.facade().setMaterial(face, pname, v);
     }
 
     private static void texEnv(int target, int pname, float[] v, int n) {
         if (DisplayLists.isCompiling()) {
             final float[] copy = Arrays.copyOf(v, n);
-            if (!DisplayLists.record(() -> GLState.get().setTexEnv(target, pname, copy))) {
+            if (!DisplayLists.record(() -> GLState.facade().setTexEnv(target, pname, copy))) {
                 return;
             }
         }
-        GLState.get().setTexEnv(target, pname, v);
+        GLState.facade().setTexEnv(target, pname, v);
     }
 
     private static void texGen(int coord, int pname, float[] v, int n) {
         if (DisplayLists.isCompiling()) {
             final float[] copy = Arrays.copyOf(v, n);
-            if (!DisplayLists.record(() -> GLState.get().setTexGen(coord, pname, copy))) {
+            if (!DisplayLists.record(() -> GLState.facade().setTexGen(coord, pname, copy))) {
                 return;
             }
         }
-        GLState.get().setTexGen(coord, pname, v);
+        GLState.facade().setTexGen(coord, pname, v);
     }
 
     // ---------------------------------------------------------------------------------------------------------------
@@ -285,29 +287,30 @@ public final class GLStateImpl {
             GLErrors.set(GL11.GL_INVALID_ENUM);
             return;
         }
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setActiveTexture(unit))) return;
-        GLState.get().setActiveTexture(unit);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setActiveTexture(unit))) return;
+        GLState.facade().setActiveTexture(unit);
     }
 
     public static void glEnable(int cap) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setEnable(cap, true))) return;
-        GLState.get().setEnable(cap, true);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setEnable(cap, true))) return;
+        GLState.facade().setEnable(cap, true);
     }
 
     public static void glDisable(int cap) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setEnable(cap, false))) return;
-        GLState.get().setEnable(cap, false);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setEnable(cap, false))) return;
+        GLState.facade().setEnable(cap, false);
     }
 
     public static boolean glIsEnabled(int cap) {
         if (!renderThreadCheck()) return false;
+        if (StateMirror.nativeDirty != 0) StateMirror.syncNativeToLegacy();
         final Boolean client = ClientState.isEnabled(cap);
         if (client != null) {
             return client;
         }
-        return GLState.get().isEnabled(cap);
+        return GLState.facade().isEnabled(cap);
     }
 
     // ---------------------------------------------------------------------------------------------------------------
@@ -316,45 +319,45 @@ public final class GLStateImpl {
 
     public static void glAlphaFunc(int func, float ref) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setAlphaFunc(func, ref))) return;
-        GLState.get().setAlphaFunc(func, ref);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setAlphaFunc(func, ref))) return;
+        GLState.facade().setAlphaFunc(func, ref);
     }
 
     public static void glBlendColor(float red, float green, float blue, float alpha) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setBlendColor(red, green, blue, alpha))) return;
-        GLState.get().setBlendColor(red, green, blue, alpha);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setBlendColor(red, green, blue, alpha))) return;
+        GLState.facade().setBlendColor(red, green, blue, alpha);
     }
 
     public static void glBlendEquation(int mode) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setBlendEquation(mode))) return;
-        GLState.get().setBlendEquation(mode);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setBlendEquation(mode))) return;
+        GLState.facade().setBlendEquation(mode);
     }
 
     public static void glBlendEquationSeparate(int modeRGB, int modeAlpha) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setBlendEquationSeparate(modeRGB, modeAlpha))) return;
-        GLState.get().setBlendEquationSeparate(modeRGB, modeAlpha);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setBlendEquationSeparate(modeRGB, modeAlpha))) return;
+        GLState.facade().setBlendEquationSeparate(modeRGB, modeAlpha);
     }
 
     public static void glBlendFunc(int sfactor, int dfactor) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setBlendFunc(sfactor, dfactor))) return;
-        GLState.get().setBlendFunc(sfactor, dfactor);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setBlendFunc(sfactor, dfactor))) return;
+        GLState.facade().setBlendFunc(sfactor, dfactor);
     }
 
     public static void glBlendFuncSeparate(int sfactorRGB, int dfactorRGB, int sfactorAlpha, int dfactorAlpha) {
         if (!renderThreadCheck()) return;
         if (DisplayLists.isCompiling() && !DisplayLists.record(
-                () -> GLState.get().setBlendFuncSeparate(sfactorRGB, dfactorRGB, sfactorAlpha, dfactorAlpha))) return;
-        GLState.get().setBlendFuncSeparate(sfactorRGB, dfactorRGB, sfactorAlpha, dfactorAlpha);
+                () -> GLState.facade().setBlendFuncSeparate(sfactorRGB, dfactorRGB, sfactorAlpha, dfactorAlpha))) return;
+        GLState.facade().setBlendFuncSeparate(sfactorRGB, dfactorRGB, sfactorAlpha, dfactorAlpha);
     }
 
     public static void glLogicOp(int opcode) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setLogicOp(opcode))) return;
-        GLState.get().setLogicOp(opcode);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setLogicOp(opcode))) return;
+        GLState.facade().setLogicOp(opcode);
     }
 
     // ---------------------------------------------------------------------------------------------------------------
@@ -363,90 +366,94 @@ public final class GLStateImpl {
 
     public static void glClear(int mask) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().clear(mask))) return;
-        GLState.get().clear(mask);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().clear(mask))) return;
+        // native batches queued before the clear must be recorded first, and pending native state pulled before the clear reads it
+        LegacyInterop.beforeEmulatedDraw();
+        GLState.facade().clear(mask);
     }
 
     public static void glClearColor(float red, float green, float blue, float alpha) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setClearColor(red, green, blue, alpha))) return;
-        GLState.get().setClearColor(red, green, blue, alpha);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setClearColor(red, green, blue, alpha))) return;
+        GLState.facade().setClearColor(red, green, blue, alpha);
     }
 
     public static void glClearDepth(double depth) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setClearDepth(depth))) return;
-        GLState.get().setClearDepth(depth);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setClearDepth(depth))) return;
+        GLState.facade().setClearDepth(depth);
     }
 
     public static void glClearStencil(int s) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setClearStencil(s))) return;
-        GLState.get().setClearStencil(s);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setClearStencil(s))) return;
+        GLState.facade().setClearStencil(s);
     }
 
     public static void glColorMask(boolean red, boolean green, boolean blue, boolean alpha) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setColorMask(red, green, blue, alpha))) return;
-        GLState.get().setColorMask(red, green, blue, alpha);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setColorMask(red, green, blue, alpha))) return;
+        GLState.facade().setColorMask(red, green, blue, alpha);
     }
 
     public static void glDrawBuffer(int buf) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setDrawBuffer(buf))) return;
-        GLState.get().setDrawBuffer(buf);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setDrawBuffer(buf))) return;
+        GLState.facade().setDrawBuffer(buf);
     }
 
     public static void glReadBuffer(int src) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setReadBuffer(src))) return;
-        GLState.get().setReadBuffer(src);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setReadBuffer(src))) return;
+        GLState.facade().setReadBuffer(src);
     }
 
     public static void glDepthFunc(int func) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setDepthFunc(func))) return;
-        GLState.get().setDepthFunc(func);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setDepthFunc(func))) return;
+        GLState.facade().setDepthFunc(func);
     }
 
     public static void glDepthMask(boolean flag) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setDepthMask(flag))) return;
-        GLState.get().setDepthMask(flag);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setDepthMask(flag))) return;
+        GLState.facade().setDepthMask(flag);
     }
 
     public static void glDepthRange(double n, double f) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setDepthRange(n, f))) return;
-        GLState.get().setDepthRange(n, f);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setDepthRange(n, f))) return;
+        GLState.facade().setDepthRange(n, f);
     }
 
     public static void glStencilFunc(int func, int ref, int mask) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setStencilFunc(func, ref, mask))) return;
-        GLState.get().setStencilFunc(func, ref, mask);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setStencilFunc(func, ref, mask))) return;
+        GLState.facade().setStencilFunc(func, ref, mask);
     }
 
     public static void glStencilMask(int mask) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setStencilMask(mask))) return;
-        GLState.get().setStencilMask(mask);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setStencilMask(mask))) return;
+        GLState.facade().setStencilMask(mask);
     }
 
     public static void glStencilOp(int fail, int zfail, int zpass) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setStencilOp(fail, zfail, zpass))) return;
-        GLState.get().setStencilOp(fail, zfail, zpass);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setStencilOp(fail, zfail, zpass))) return;
+        GLState.facade().setStencilOp(fail, zfail, zpass);
     }
 
     public static void glFinish() {
         if (!renderThreadCheck()) return;
+        LegacyInterop.beforeEmulatedDraw();
         DrawSystem.flush();
         RenderCore.flushAndWait();
     }
 
     public static void glFlush() {
         if (!renderThreadCheck()) return;
+        LegacyInterop.beforeEmulatedDraw();
         DrawSystem.flush();
     }
 
@@ -613,62 +620,62 @@ public final class GLStateImpl {
 
     public static void glCullFace(int mode) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setCullFace(mode))) return;
-        GLState.get().setCullFace(mode);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setCullFace(mode))) return;
+        GLState.facade().setCullFace(mode);
     }
 
     public static void glFrontFace(int mode) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setFrontFace(mode))) return;
-        GLState.get().setFrontFace(mode);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setFrontFace(mode))) return;
+        GLState.facade().setFrontFace(mode);
     }
 
     public static void glPolygonMode(int face, int mode) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setPolygonMode(face, mode))) return;
-        GLState.get().setPolygonMode(face, mode);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setPolygonMode(face, mode))) return;
+        GLState.facade().setPolygonMode(face, mode);
     }
 
     public static void glPolygonOffset(float factor, float units) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setPolygonOffset(factor, units))) return;
-        GLState.get().setPolygonOffset(factor, units);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setPolygonOffset(factor, units))) return;
+        GLState.facade().setPolygonOffset(factor, units);
     }
 
     public static void glLineWidth(float width) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setLineWidth(width))) return;
-        GLState.get().setLineWidth(width);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setLineWidth(width))) return;
+        GLState.facade().setLineWidth(width);
     }
 
     public static void glPointSize(float size) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setPointSize(size))) return;
-        GLState.get().setPointSize(size);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setPointSize(size))) return;
+        GLState.facade().setPointSize(size);
     }
 
     public static void glShadeModel(int mode) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setShadeModel(mode))) return;
-        GLState.get().setShadeModel(mode);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setShadeModel(mode))) return;
+        GLState.facade().setShadeModel(mode);
     }
 
     public static void glViewport(int x, int y, int width, int height) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setViewport(x, y, width, height))) return;
-        GLState.get().setViewport(x, y, width, height);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setViewport(x, y, width, height))) return;
+        GLState.facade().setViewport(x, y, width, height);
     }
 
     public static void glScissor(int x, int y, int width, int height) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setScissor(x, y, width, height))) return;
-        GLState.get().setScissor(x, y, width, height);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setScissor(x, y, width, height))) return;
+        GLState.facade().setScissor(x, y, width, height);
     }
 
     public static void glHint(int target, int mode) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setHint(target, mode))) return;
-        GLState.get().setHint(target, mode);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setHint(target, mode))) return;
+        GLState.facade().setHint(target, mode);
     }
 
     // ---------------------------------------------------------------------------------------------------------------
@@ -677,26 +684,26 @@ public final class GLStateImpl {
 
     public static void glMatrixMode(int mode) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setMatrixMode(mode))) return;
-        GLState.get().setMatrixMode(mode);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setMatrixMode(mode))) return;
+        GLState.facade().setMatrixMode(mode);
     }
 
     public static void glPushMatrix() {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().pushMatrix())) return;
-        GLState.get().pushMatrix();
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().pushMatrix())) return;
+        GLState.facade().pushMatrix();
     }
 
     public static void glPopMatrix() {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().popMatrix())) return;
-        GLState.get().popMatrix();
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().popMatrix())) return;
+        GLState.facade().popMatrix();
     }
 
     public static void glLoadIdentity() {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().loadIdentity())) return;
-        GLState.get().loadIdentity();
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().loadIdentity())) return;
+        GLState.facade().loadIdentity();
     }
 
     public static void glLoadMatrix(DoubleBuffer m) {
@@ -746,8 +753,8 @@ public final class GLStateImpl {
 
     public static void glTranslatef(float x, float y, float z) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().translate(x, y, z))) return;
-        GLState.get().translate(x, y, z);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().translate(x, y, z))) return;
+        GLState.facade().translate(x, y, z);
     }
 
     public static void glScaled(double x, double y, double z) {
@@ -757,8 +764,8 @@ public final class GLStateImpl {
 
     public static void glScalef(float x, float y, float z) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().scale(x, y, z))) return;
-        GLState.get().scale(x, y, z);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().scale(x, y, z))) return;
+        GLState.facade().scale(x, y, z);
     }
 
     public static void glRotated(double angle, double x, double y, double z) {
@@ -768,32 +775,32 @@ public final class GLStateImpl {
 
     public static void glRotatef(float angle, float x, float y, float z) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().rotate(angle, x, y, z))) return;
-        GLState.get().rotate(angle, x, y, z);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().rotate(angle, x, y, z))) return;
+        GLState.facade().rotate(angle, x, y, z);
     }
 
     public static void glOrtho(double left, double right, double bottom, double top, double zNear, double zFar) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().ortho(left, right, bottom, top, zNear, zFar))) return;
-        GLState.get().ortho(left, right, bottom, top, zNear, zFar);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().ortho(left, right, bottom, top, zNear, zFar))) return;
+        GLState.facade().ortho(left, right, bottom, top, zNear, zFar);
     }
 
     public static void glFrustum(double left, double right, double bottom, double top, double zNear, double zFar) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().frustum(left, right, bottom, top, zNear, zFar))) return;
-        GLState.get().frustum(left, right, bottom, top, zNear, zFar);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().frustum(left, right, bottom, top, zNear, zFar))) return;
+        GLState.facade().frustum(left, right, bottom, top, zNear, zFar);
     }
 
     public static void glPushAttrib(int mask) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().pushAttrib(mask))) return;
-        GLState.get().pushAttrib(mask);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().pushAttrib(mask))) return;
+        GLState.facade().pushAttrib(mask);
     }
 
     public static void glPopAttrib() {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().popAttrib())) return;
-        GLState.get().popAttrib();
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().popAttrib())) return;
+        GLState.facade().popAttrib();
     }
 
     // ---------------------------------------------------------------------------------------------------------------
@@ -958,8 +965,8 @@ public final class GLStateImpl {
 
     public static void glColorMaterial(int face, int mode) {
         if (!renderThreadCheck()) return;
-        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.get().setColorMaterial(face, mode))) return;
-        GLState.get().setColorMaterial(face, mode);
+        if (DisplayLists.isCompiling() && !DisplayLists.record(() -> GLState.facade().setColorMaterial(face, mode))) return;
+        GLState.facade().setColorMaterial(face, mode);
     }
 
     // ---------------------------------------------------------------------------------------------------------------
@@ -1076,7 +1083,8 @@ public final class GLStateImpl {
      * the rest. -1 means unknown: GL_INVALID_ENUM has been raised.
      */
     private static int queryValues(int pname) {
-        final int n = GLState.get().query(pname, SCRATCH_D);
+        if (StateMirror.nativeDirty != 0) StateMirror.syncNativeToLegacy();
+        final int n = GLState.facade().query(pname, SCRATCH_D);
         if (n >= 0) {
             return n;
         }
@@ -1183,7 +1191,7 @@ public final class GLStateImpl {
 
     public static void glGetLight(int light, int pname, FloatBuffer params) {
         if (!renderThreadCheck()) return;
-        final int n = GLState.get().queryLight(light - GL11.GL_LIGHT0, pname, QUERY_F);
+        final int n = GLState.facade().queryLight(light - GL11.GL_LIGHT0, pname, QUERY_F);
         if (n < 0) return;
         needRemaining(params, n);
         final int p = params.position();
@@ -1194,7 +1202,7 @@ public final class GLStateImpl {
 
     public static void glGetLight(int light, int pname, IntBuffer params) {
         if (!renderThreadCheck()) return;
-        final int n = GLState.get().queryLight(light - GL11.GL_LIGHT0, pname, QUERY_F);
+        final int n = GLState.facade().queryLight(light - GL11.GL_LIGHT0, pname, QUERY_F);
         if (n < 0) return;
         needRemaining(params, n);
         final boolean color = GLState.lightParamIsColor(pname);
@@ -1206,7 +1214,7 @@ public final class GLStateImpl {
 
     public static void glGetMaterial(int face, int pname, FloatBuffer params) {
         if (!renderThreadCheck()) return;
-        final int n = GLState.get().queryMaterial(face, pname, QUERY_F);
+        final int n = GLState.facade().queryMaterial(face, pname, QUERY_F);
         if (n < 0) return;
         needRemaining(params, n);
         final int p = params.position();
@@ -1217,7 +1225,7 @@ public final class GLStateImpl {
 
     public static void glGetMaterial(int face, int pname, IntBuffer params) {
         if (!renderThreadCheck()) return;
-        final int n = GLState.get().queryMaterial(face, pname, QUERY_F);
+        final int n = GLState.facade().queryMaterial(face, pname, QUERY_F);
         if (n < 0) return;
         needRemaining(params, n);
         final boolean color = GLState.materialParamIsColor(pname);
@@ -1229,7 +1237,7 @@ public final class GLStateImpl {
 
     public static void glGetTexEnv(int target, int pname, FloatBuffer params) {
         if (!renderThreadCheck()) return;
-        final int n = GLState.get().queryTexEnv(target, pname, QUERY_F);
+        final int n = GLState.facade().queryTexEnv(target, pname, QUERY_F);
         if (n < 0) return;
         needRemaining(params, n);
         final int p = params.position();
@@ -1240,7 +1248,7 @@ public final class GLStateImpl {
 
     public static void glGetTexEnv(int target, int pname, IntBuffer params) {
         if (!renderThreadCheck()) return;
-        final int n = GLState.get().queryTexEnv(target, pname, QUERY_F);
+        final int n = GLState.facade().queryTexEnv(target, pname, QUERY_F);
         if (n < 0) return;
         needRemaining(params, n);
         final boolean color = GLState.texEnvParamIsColor(target, pname);
@@ -1252,7 +1260,7 @@ public final class GLStateImpl {
 
     public static void glGetTexGen(int coord, int pname, DoubleBuffer params) {
         if (!renderThreadCheck()) return;
-        final int n = GLState.get().queryTexGen(coord, pname, QUERY_F);
+        final int n = GLState.facade().queryTexGen(coord, pname, QUERY_F);
         if (n < 0) return;
         needRemaining(params, n);
         final int p = params.position();
@@ -1263,7 +1271,7 @@ public final class GLStateImpl {
 
     public static void glGetTexGen(int coord, int pname, FloatBuffer params) {
         if (!renderThreadCheck()) return;
-        final int n = GLState.get().queryTexGen(coord, pname, QUERY_F);
+        final int n = GLState.facade().queryTexGen(coord, pname, QUERY_F);
         if (n < 0) return;
         needRemaining(params, n);
         final int p = params.position();
@@ -1274,7 +1282,7 @@ public final class GLStateImpl {
 
     public static void glGetTexGen(int coord, int pname, IntBuffer params) {
         if (!renderThreadCheck()) return;
-        final int n = GLState.get().queryTexGen(coord, pname, QUERY_F);
+        final int n = GLState.facade().queryTexGen(coord, pname, QUERY_F);
         if (n < 0) return;
         needRemaining(params, n);
         final int p = params.position();

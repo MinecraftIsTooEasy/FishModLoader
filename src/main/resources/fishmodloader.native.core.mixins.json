@@ -1,0 +1,27 @@
+{
+  "required": true,
+  "minVersion": "0.8.7",
+  "package": "net.xiaoyu233.fml.vulkan.mixin.nat.core",
+  "compatibilityLevel": "JAVA_21",
+  "mixinPriority": 500,
+  "plugin": "net.xiaoyu233.fml.vulkan.mixin.nat.NativeMixinPlugin",
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  },
+  "mixins": [],
+  "client": [
+    "CallableGLInfoCoreMixin",
+    "GLAllocationCoreMixin",
+    "GLHelperCoreMixin",
+    "GLStateCoreMixin",
+    "OpenGlCapsCheckerCoreMixin",
+    "OpenGlHelperCoreMixin",
+    "RenderHelperCoreMixin",
+    "RenderingSchemeCoreMixin",
+    "TessellatorCoreMixin",
+    "TessellatorMITECoreMixin"
+  ]
+}

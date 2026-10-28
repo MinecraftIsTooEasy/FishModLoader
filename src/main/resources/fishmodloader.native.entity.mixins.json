@@ -1,0 +1,24 @@
+{
+  "required": true,
+  "minVersion": "0.8.7",
+  "package": "net.xiaoyu233.fml.vulkan.mixin.nat.entity",
+  "compatibilityLevel": "JAVA_21",
+  "mixinPriority": 500,
+  "plugin": "net.xiaoyu233.fml.vulkan.mixin.nat.NativeMixinPlugin",
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  },
+  "mixins": [],
+  "client": [
+    "ModelRendererEntityMixin",
+    "RenderEntityMixin",
+    "RenderLivingEntityMixin",
+    "RenderManagerEntityMixin",
+    "RendererLivingEntityEntityMixin",
+    "TexturedQuadEntityMixin",
+    "TileEntityRendererEntityMixin"
+  ]
+}

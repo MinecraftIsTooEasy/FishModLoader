@@ -14,9 +14,9 @@ import org.lwjgl.vulkan.VkImageMemoryBarrier;
 import static org.lwjgl.vulkan.VK10.*;
 
 /** Small stateless Vulkan helpers shared by the core classes (result checking, barriers, debug names). */
-final class VkUtil {
+public final class VkUtil {
     /** UINT64_MAX as a Java long (timeouts). */
-    static final long UINT64_MAX = -1L;
+    public static final long UINT64_MAX = -1L;
 
     /** True when VK_EXT_debug_utils was enabled on the instance (set by {@link RenderCore}; debug mode / validation). */
     static boolean debugUtils;
@@ -36,7 +36,7 @@ final class VkUtil {
     }
 
     /** Throws for every error result (negative VkResult); success and status codes (SUBOPTIMAL, INCOMPLETE...) pass. */
-    static void check(int result, String operation) {
+    public static void check(int result, String operation) {
         if (result >= 0) {
             return;
         }
@@ -52,7 +52,7 @@ final class VkUtil {
                 + (result == VK_ERROR_DEVICE_LOST ? " - Vulkan device lost, fatal" : ""));
     }
 
-    static String resultName(int result) {
+    public static String resultName(int result) {
         return switch (result) {
             case VK_SUCCESS -> "VK_SUCCESS";
             case VK_NOT_READY -> "VK_NOT_READY";
@@ -81,16 +81,16 @@ final class VkUtil {
         };
     }
 
-    static int alignUp(int value, int alignment) {
+    public static int alignUp(int value, int alignment) {
         return (value + alignment - 1) & -alignment;
     }
 
-    static long alignUp(long value, long alignment) {
+    public static long alignUp(long value, long alignment) {
         return (value + alignment - 1) & -alignment;
     }
 
     /** Single image barrier (whole image, mip 0, layer 0). Call with the layouts the image really has. */
-    static void imageBarrier(VkCommandBuffer cb, long image, int aspectMask, int oldLayout, int newLayout,
+    public static void imageBarrier(VkCommandBuffer cb, long image, int aspectMask, int oldLayout, int newLayout,
                              int srcStage, int srcAccess, int dstStage, int dstAccess) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkImageMemoryBarrier.Buffer barrier = VkImageMemoryBarrier.calloc(1, stack);
@@ -100,7 +100,7 @@ final class VkUtil {
     }
 
     /** Fills the element at the current position of {@code barrier} (zeroed by the caller). */
-    static void fillImageBarrier(VkImageMemoryBarrier.Buffer barrier, long image, int aspectMask, int oldLayout, int newLayout,
+    public static void fillImageBarrier(VkImageMemoryBarrier.Buffer barrier, long image, int aspectMask, int oldLayout, int newLayout,
                                  int srcAccess, int dstAccess) {
         barrier.sType(VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
                 .srcAccessMask(srcAccess)
@@ -119,7 +119,7 @@ final class VkUtil {
     }
 
     /** Waits for a fence; warns while a wait takes suspiciously long and gives up (device hang) after 60 s. */
-    static void waitFence(VkDevice device, long fence, String what) {
+    public static void waitFence(VkDevice device, long fence, String what) {
         long waitedMs = 0;
         while (true) {
             int result = vkWaitForFences(device, fence, true, 5_000_000_000L);
@@ -143,7 +143,7 @@ final class VkUtil {
     // debug utils (no-ops unless VK_EXT_debug_utils is enabled)
     // ---------------------------------------------------------------------------------------------------------
 
-    static void setObjectName(VkDevice device, int objectType, long handle, String name) {
+    public static void setObjectName(VkDevice device, int objectType, long handle, String name) {
         if (!debugUtils || handle == 0) {
             return;
         }
@@ -160,7 +160,7 @@ final class VkUtil {
         }
     }
 
-    static void beginLabel(VkCommandBuffer cb, String name) {
+    public static void beginLabel(VkCommandBuffer cb, String name) {
         if (!debugUtils) {
             return;
         }
@@ -176,7 +176,7 @@ final class VkUtil {
         }
     }
 
-    static void endLabel(VkCommandBuffer cb) {
+    public static void endLabel(VkCommandBuffer cb) {
         if (!debugUtils) {
             return;
         }

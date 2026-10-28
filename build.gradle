@@ -177,5 +177,16 @@ dependencies {
     devtestCompileOnly sourceSets.main.output
 }
 
+// ---- Dev-only bench mod (src/benchtest) ------------------------------------------------------------------------------------------
+// A backend-agnostic benchmark mod (own fml.mod.json, mixins with defaultRequire 1, active only with -Dfml.bench=true), same shape as devtest and
+// equally never packed into the release jar. The runBench tasks live in gradle/native/NR-27.gradle.
+sourceSets {
+    benchtest // src/benchtest/java, src/benchtest/resources
+}
+configurations.benchtestCompileOnly.extendsFrom configurations.implementation
+dependencies {
+    benchtestCompileOnly sourceSets.main.output
+}
+
 apply from: 'shaders.gradle'
 apply from: 'tasks.gradle'

@@ -1,5 +1,10 @@
 package net.xiaoyu233.fml.vulkan.gl.state;
 
+import net.xiaoyu233.fml.vulkan.render.state.Draw;
+import net.xiaoyu233.fml.vulkan.render.state.LegacyGroups;
+import net.xiaoyu233.fml.vulkan.render.state.PoseStack;
+import net.xiaoyu233.fml.vulkan.render.legacy.LegacyInterop;
+import net.xiaoyu233.fml.vulkan.render.legacy.StateMirror;
 import net.xiaoyu233.fml.vulkan.VkLog;
 import net.xiaoyu233.fml.vulkan.core.DeviceInfo;
 import net.xiaoyu233.fml.vulkan.core.RenderCore;
@@ -111,8 +116,8 @@ public final class GLState {
     // state (package-private: StateQuery and AttribStack read/write it directly)
     // ---------------------------------------------------------------------------------------------------------------
 
-    final MatrixStack modelView = new MatrixStack(MODELVIEW_STACK_DEPTH);
-    final MatrixStack projection = new MatrixStack(PROJECTION_STACK_DEPTH);
+    final PoseStack modelView = Draw.pose();
+    final PoseStack projection = Draw.projection();
     final MatrixStack[] texMatrix = new MatrixStack[MAX_TEXTURE_UNITS];
     int matrixMode;
     int activeTextureUnit;
@@ -334,6 +339,16 @@ public final class GLState {
             }
         }
         return s;
+    }
+
+    /**
+     * Entry point of the GL facades (GLStateImpl, GLTexImpl): pulls the native-dirty Draw groups into the emulation before the
+     * first state change or read (ARCHITECTURE-NATIVE 1.16.3). O(1) when no native code changed state since the last pull.
+     * Native code uses {@link #get()} directly and must not trigger the pull.
+     */
+    public static GLState facade() {
+        if (StateMirror.nativeDirty != 0) StateMirror.syncNativeToLegacy();
+        return get();
     }
 
     /**
@@ -1100,6 +1115,7 @@ public final class GLState {
             final TexUnitState u = texUnits[activeTextureUnit];
             final int now = on ? u.targetEnable | target : u.targetEnable & ~target;
             if (now != u.targetEnable) {
+                if ((StateMirror.legacyDirty & LegacyGroups.TEXTURE_ENABLE) != LegacyGroups.TEXTURE_ENABLE) StateMirror.onLegacyChanged(LegacyGroups.TEXTURE_ENABLE);
                 u.targetEnable = now;
                 if (activeTextureUnit < 2) {
                     uniformsDirty = true;
@@ -1134,8 +1150,30 @@ public final class GLState {
         capChanged(bit, on);
     }
 
+    private static int capGroup(int bit) {
+        switch (bit) {
+            case CAP_BLEND: return LegacyGroups.BLEND;
+            case CAP_DEPTH_TEST: return LegacyGroups.DEPTH;
+            case CAP_CULL_FACE: return LegacyGroups.CULL;
+            case CAP_ALPHA_TEST: return LegacyGroups.ALPHA;
+            case CAP_COLOR_LOGIC_OP: return LegacyGroups.LOGIC;
+            case CAP_POLYGON_OFFSET_FILL:
+            case CAP_POLYGON_OFFSET_LINE:
+            case CAP_POLYGON_OFFSET_POINT: return LegacyGroups.POLYGON_OFFSET;
+            case CAP_FOG: return LegacyGroups.FOG;
+            case CAP_LIGHTING:
+            case CAP_COLOR_MATERIAL:
+            case CAP_LIGHT0:
+            case CAP_LIGHT0 + 1: return LegacyGroups.LIGHTING;
+            case CAP_NORMALIZE:
+            case CAP_RESCALE_NORMAL: return LegacyGroups.NORMAL_MODE;
+            default: return 0;
+        }
+    }
+
     /** Derived-state bookkeeping for a capability that actually changed (also used after glPopAttrib restores a set). */
     private void capChanged(int bit, boolean on) {
+        if ((StateMirror.legacyDirty & capGroup(bit)) != capGroup(bit)) StateMirror.onLegacyChanged(capGroup(bit));
         switch (bit) {
             case CAP_BLEND:
             case CAP_DEPTH_TEST:
@@ -1198,6 +1236,7 @@ public final class GLState {
 
     /** glActiveTexture with a 0-based unit; units beyond MAX_TEXTURE_UNITS raise GL_INVALID_ENUM. */
     public void setActiveTexture(int unit) {
+        if ((StateMirror.legacyDirty & LegacyGroups.UNIT) != LegacyGroups.UNIT) StateMirror.onLegacyChanged(LegacyGroups.UNIT);
         if (unit < 0 || unit >= MAX_TEXTURE_UNITS) {
             error(GL_INVALID_ENUM);
             return;
@@ -1206,6 +1245,7 @@ public final class GLState {
     }
 
     public void setColor(float r, float g, float b, float a) {
+        if ((StateMirror.legacyDirty & LegacyGroups.CURRENT) != LegacyGroups.CURRENT) StateMirror.onLegacyChanged(LegacyGroups.CURRENT);
         final float[] c = currentColor;
         c[0] = r;
         c[1] = g;
@@ -1214,6 +1254,7 @@ public final class GLState {
     }
 
     public void setNormal(float x, float y, float z) {
+        if ((StateMirror.legacyDirty & LegacyGroups.CURRENT) != LegacyGroups.CURRENT) StateMirror.onLegacyChanged(LegacyGroups.CURRENT);
         final float[] n = currentNormal;
         n[0] = x;
         n[1] = y;
@@ -1222,6 +1263,8 @@ public final class GLState {
 
     /** {@code unit} must be in 0..MAX_TEXTURE_UNITS-1 (validated by the facade). */
     public void setTexCoord(int unit, float s, float t, float r, float q) {
+        // only unit 1 (lightmap -> Draw.light) is part of the CURRENT mirror push; unit 0 is read by writePushConstants
+        if (unit == 1 && (StateMirror.legacyDirty & LegacyGroups.CURRENT) != LegacyGroups.CURRENT) StateMirror.onLegacyChanged(LegacyGroups.CURRENT);
         final float[] c = currentTexCoord[unit];
         c[0] = s;
         c[1] = t;
@@ -1241,16 +1284,21 @@ public final class GLState {
         matrixMode = mode;
     }
 
-    private MatrixStack currentStack() {
+    /** The shared native stack of the current mode, or null in GL_TEXTURE mode (then {@link #texStack()} applies). */
+    private PoseStack poseStack() {
         switch (matrixMode) {
             case GL_PROJECTION:
                 return projection;
             case GL_TEXTURE:
-                return texMatrix[activeTextureUnit];
+                return null;
             case GL_MODELVIEW:
             default:
                 return modelView;
         }
+    }
+
+    private MatrixStack texStack() {
+        return texMatrix[activeTextureUnit];
     }
 
     /** Only the projection and the texture matrices of unit 0/1 are part of the uniform block (modelview is a push constant). */
@@ -1261,7 +1309,17 @@ public final class GLState {
     }
 
     public void pushMatrix() {
-        if (!currentStack().push()) {
+        final PoseStack ps = poseStack();
+        final boolean ok;
+        if (ps != null) {
+            ok = ps.depth() < ps.maxDepth();
+            if (ok) {
+                ps.push();
+            }
+        } else {
+            ok = texStack().push();
+        }
+        if (!ok) {
             warnOnce("stack.matrix.overflow." + matrixMode, "GL matrix stack overflow (mode 0x" + Integer.toHexString(matrixMode)
                     + "); further overflows only set GL_STACK_OVERFLOW");
             error(GL_STACK_OVERFLOW);
@@ -1269,7 +1327,17 @@ public final class GLState {
     }
 
     public void popMatrix() {
-        if (!currentStack().pop()) {
+        final PoseStack ps = poseStack();
+        final boolean ok;
+        if (ps != null) {
+            ok = ps.depth() > 1;
+            if (ok) {
+                ps.pop();
+            }
+        } else {
+            ok = texStack().pop();
+        }
+        if (!ok) {
             warnOnce("stack.matrix.underflow." + matrixMode, "GL matrix stack underflow (mode 0x" + Integer.toHexString(matrixMode)
                     + "); further underflows only set GL_STACK_UNDERFLOW");
             error(GL_STACK_UNDERFLOW);
@@ -1279,49 +1347,91 @@ public final class GLState {
     }
 
     public void loadIdentity() {
-        currentStack().loadIdentity();
+        final PoseStack ps = poseStack();
+        if (ps != null) {
+            ps.loadIdentity();
+        } else {
+            texStack().loadIdentity();
+        }
         matrixChanged();
     }
 
     /** Loads 16 column-major floats from {@code m[0..16)}. */
     public void loadMatrix(float[] m) {
-        currentStack().load(m);
+        final PoseStack ps = poseStack();
+        if (ps != null) {
+            ps.load(m);
+        } else {
+            texStack().load(m);
+        }
         matrixChanged();
     }
 
     /** current = current * m for 16 column-major floats. */
     public void multMatrix(float[] m) {
-        currentStack().mult(m);
+        final PoseStack ps = poseStack();
+        if (ps != null) {
+            ps.mul(m);
+        } else {
+            texStack().mult(m);
+        }
         matrixChanged();
     }
 
     public void translate(float x, float y, float z) {
-        currentStack().translate(x, y, z);
+        final PoseStack ps = poseStack();
+        if (ps != null) {
+            ps.translate(x, y, z);
+        } else {
+            texStack().translate(x, y, z);
+        }
         matrixChanged();
     }
 
     public void scale(float x, float y, float z) {
-        currentStack().scale(x, y, z);
+        final PoseStack ps = poseStack();
+        if (ps != null) {
+            ps.scale(x, y, z);
+        } else {
+            texStack().scale(x, y, z);
+        }
         matrixChanged();
     }
 
     public void rotate(float angle, float x, float y, float z) {
-        currentStack().rotate(angle, x, y, z);
+        final PoseStack ps = poseStack();
+        if (ps != null) {
+            ps.rotate(angle, x, y, z);
+        } else {
+            texStack().rotate(angle, x, y, z);
+        }
         matrixChanged();
     }
 
     public void ortho(double l, double r, double b, double t, double n, double f) {
-        if (!currentStack().ortho(l, r, b, t, n, f)) {
+        if (l == r || b == t || n == f) {
             error(GL_INVALID_VALUE);
             return;
+        }
+        final PoseStack ps = poseStack();
+        if (ps != null) {
+            ps.ortho(l, r, b, t, n, f);
+        } else {
+            texStack().ortho(l, r, b, t, n, f);
         }
         matrixChanged();
     }
 
     public void frustum(double l, double r, double b, double t, double n, double f) {
-        if (!currentStack().frustum(l, r, b, t, n, f)) {
+        if (n <= 0.0 || f <= 0.0 || l == r || b == t || n == f) {
             error(GL_INVALID_VALUE);
             return;
+        }
+        final PoseStack ps = poseStack();
+        if (ps != null) {
+            ps.frustum(l, r, b, t, n, f);
+        } else {
+            texStack().frustum(l, r, b, t, n, f);
         }
         matrixChanged();
     }
@@ -1335,6 +1445,7 @@ public final class GLState {
     }
 
     public void setBlendFuncSeparate(int srcRgb, int dstRgb, int srcAlpha, int dstAlpha) {
+        if ((StateMirror.legacyDirty & LegacyGroups.BLEND) != LegacyGroups.BLEND) StateMirror.onLegacyChanged(LegacyGroups.BLEND);
         if (!validBlendFactor(srcRgb, true) || !validBlendFactor(dstRgb, false) || !validBlendFactor(srcAlpha, true)
                 || !validBlendFactor(dstAlpha, false)) {
             error(GL_INVALID_ENUM);
@@ -1373,6 +1484,7 @@ public final class GLState {
     }
 
     public void setLogicOp(int opcode) {
+        if ((StateMirror.legacyDirty & LegacyGroups.LOGIC) != LegacyGroups.LOGIC) StateMirror.onLegacyChanged(LegacyGroups.LOGIC);
         if (opcode < GL_CLEAR || opcode > GL_SET) {
             error(GL_INVALID_ENUM);
             return;
@@ -1384,6 +1496,7 @@ public final class GLState {
     }
 
     public void setAlphaFunc(int func, float ref) {
+        if ((StateMirror.legacyDirty & LegacyGroups.ALPHA) != LegacyGroups.ALPHA) StateMirror.onLegacyChanged(LegacyGroups.ALPHA);
         if (!validCompareFunc(func)) {
             error(GL_INVALID_ENUM);
             return;
@@ -1405,6 +1518,7 @@ public final class GLState {
     // ---------------------------------------------------------------------------------------------------------------
 
     public void setDepthFunc(int func) {
+        if ((StateMirror.legacyDirty & LegacyGroups.DEPTH) != LegacyGroups.DEPTH) StateMirror.onLegacyChanged(LegacyGroups.DEPTH);
         if (!validCompareFunc(func)) {
             error(GL_INVALID_ENUM);
             return;
@@ -1416,6 +1530,7 @@ public final class GLState {
     }
 
     public void setDepthMask(boolean mask) {
+        if ((StateMirror.legacyDirty & LegacyGroups.DEPTH) != LegacyGroups.DEPTH) StateMirror.onLegacyChanged(LegacyGroups.DEPTH);
         if (mask != depthMask) {
             depthMask = mask;
             pipelineDirty = true;
@@ -1447,6 +1562,7 @@ public final class GLState {
     }
 
     public void setColorMask(boolean r, boolean g, boolean b, boolean a) {
+        if ((StateMirror.legacyDirty & LegacyGroups.COLOR_MASK) != LegacyGroups.COLOR_MASK) StateMirror.onLegacyChanged(LegacyGroups.COLOR_MASK);
         final int mask = (r ? VK10.VK_COLOR_COMPONENT_R_BIT : 0) | (g ? VK10.VK_COLOR_COMPONENT_G_BIT : 0)
                 | (b ? VK10.VK_COLOR_COMPONENT_B_BIT : 0) | (a ? VK10.VK_COLOR_COMPONENT_A_BIT : 0);
         if (mask != colorMask) {
@@ -1515,6 +1631,7 @@ public final class GLState {
     // ---------------------------------------------------------------------------------------------------------------
 
     public void setCullFace(int mode) {
+        if ((StateMirror.legacyDirty & LegacyGroups.CULL) != LegacyGroups.CULL) StateMirror.onLegacyChanged(LegacyGroups.CULL);
         if (mode != GL_FRONT && mode != GL_BACK && mode != GL_FRONT_AND_BACK) {
             error(GL_INVALID_ENUM);
             return;
@@ -1552,6 +1669,7 @@ public final class GLState {
     }
 
     public void setPolygonOffset(float factor, float units) {
+        if ((StateMirror.legacyDirty & LegacyGroups.POLYGON_OFFSET) != LegacyGroups.POLYGON_OFFSET) StateMirror.onLegacyChanged(LegacyGroups.POLYGON_OFFSET);
         if (factor != polyOffsetFactor || units != polyOffsetUnits) {
             polyOffsetFactor = factor;
             polyOffsetUnits = units;
@@ -1560,6 +1678,7 @@ public final class GLState {
     }
 
     public void setLineWidth(float width) {
+        if ((StateMirror.legacyDirty & LegacyGroups.LINE) != LegacyGroups.LINE) StateMirror.onLegacyChanged(LegacyGroups.LINE);
         if (!(width > 0f)) {
             error(GL_INVALID_VALUE);
             return;
@@ -1576,6 +1695,7 @@ public final class GLState {
     }
 
     public void setShadeModel(int mode) {
+        if ((StateMirror.legacyDirty & LegacyGroups.SHADE) != LegacyGroups.SHADE) StateMirror.onLegacyChanged(LegacyGroups.SHADE);
         if (mode != GL_FLAT && mode != GL_SMOOTH) {
             error(GL_INVALID_ENUM);
             return;
@@ -1619,6 +1739,9 @@ public final class GLState {
             error(GL_INVALID_VALUE);
             return;
         }
+        // native batches recorded before the clear go first, and native state the emulation has not pulled yet (colour/depth
+        // masks, scissor, clear values) must be visible before the clear reads them
+        LegacyInterop.beforeEmulatedDraw();
         final boolean color = (mask & GL_COLOR_BUFFER_BIT) != 0 && colorMask != 0 && drawBuffer != GL_NONE;
         final boolean depth = (mask & GL_DEPTH_BUFFER_BIT) != 0 && depthMask;
         if (!color && !depth) {
@@ -1685,6 +1808,7 @@ public final class GLState {
 
     /** glLight with the 0-based light index (validated against MAX_LIGHTS here) and {@link #lightParamCount} values. */
     public void setLight(int light, int pname, float[] v) {
+        if ((StateMirror.legacyDirty & LegacyGroups.LIGHTING) != LegacyGroups.LIGHTING) StateMirror.onLegacyChanged(LegacyGroups.LIGHTING);
         if (light < 0 || light >= MAX_LIGHTS || lightParamCount(pname) == 0) {
             error(GL_INVALID_ENUM);
             return;
@@ -1906,6 +2030,7 @@ public final class GLState {
             colorMaterialFace = face;
             colorMaterialMode = mode;
             uniformsDirty = true;
+            StateMirror.legacyDirty |= LegacyGroups.LIGHTING;
         }
     }
 
@@ -1934,6 +2059,7 @@ public final class GLState {
     }
 
     public void setFog(int pname, float[] v) {
+        if ((StateMirror.legacyDirty & LegacyGroups.FOG) != LegacyGroups.FOG) StateMirror.onLegacyChanged(LegacyGroups.FOG);
         switch (pname) {
             case GL_FOG_MODE: {
                 final int m = (int) v[0];
@@ -2255,12 +2381,36 @@ public final class GLState {
         }
     }
 
-    /** AttribStack calls this after it restored state: everything derived is recomputed lazily. */
-    void attribRestored(boolean uniformState) {
+    /**
+     * AttribStack calls this after it restored the groups in {@code mask}; {@code capsBefore} is the cap word from before the pop.
+     * Derived state is recomputed lazily, and the typed Draw mirror is told which LegacyGroups changed so the next native draw
+     * pulls them (a pop writes the fields directly and does not go through the capChanged/setter paths).
+     */
+    void attribRestored(int mask, long capsBefore) {
         pipelineDirty = true;
-        if (uniformState) {
+        if ((mask & (GL_LIGHTING_BIT | GL_FOG_BIT | GL_TRANSFORM_BIT | GL_ENABLE_BIT | GL_COLOR_BUFFER_BIT | GL_TEXTURE_BIT)) != 0) {
             uniformsDirty = true;
         }
+        int groups = 0;
+        if ((mask & GL_CURRENT_BIT) != 0) groups |= LegacyGroups.CURRENT;
+        if ((mask & GL_LINE_BIT) != 0) groups |= LegacyGroups.LINE;
+        if ((mask & GL_POLYGON_BIT) != 0) groups |= LegacyGroups.CULL | LegacyGroups.POLYGON_OFFSET;
+        if ((mask & GL_LIGHTING_BIT) != 0) groups |= LegacyGroups.LIGHTING | LegacyGroups.SHADE;
+        if ((mask & GL_FOG_BIT) != 0) groups |= LegacyGroups.FOG;
+        if ((mask & GL_DEPTH_BUFFER_BIT) != 0) groups |= LegacyGroups.DEPTH;
+        if ((mask & GL_TRANSFORM_BIT) != 0) groups |= LegacyGroups.NORMAL_MODE;
+        // per-unit target enables (the cap bits of GL_ENABLE_BIT are covered by the cap diff below)
+        if ((mask & GL_ENABLE_BIT) != 0) groups |= LegacyGroups.TEXTURE_ENABLE;
+        if ((mask & GL_COLOR_BUFFER_BIT) != 0) groups |= LegacyGroups.BLEND | LegacyGroups.ALPHA | LegacyGroups.LOGIC
+                | LegacyGroups.COLOR_MASK;
+        if ((mask & GL_TEXTURE_BIT) != 0) groups |= LegacyGroups.TEXTURE_BIND | LegacyGroups.TEXTURE_ENABLE | LegacyGroups.UNIT;
+        // caps restored by the pop: only the bits that actually flipped need their group marked
+        long changed = capsBefore ^ caps;
+        while (changed != 0) {
+            groups |= capGroup(Long.numberOfTrailingZeros(changed));
+            changed &= changed - 1;
+        }
+        StateMirror.legacyDirty |= groups;
     }
 
     // ---------------------------------------------------------------------------------------------------------------
@@ -2320,5 +2470,291 @@ public final class GLState {
 
     DeviceInfo deviceInfoOrNull() {
         return deviceInfo();
+    }
+
+    // NR-08 mirror: typed Draw state <-> this emulation (StateMirror). Render thread only, no allocation. These write fields
+    // directly (no validation, no GL errors); the caller (StateMirror) saves/restores StateMirror.legacyDirty around them.
+
+    private static final int[] NR_BLEND_GL = {0, 1, 768, 769, 770, 771, 772, 773, 774, 775};
+
+    // Last values pulled from Lighting: a LIGHTING pull rewrites a light parameter or the model ambient only when the native side
+    // actually changed it, so unrelated pulls (colour material, enable toggles) do not overwrite glLight/glLightModel values of a mod.
+    private final boolean[] nrLightDirPulled = new boolean[2];
+    private final float[][] nrLightDir = new float[2][3];
+    private boolean nrModelAmbientPulled;
+    private float nrModelAmbient;
+    /** Cached enum tables: {@code values()} clones its array on every call, which would allocate on each sync. */
+    private static final net.xiaoyu233.fml.vulkan.render.state.DepthFunc[] NR_DEPTH_FUNCS =
+            net.xiaoyu233.fml.vulkan.render.state.DepthFunc.values();
+    private static final net.xiaoyu233.fml.vulkan.render.state.BlendFactor[] NR_BLEND_FACTORS =
+            net.xiaoyu233.fml.vulkan.render.state.BlendFactor.values();
+    /** GL blend enum -> BlendFactor, indexed directly by GL constant (max 775); null for constants MITE never uses. */
+    private static final net.xiaoyu233.fml.vulkan.render.state.BlendFactor[] NR_BLEND_BY_GL = new net.xiaoyu233.fml.vulkan.render.state.BlendFactor[776];
+
+    static {
+        for (int i = 0; i < NR_BLEND_GL.length; i++) {
+            NR_BLEND_BY_GL[NR_BLEND_GL[i]] = NR_BLEND_FACTORS[i];
+        }
+    }
+
+    /** Copies the given {@code LegacyGroups} from the native Draw state into this emulation. */
+    public void mirrorPullFromNative(int groups) {
+        if ((groups & LegacyGroups.UNIT) != 0) {
+            activeTextureUnit = Draw.activeUnit();
+        }
+        if ((groups & LegacyGroups.TEXTURE_BIND) != 0) {
+            for (int u = 0; u < 2; u++) {
+                final int name = Draw.boundTexture(u);
+                if (net.xiaoyu233.fml.vulkan.texture.TextureManager.boundTexture(u) != name) {
+                    net.xiaoyu233.fml.vulkan.texture.TextureManager.bindTexture(u, name);
+                }
+            }
+        }
+        if ((groups & LegacyGroups.TEXTURE_ENABLE) != 0) {
+            nrTexEnable(0, Draw.texturingEnabled());
+            nrTexEnable(1, Draw.lightmapEnabled());
+        }
+        if ((groups & LegacyGroups.CURRENT) != 0) {
+            setColor(Draw.colorR(), Draw.colorG(), Draw.colorB(), Draw.colorA());
+            setNormal(Draw.normalX(), Draw.normalY(), Draw.normalZ());
+            final float[] c = currentTexCoord[1];
+            c[0] = Draw.lightU();
+            c[1] = Draw.lightV();
+            c[2] = 0f;
+            c[3] = 1f;
+        }
+        if ((groups & LegacyGroups.BLEND) != 0) {
+            setCap(CAP_BLEND, Draw.blendEnabled());
+            final int s = NR_BLEND_GL[Draw.blendSrc().ordinal()];
+            final int d = NR_BLEND_GL[Draw.blendDst().ordinal()];
+            if (blendSrcRgb != s || blendDstRgb != d || blendSrcAlpha != s || blendDstAlpha != d) {
+                blendSrcRgb = blendSrcAlpha = s;
+                blendDstRgb = blendDstAlpha = d;
+                pipelineDirty = true;
+            }
+        }
+        if ((groups & LegacyGroups.ALPHA) != 0) {
+            setCap(CAP_ALPHA_TEST, Draw.alphaTestEnabled());
+            if (alphaFunc != GL_GREATER || alphaRef != Draw.alphaRef()) {
+                alphaFunc = GL_GREATER;
+                alphaRef = Draw.alphaRef();
+                pipelineDirty = true;
+                uniformsDirty = true;
+            }
+        }
+        if ((groups & LegacyGroups.DEPTH) != 0) {
+            setCap(CAP_DEPTH_TEST, Draw.depthTestEnabled());
+            final int f = 512 + Draw.depthFuncState().ordinal();
+            final boolean m = Draw.depthMaskEnabled();
+            if (depthFunc != f || depthMask != m) {
+                depthFunc = f;
+                depthMask = m;
+                pipelineDirty = true;
+            }
+        }
+        if ((groups & LegacyGroups.CULL) != 0) {
+            setCap(CAP_CULL_FACE, Draw.cullEnabled());
+            final int f = Draw.cullFaceState() == net.xiaoyu233.fml.vulkan.render.state.Face.FRONT ? GL_FRONT : GL_BACK;
+            if (cullFaceMode != f) {
+                cullFaceMode = f;
+                pipelineDirty = true;
+            }
+        }
+        if ((groups & LegacyGroups.COLOR_MASK) != 0) {
+            final int m = Draw.colorMaskBits() | (colorMask & 8);
+            if (colorMask != m) {
+                colorMask = m;
+                pipelineDirty = true;
+            }
+        }
+        if ((groups & LegacyGroups.POLYGON_OFFSET) != 0) {
+            setCap(CAP_POLYGON_OFFSET_FILL, Draw.polygonOffsetEnabled());
+            if (polyOffsetFactor != Draw.polygonOffsetFactor() || polyOffsetUnits != Draw.polygonOffsetUnits()) {
+                polyOffsetFactor = Draw.polygonOffsetFactor();
+                polyOffsetUnits = Draw.polygonOffsetUnits();
+                pipelineDirty = true;
+            }
+        }
+        if ((groups & LegacyGroups.FOG) != 0) {
+            setCap(CAP_FOG, Draw.fogEnabled());
+            final int m;
+            switch (Draw.fogModeState()) {
+                case LINEAR: m = GL_LINEAR; break;
+                case EXP2: m = GL_EXP2; break;
+                default: m = GL_EXP; break;
+            }
+            final FogState fs = fog;
+            fs.mode = m;
+            fs.start = Draw.fogStartValue();
+            fs.end = Draw.fogEndValue();
+            fs.density = Draw.fogDensityValue();
+            for (int i = 0; i < 4; i++) {
+                fs.color[i] = Draw.fogColorComponent(i);
+            }
+            uniformsDirty = true;
+        }
+        if ((groups & LegacyGroups.LIGHTING) != 0) {
+            setCap(CAP_LIGHTING, Draw.lightingEnabled());
+            setCap(CAP_COLOR_MATERIAL, Draw.colorMaterialEnabledState());
+            switch (Draw.colorMaterialMode()) {
+                case AMBIENT: colorMaterialMode = GL_AMBIENT; break;
+                case DIFFUSE: colorMaterialMode = GL_DIFFUSE; break;
+                default: colorMaterialMode = GL_AMBIENT_AND_DIFFUSE; break;
+            }
+            for (int i = 0; i < 2; i++) {
+                final boolean on = net.xiaoyu233.fml.vulkan.render.state.Lighting.lightEnabled(i);
+                final boolean wasOn = has(CAP_LIGHT0 + i);
+                setCap(CAP_LIGHT0 + i, on);
+                if (on) {
+                    final float[] dir = net.xiaoyu233.fml.vulkan.render.state.Lighting.lightDir(i);
+                    final LightState l = lights[i];
+                    // RenderHelper's constants (diffuse 0.6, ambient 0, specular 0) are applied when the light turns on natively;
+                    // the direction only when the native direction changes. Other pulls keep the mod's glLight parameters.
+                    if (!wasOn) {
+                        LightState.set4(l.diffuse, 0.6f, 0.6f, 0.6f, 1f);
+                        LightState.set4(l.ambient, 0f, 0f, 0f, 1f);
+                        LightState.set4(l.specular, 0f, 0f, 0f, 1f);
+                    }
+                    final float[] last = nrLightDir[i];
+                    if (!nrLightDirPulled[i] || dir[0] != last[0] || dir[1] != last[1] || dir[2] != last[2]) {
+                        LightState.set4(l.position, dir[0], dir[1], dir[2], 0f);
+                        last[0] = dir[0];
+                        last[1] = dir[1];
+                        last[2] = dir[2];
+                        nrLightDirPulled[i] = true;
+                    }
+                }
+            }
+            final float a = net.xiaoyu233.fml.vulkan.render.state.Lighting.modelAmbient();
+            if (!nrModelAmbientPulled || a != nrModelAmbient) {
+                LightState.set4(lightModelAmbient, a, a, a, 1f);
+                nrModelAmbient = a;
+                nrModelAmbientPulled = true;
+            }
+            uniformsDirty = true;
+        }
+        if ((groups & LegacyGroups.NORMAL_MODE) != 0) {
+            setCap(CAP_NORMALIZE, Draw.normalizeEnabled());
+            setCap(CAP_RESCALE_NORMAL, Draw.rescaleNormalEnabled());
+        }
+        if ((groups & LegacyGroups.LINE) != 0) {
+            lineWidth = Draw.lineWidthPx();
+        }
+        if ((groups & LegacyGroups.SHADE) != 0) {
+            final int m = Draw.smoothShadingEnabled() ? GL_SMOOTH : GL_FLAT;
+            if (shadeModel != m) {
+                shadeModel = m;
+                pipelineDirty = true;
+            }
+        }
+        if ((groups & LegacyGroups.LOGIC) != 0) {
+            final boolean on = Draw.logicOpCursorEnabled();
+            setCap(CAP_COLOR_LOGIC_OP, on);
+            if (on) {
+                logicOp = GL_XOR;
+            }
+        }
+    }
+
+    private void nrTexEnable(int unit, boolean on) {
+        final TexUnitState u = texUnits[unit];
+        final int now = on ? u.targetEnable | TexUnitState.TARGET_2D : u.targetEnable & ~TexUnitState.TARGET_2D;
+        if (now != u.targetEnable) {
+            u.targetEnable = now;
+            uniformsDirty = true;
+        }
+    }
+
+    /**
+     * Copies the given {@code LegacyGroups} from this emulation into the native Draw state. The caller brackets this with
+     * {@code Draw.beginLegacyPull()/endLegacyPull()}.
+     */
+    public void mirrorPushToNative(int groups) {
+        if ((groups & (LegacyGroups.TEXTURE_BIND | LegacyGroups.UNIT)) != 0 || (groups & LegacyGroups.TEXTURE_ENABLE) != 0) {
+            final int keep = Math.min(activeTextureUnit, 1);
+            for (int u = 0; u < 2; u++) {
+                Draw.activeUnit(u);
+                if ((groups & LegacyGroups.TEXTURE_BIND) != 0) {
+                    Draw.bindTexture(net.xiaoyu233.fml.vulkan.texture.TextureManager.boundTexture(u));
+                }
+                if ((groups & LegacyGroups.TEXTURE_ENABLE) != 0) {
+                    Draw.texturing((texUnits[u].targetEnable & TexUnitState.TARGET_2D) != 0);
+                }
+            }
+            Draw.activeUnit(keep);
+        }
+        if ((groups & LegacyGroups.CURRENT) != 0) {
+            Draw.color(currentColor[0], currentColor[1], currentColor[2], currentColor[3]);
+            Draw.normal(currentNormal[0], currentNormal[1], currentNormal[2]);
+            Draw.light(currentTexCoord[1][0], currentTexCoord[1][1]);
+        }
+        if ((groups & LegacyGroups.BLEND) != 0) {
+            Draw.blend(has(CAP_BLEND));
+            final net.xiaoyu233.fml.vulkan.render.state.BlendFactor s = nrBlend(blendSrcRgb);
+            final net.xiaoyu233.fml.vulkan.render.state.BlendFactor d = nrBlend(blendDstRgb);
+            if (s != null && d != null) {
+                Draw.blendFunc(s, d);
+            }
+        }
+        if ((groups & LegacyGroups.ALPHA) != 0) {
+            Draw.alphaTest(has(CAP_ALPHA_TEST));
+            Draw.alphaFunc(alphaRef);
+        }
+        if ((groups & LegacyGroups.DEPTH) != 0) {
+            Draw.depthTest(has(CAP_DEPTH_TEST));
+            final int f = depthFunc - 512;
+            if (f >= 0 && f < NR_DEPTH_FUNCS.length) {
+                Draw.depthFunc(NR_DEPTH_FUNCS[f]);
+            }
+            Draw.depthMask(depthMask);
+        }
+        if ((groups & LegacyGroups.CULL) != 0) {
+            Draw.cull(has(CAP_CULL_FACE));
+            Draw.cullFace(cullFaceMode == GL_FRONT ? net.xiaoyu233.fml.vulkan.render.state.Face.FRONT
+                    : net.xiaoyu233.fml.vulkan.render.state.Face.BACK);
+        }
+        if ((groups & LegacyGroups.COLOR_MASK) != 0) {
+            Draw.colorMask((colorMask & 1) != 0, (colorMask & 2) != 0, (colorMask & 4) != 0, (colorMask & 8) != 0);
+        }
+        if ((groups & LegacyGroups.POLYGON_OFFSET) != 0) {
+            Draw.polygonOffsetFill(has(CAP_POLYGON_OFFSET_FILL));
+            Draw.polygonOffset(polyOffsetFactor, polyOffsetUnits);
+        }
+        if ((groups & LegacyGroups.FOG) != 0) {
+            Draw.fog(has(CAP_FOG));
+            final FogState fs = fog;
+            Draw.fogMode(fs.mode == GL_LINEAR ? net.xiaoyu233.fml.vulkan.render.state.FogMode.LINEAR
+                    : fs.mode == GL_EXP2 ? net.xiaoyu233.fml.vulkan.render.state.FogMode.EXP2
+                    : net.xiaoyu233.fml.vulkan.render.state.FogMode.EXP);
+            Draw.fogStart(fs.start);
+            Draw.fogEnd(fs.end);
+            Draw.fogDensity(fs.density);
+            Draw.fogColor(fs.color[0], fs.color[1], fs.color[2], fs.color[3]);
+        }
+        if ((groups & LegacyGroups.LIGHTING) != 0) {
+            Draw.lighting(has(CAP_LIGHTING));
+            Draw.colorMaterialEnabled(has(CAP_COLOR_MATERIAL));
+            Draw.colorMaterial(colorMaterialMode == GL_AMBIENT ? net.xiaoyu233.fml.vulkan.render.state.ColorMaterial.AMBIENT
+                    : colorMaterialMode == GL_DIFFUSE ? net.xiaoyu233.fml.vulkan.render.state.ColorMaterial.DIFFUSE
+                    : net.xiaoyu233.fml.vulkan.render.state.ColorMaterial.AMBIENT_AND_DIFFUSE);
+            // light 0/1 enable and eye directions are native-owned (Lighting.enableStandard/disable); not pushed back.
+        }
+        if ((groups & LegacyGroups.NORMAL_MODE) != 0) {
+            Draw.normalize(has(CAP_NORMALIZE));
+            Draw.rescaleNormal(has(CAP_RESCALE_NORMAL));
+        }
+        if ((groups & LegacyGroups.LINE) != 0) {
+            Draw.lineWidth(lineWidth);
+        }
+        if ((groups & LegacyGroups.SHADE) != 0) {
+            Draw.smoothShading(shadeModel != GL_FLAT);
+        }
+        if ((groups & LegacyGroups.LOGIC) != 0) {
+            Draw.logicOpCursor(has(CAP_COLOR_LOGIC_OP));
+        }
+    }
+
+    private static net.xiaoyu233.fml.vulkan.render.state.BlendFactor nrBlend(int gl) {
+        return gl >= 0 && gl < NR_BLEND_BY_GL.length ? NR_BLEND_BY_GL[gl] : null;
     }
 }

@@ -45,6 +45,9 @@ configurations {
 
 def shaderSourceDir = layout.projectDirectory.dir('src/main/shaders')
 def shaderGeneratedDir = layout.buildDirectory.dir('generated/shaders')
+// Native shader jobs: src/main/shaders/native/manifest.d/*.txt (one fragment per area, concatenated in name order by the shadertool; the
+// fragments are owned by NR-02 (core.txt) and NR-20 (portal.txt), see ARCHITECTURE-NATIVE 5.1)
+def shaderManifestDir = layout.projectDirectory.dir('src/main/shaders/native/manifest.d')
 def shaderSpvDir = layout.buildDirectory.dir('generated/shaders/assets/fml_vulkan/shaders')
 
 def compileShadersTask = tasks.register('compileShaders', JavaExec) {
@@ -55,6 +58,7 @@ def compileShadersTask = tasks.register('compileShaders', JavaExec) {
     classpath = sourceSets.shadertool.output + configurations.shadertoolRuntimeClasspath
     mainClass = 'net.xiaoyu233.fml.vulkan.shadertool.ShaderCompiler'
     jvmArgs '--enable-native-access=ALL-UNNAMED'
+    systemProperty 'fml.shadertool.manifestDir', shaderManifestDir.asFile.absolutePath
 
     inputs.dir(shaderSourceDir)
     outputs.dir(shaderGeneratedDir)

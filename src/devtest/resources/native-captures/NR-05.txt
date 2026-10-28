@@ -1,0 +1,2 @@
+# NR-05 capture scenes: pacing/window/input produce no new pixels; the title screen guards the window and resize path (scene tolerance class)
+title-after-resize T0 resize 20x then capture title screen

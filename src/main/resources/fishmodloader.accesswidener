@@ -4,3 +4,7 @@ accessible method net/minecraft/CraftingManager addShapelessRecipe (Lnet/minecra
 accessible method net/minecraft/CraftingManager addShapelessRecipe (Lnet/minecraft/ItemStack;[Ljava/lang/Object;)Lnet/minecraft/ShapelessRecipes;
 accessible method net/minecraft/CraftingManager addRecipe (Lnet/minecraft/ItemStack;Z[Ljava/lang/Object;)Lnet/minecraft/ShapedRecipes;
 accessible class net/minecraft/LongHashMapEntry
+accessible field net/minecraft/ModelBox quadList [Lnet/minecraft/TexturedQuad;
+accessible field net/minecraft/TexturedQuad invertNormal Z
+accessible field net/minecraft/ModelRenderer compiled Z
+accessible field net/minecraft/ModelRenderer displayList I

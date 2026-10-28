@@ -47,6 +47,19 @@ final class TextureObject {
         }
     }
 
+    /** One backing image of a versioned texture together with its view and descriptor sets (1.11, {@link VersionPool}). */
+    static final class Version {
+        long image;
+        long allocation;
+        long imageView;
+        int viewKey = -1;
+        long lastUsedFrame = -1;
+        final long[] setSamplers = new long[SET_CACHE];
+        final long[] sets = new long[SET_CACHE];
+        final TextureDescriptors.Pool[] setPools = new TextureDescriptors.Pool[SET_CACHE];
+        int setCount;
+    }
+
     final int name;
     /** True once the name was bound (or created by a bind): glIsTexture. */
     boolean created;
@@ -72,6 +85,16 @@ final class TextureObject {
     boolean copyOpaque;
     /** Frame number in which the main command buffer last referenced this texture (sampled or written inline). */
     long lastUsedFrame = -1;
+    /** Atlas mip chain: level count of the image kept up to date by the native sprite uploads; 1 = no mip levels. */
+    int atlasLevels = 1;
+    /** Opacity bookkeeping of a registered texture atlas (null for every other texture). */
+    AtlasData atlas;
+    /** Frame number in which the main command buffer last wrote this texture (inline copy): later writes of that frame must follow it there. */
+    long mainWriteFrame = -1;
+    /** Regions of the open upload batch that are not recorded yet, see {@link UploadEngine}. */
+    int pendingCount;
+    /** Backing images of a versioned texture that are not current (null until the first version switch), see {@link VersionPool}. */
+    java.util.ArrayList<Version> spare;
 
     // descriptor sets
     boolean setDirty = true;
@@ -93,6 +116,15 @@ final class TextureObject {
 
     boolean isDefined(int level) {
         return level >= 0 && level < 31 && (definedMask & (1 << level)) != 0;
+    }
+
+    boolean ownsSet(long set) {
+        for (int i = 0; i < setCount; i++) {
+            if (sets[i] == set) {
+                return true;
+            }
+        }
+        return false;
     }
 
     long findSet(long sampler) {
@@ -119,6 +151,54 @@ final class TextureObject {
         sets[setCount] = set;
         setPools[setCount] = pool;
         setCount++;
+    }
+
+    /** Whether {@code v} holds the descriptor set {@code set}. */
+    static boolean versionOwnsSet(Version v, long set) {
+        for (int i = 0; i < v.setCount; i++) {
+            if (v.sets[i] == set) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Exchanges the backing image state (image, view, descriptor sets, last use) with {@code v}; the texture re-resolves its descriptor. */
+    void swapState(Version v) {
+        long l = image;
+        image = v.image;
+        v.image = l;
+        l = allocation;
+        allocation = v.allocation;
+        v.allocation = l;
+        l = imageView;
+        imageView = v.imageView;
+        v.imageView = l;
+        int k = viewKey;
+        viewKey = v.viewKey;
+        v.viewKey = k;
+        l = lastUsedFrame;
+        lastUsedFrame = v.lastUsedFrame;
+        v.lastUsedFrame = l;
+
+        for (int i = 0; i < SET_CACHE; i++) {
+            l = setSamplers[i];
+            setSamplers[i] = v.setSamplers[i];
+            v.setSamplers[i] = l;
+            l = sets[i];
+            sets[i] = v.sets[i];
+            v.sets[i] = l;
+            TextureDescriptors.Pool pool = setPools[i];
+            setPools[i] = v.setPools[i];
+            v.setPools[i] = pool;
+        }
+        k = setCount;
+        setCount = v.setCount;
+        v.setCount = k;
+
+        currentSet = 0L;
+        setDirty = true;
+        errorLogged = false;
     }
 
     /** Gives every cached descriptor set back (deferred) and forces a new one to be resolved on the next use. */

@@ -115,6 +115,69 @@ final class TextureCommands {
         }
     }
 
+    /** Copies {@code regions} (already filled, limit = region count) from {@code buffer} into {@code image} (in TRANSFER_DST). */
+    static void copyBufferToImageRegions(VkCommandBuffer cb, long buffer, long image, VkBufferImageCopy.Buffer regions) {
+        VK10.vkCmdCopyBufferToImage(cb, buffer, image, VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, regions);
+    }
+
+    /** Execution + memory dependency between two transfer writes (overlapping copy regions of one image). */
+    static void transferWriteBarrier(VkCommandBuffer cb) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            org.lwjgl.vulkan.VkMemoryBarrier.Buffer barrier = org.lwjgl.vulkan.VkMemoryBarrier.calloc(1, stack)
+                .sType(VK10.VK_STRUCTURE_TYPE_MEMORY_BARRIER)
+                .srcAccessMask(VK10.VK_ACCESS_TRANSFER_WRITE_BIT)
+                .dstAccessMask(VK10.VK_ACCESS_TRANSFER_WRITE_BIT);
+            VK10.vkCmdPipelineBarrier(cb, VK10.VK_PIPELINE_STAGE_TRANSFER_BIT, VK10.VK_PIPELINE_STAGE_TRANSFER_BIT, 0, barrier, null, null);
+        }
+    }
+
+    /**
+     * Moves the colour image of an offscreen render target between COLOR_ATTACHMENT_OPTIMAL (where it rests between passes, the layout
+     * of the phase-1 render passes) and TRANSFER_SRC_OPTIMAL.
+     */
+    static void targetBarrier(VkCommandBuffer cb, long image, boolean toTransferSrc) {
+        int oldLayout = toTransferSrc ? VK10.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK10.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        int newLayout = toTransferSrc ? VK10.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL : VK10.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        int srcStage = toTransferSrc ? VK10.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT : VK10.VK_PIPELINE_STAGE_TRANSFER_BIT;
+        int srcAccess = toTransferSrc ? VK10.VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT : 0;
+        int dstStage = toTransferSrc ? VK10.VK_PIPELINE_STAGE_TRANSFER_BIT : VK10.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        int dstAccess = toTransferSrc ? VK10.VK_ACCESS_TRANSFER_READ_BIT
+            : VK10.VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK10.VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            VkImageMemoryBarrier.Buffer barrier = VkImageMemoryBarrier.calloc(1, stack)
+                .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                .srcAccessMask(srcAccess)
+                .dstAccessMask(dstAccess)
+                .oldLayout(oldLayout)
+                .newLayout(newLayout)
+                .srcQueueFamilyIndex(VK10.VK_QUEUE_FAMILY_IGNORED)
+                .dstQueueFamilyIndex(VK10.VK_QUEUE_FAMILY_IGNORED)
+                .image(image);
+            barrier.subresourceRange().aspectMask(VK10.VK_IMAGE_ASPECT_COLOR_BIT).baseMipLevel(0).levelCount(1).baseArrayLayer(0).layerCount(1);
+            VK10.vkCmdPipelineBarrier(cb, srcStage, dstStage, 0, null, null, barrier);
+        }
+    }
+
+    /**
+     * Copies the GL rectangle (bottom-left origin, {@code srcHeight} rows) {@code sx0..sx1 x sy0..sy1} of {@code srcImage} (in
+     * TRANSFER_SRC) into level {@code dstLevel} of {@code dstImage} (in TRANSFER_DST) at ({@code dx0}, {@code dy0}). GL's bottom-up rows
+     * become top-down texture rows, so destination row j holds GL row sy0 + j (the vertical flip of glCopyTexSubImage2D).
+     */
+    static void blitFlipped(VkCommandBuffer cb, long srcImage, int srcHeight, int sx0, int sy0, int sx1, int sy1, long dstImage,
+                            int dstLevel, int dx0, int dy0) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            VkImageBlit.Buffer region = VkImageBlit.calloc(1, stack);
+            region.srcSubresource().aspectMask(VK10.VK_IMAGE_ASPECT_COLOR_BIT).mipLevel(0).baseArrayLayer(0).layerCount(1);
+            region.srcOffsets(0).set(sx0, srcHeight - sy0, 0);
+            region.srcOffsets(1).set(sx1, srcHeight - sy1, 1);
+            region.dstSubresource().aspectMask(VK10.VK_IMAGE_ASPECT_COLOR_BIT).mipLevel(dstLevel).baseArrayLayer(0).layerCount(1);
+            region.dstOffsets(0).set(dx0, dy0, 0);
+            region.dstOffsets(1).set(dx0 + (sx1 - sx0), dy0 + (sy1 - sy0), 1);
+            VK10.vkCmdBlitImage(cb, srcImage, VK10.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dstImage, VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                region, VK10.VK_FILTER_NEAREST);
+        }
+    }
+
     /** Copies the whole level {@code level} (w x h) into {@code buffer} at {@code offset}, tightly packed (image in TRANSFER_SRC). */
     static void copyImageToBuffer(VkCommandBuffer cb, long image, int level, int w, int h, long buffer, long offset) {
         try (MemoryStack stack = MemoryStack.stackPush()) {

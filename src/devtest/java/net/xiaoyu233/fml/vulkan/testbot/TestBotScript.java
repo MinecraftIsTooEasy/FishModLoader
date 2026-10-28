@@ -33,8 +33,7 @@ import net.minecraft.WorldSettings;
 import net.minecraft.WorldType;
 import net.minecraft.server.MinecraftServer;
 import net.xiaoyu233.fml.vulkan.core.RenderCore;
-import org.lwjgl.opengl.Display;
-import org.lwjgl.opengl.GL11;
+import net.xiaoyu233.fml.vulkan.window.NativeWindow;
 
 /**
  * The linear test script of the Vulkan port, structured like the one of the user's Twilight Forest test bot: every step is wrapped (exceptions are
@@ -45,7 +44,7 @@ import org.lwjgl.opengl.GL11;
  * item, HUD, entities, particles, block museum, water / lava overlays), 04_traverse (the traversal tour with waypoint screenshots and perf CSV),
  * 99_final.
  */
-final class TestBotScript {
+final class TestBotScript implements Stage {
     static final String WORLD = "vktest";
     static final long SEED = Long.getLong("fml.vulkan.testbot.seed", 20261027L);
     /** Multiplies every distance of the traversal route (0.25 for a quick smoke run, 1.0 = full tour). */
@@ -65,12 +64,16 @@ final class TestBotScript {
     private int wpCount;
     private double spawnX;
     private double spawnZ;
+    private boolean museumBuilt;
+    private double museumX;
+    private double museumZ;
 
     TestBotScript(TestBot bot) {
         this.bot = bot;
         this.mc = bot.mc;
         this.rep = bot.report;
         this.perf = bot.perf;
+        bot.setStage(this);
         for (String s : System.getProperty("fml.vulkan.testbot.skip", "").split(",")) {
             if (!s.isBlank()) {
                 skip.add(s.trim().toLowerCase(Locale.ROOT));
@@ -91,7 +94,7 @@ final class TestBotScript {
         String l = id.toLowerCase(Locale.ROOT);
         String name = l.substring(l.indexOf('_') + 1);
         for (String o : only) {
-            if (l.startsWith(o) || name.equals(o)) {
+            if (l.startsWith(o) || name.equals(o) || name.startsWith(o + "_")) {
                 return true;
             }
         }
@@ -99,7 +102,7 @@ final class TestBotScript {
     }
 
     private boolean needsWorld() {
-        return selected("03_world") || selected("04_traverse");
+        return selected("03_world") || selected("04_traverse") || selected("04b_dimensions") || selected("05_captures") && CaptureRunner.hasWorldScenes();
     }
 
     private interface Body {
@@ -120,6 +123,7 @@ final class TestBotScript {
         TestBot.log("step " + id + ": " + title);
         bot.status(title);
         perf.setLeg(id);
+        NativeChecks.Snapshot before = NativeChecks.snapshot();
         try {
             body.run(sec);
         } catch (Throwable t) {
@@ -131,6 +135,7 @@ final class TestBotScript {
             } catch (Exception ignored) {
                 // run aborted / shut down
             }
+            NativeChecks.report(sec, before, NativeChecks.snapshot());
             rep.end(sec);
         }
         return true;
@@ -139,6 +144,7 @@ final class TestBotScript {
     void run() throws Exception {
         step("00_startup", "00 Startup: device, capabilities, log scan", this::stepStartup);
         step("01_title", "01 Title screen and menus", this::stepTitle);
+        step("01c_captures_title", "01c Frozen captures: title and menu scenes (native-captures/NR-*.txt)", s -> new CaptureRunner(bot, this).runTitleScenes(s));
         if (needsWorld()) {
             step("02_enter", "02 Create / enter the test world", this::enterWorld);
             if (bot.isAborted() || mc.thePlayer == null) {
@@ -147,10 +153,102 @@ final class TestBotScript {
         }
         step("03_world", "03 World rendering: terrain, sky, time of day, hand, HUD, entities, particles", this::stepWorld);
         step("04_traverse", "04 Traversal tour: far flight in all directions, caves, overview, biomes, time of day, idle", this::stepTraverse);
+        step("04b_dimensions", "04b Dimensions: Overworld, Twilight Forest (when installed), MITE Underworld, Nether", this::stepDimensions);
+        step("05_captures", "05 Frozen captures: world scenes (native-captures/NR-*.txt)", s -> new CaptureRunner(bot, this).runWorldScenes(s));
+        step("06_commands", "06 Devtest commands (-Ptestbot_cmd=\"name args;name2\")", this::stepCommands);
         step("99_final", "99 Final log scan", s -> {
+            NativeChecks.writeMixinAudit(TestBot.TAG);
+            checkMixinAudit(s, true);
             s.markdown("Frame time per leg (every presented frame of the run, see the perf CSV for the raw data):\n\n" + perf.legTable());
             s.info("done", "all steps finished");
         });
+    }
+
+    // ================================================================== 06 devtest commands
+
+    /** Runs the commands named by {@code -Dfml.vulkan.testbot.cmd} ("name arg arg;name2 arg"), or lists every registered command when it is "list". */
+    void stepCommands(Report.Section s) throws Exception {
+        String spec = System.getProperty("fml.vulkan.testbot.cmd", "").trim();
+        if (spec.isEmpty() || spec.equals("list")) {
+            for (net.xiaoyu233.fml.vulkan.testbot.cmd.DevCommand c : net.xiaoyu233.fml.vulkan.testbot.cmd.DevCommands.all()) {
+                s.info("command " + c.name(), c.description());
+            }
+            return;
+        }
+        for (String one : spec.split(";")) {
+            String[] tok = one.trim().split("\\s+");
+            if (tok.length == 0 || tok[0].isEmpty()) {
+                continue;
+            }
+            net.xiaoyu233.fml.vulkan.testbot.cmd.DevCommand c = net.xiaoyu233.fml.vulkan.testbot.cmd.DevCommands.find(tok[0]);
+            if (c == null) {
+                s.fail("command " + tok[0], "unknown command (providers not landed in this tree?)");
+                continue;
+            }
+            try {
+                c.run(s, java.util.Arrays.copyOfRange(tok, 1, tok.length));
+                s.ok("command " + c.name() + " ran");
+            } catch (Throwable t) {
+                s.exception("command " + c.name(), t);
+            }
+        }
+    }
+
+    // ================================================================== Stage (capture scenes, package commands)
+
+    @Override
+    public double[] spawn() {
+        return new double[] {spawnX, spawnZ};
+    }
+
+    @Override
+    public double[] ensureMuseum() throws Exception {
+        if (!museumBuilt) {
+            Report.Section target = sec != null ? sec : rep.current();
+            buildMuseum(target != null ? target : rep.begin("museum", "museum"), spawnX, spawnZ);
+        }
+        return new double[] {museumX, 181.0, museumZ};
+    }
+
+    /** Empty terrain queue; an unknown queue (-1) is NOT quiet when the native terrain is active, because then the phase-1 list proves nothing. */
+    private boolean quietPending() throws Exception {
+        int p = perf.pendingUpdates(mc);
+        if (p < 0) {
+            return !net.xiaoyu233.fml.vulkan.VulkanConfig.nativeEnabled();
+        }
+        return p == 0;
+    }
+
+    @Override
+    public boolean quietFrames(int frames, int maxFrames) throws Exception {
+        long end = bot.frameCount() + maxFrames;
+        while (bot.frameCount() < end) {
+            if (perf.quietFrameRun() >= frames && quietPending()) {
+                return true;
+            }
+            bot.frames(1);
+        }
+        return perf.quietFrameRun() >= frames;
+    }
+
+    /**
+     * The mixin apply audit (7.1.3): at the end of the run every listed mixin of the enabled native areas must be applied (a failure when
+     * {@code fml.vulkan.forceLoadGameClasses=true}, a warning otherwise because game classes that were never loaded were never transformed); during the run it is information.
+     */
+    void checkMixinAudit(Report.Section s, boolean last) {
+        java.util.List<String> missing = NativeChecks.missingMixins();
+        if (missing == null) {
+            s.info("mixin audit", "NativeMixinPlugin not available in this tree");
+        } else if (missing.isEmpty()) {
+            s.ok("mixin audit: every listed mixin of the enabled native areas applied (" + NativeChecks.appliedMixins() + " applications)");
+        } else if (!last) {
+            s.info("mixin audit (so far)", missing.size() + " listed mixins not applied yet (classes load lazily): " + missing.subList(0, Math.min(8, missing.size())));
+        } else if (net.xiaoyu233.fml.vulkan.VulkanConfig.forceLoadGameClasses()) {
+            s.fail("mixin audit", missing.size() + " listed mixins never applied: " + missing.subList(0, Math.min(20, missing.size())));
+        } else {
+            s.warn("mixin audit", missing.size() + " listed mixins never applied (their targets were never loaded; run with -Pvk.forceLoadGameClasses=true for the gate): "
+                + missing.subList(0, Math.min(20, missing.size())));
+        }
     }
 
     // ================================================================== helpers
@@ -168,7 +266,8 @@ final class TestBotScript {
     }
 
     /** Server side: flying, invulnerable, no fall damage, no mobs / daylight cycle (screenshots must be repeatable). */
-    void prepPlayer() throws Exception {
+    @Override
+    public void prepPlayer() throws Exception {
         bot.server(() -> {
             ServerPlayer p = sp();
             p.setGameType(EnumGameType.CREATIVE);
@@ -178,21 +277,13 @@ final class TestBotScript {
             p.sendPlayerAbilities();
             p.fallDistance = 0.0F;
             p.setHealth(p.getMaxHealth());
-            for (WorldServer w : srv().worldServers) {
-                if (w != null) {
-                    try {
-                        w.getGameRules().setOrCreateGameRule("doDaylightCycle", "false");
-                        w.getGameRules().setOrCreateGameRule("doMobSpawning", "false");
-                    } catch (Throwable ignored) {
-                        // game rule API differs: not fatal
-                    }
-                }
-            }
+            Frozen.prepareServer(srv().worldServers);
         });
     }
 
     /** Server side teleport (the player entity stands at feetY) and waits until the client agrees; then pins the exact pose on the client. */
-    boolean place(double x, double feetY, double z, float yaw, float pitch) throws Exception {
+    @Override
+    public boolean place(double x, double feetY, double z, float yaw, float pitch) throws Exception {
         bot.server(() -> {
             ServerPlayer p = sp();
             p.fallDistance = 0.0F;
@@ -217,7 +308,8 @@ final class TestBotScript {
         return ok;
     }
 
-    void look(float yaw, float pitch) throws Exception {
+    @Override
+    public void look(float yaw, float pitch) throws Exception {
         bot.client(() -> setLook(yaw, pitch));
     }
 
@@ -243,14 +335,15 @@ final class TestBotScript {
      * Waits until the chunk renderer queue stayed empty for {@code quietTicks} consecutive ticks (after at least {@code minTicks}), or {@code maxTicks}
      * passed. Returns the seconds it took; the queue length at the end is reported when the limit was hit.
      */
-    double settle(int minTicks, int quietTicks, int maxTicks) throws Exception {
+    @Override
+    public double settle(int minTicks, int quietTicks, int maxTicks) throws Exception {
         long start = System.currentTimeMillis();
         int quiet = 0;
         long lastTotal = bot.client(() -> perf.chunkUpdatesTotal());
         for (int i = 0; i < maxTicks; i++) {
             long[] st = bot.client(() -> new long[] {perf.chunkUpdatesTotal(), perf.pendingUpdates(mc)});
             long total = st[0];
-            boolean idle = total == lastTotal || st[1] <= 0;
+            boolean idle = st[1] >= 0 ? (st[1] == 0 || total == lastTotal) : (total == lastTotal && !net.xiaoyu233.fml.vulkan.VulkanConfig.nativeEnabled());
             lastTotal = total;
             if (i >= minTicks) {
                 quiet = idle ? quiet + 1 : 0;
@@ -305,9 +398,19 @@ final class TestBotScript {
     // ================================================================== 00 startup
 
     void stepStartup(Report.Section s) throws Exception {
+        s.info("dev commands", net.xiaoyu233.fml.vulkan.testbot.cmd.DevCommands.describe());
+        if (!net.xiaoyu233.fml.vulkan.testbot.cmd.DevCommands.problems().isEmpty()) {
+            s.fail("dev commands", "provider problems: " + net.xiaoyu233.fml.vulkan.testbot.cmd.DevCommands.problems());
+        }
+        if (net.xiaoyu233.fml.vulkan.testbot.cmd.DevCommands.providers().size() != net.xiaoyu233.fml.vulkan.testbot.cmd.DevCommands.PACKAGE_COUNT) {
+            s.warn("dev commands", "providers " + net.xiaoyu233.fml.vulkan.testbot.cmd.DevCommands.providers().size() + " != " + net.xiaoyu233.fml.vulkan.testbot.cmd.DevCommands.PACKAGE_COUNT + " (packages not landed in this tree)");
+        }
         for (String l : TestBot.startupLog()) {
             s.warn("startup log", l);
         }
+        s.info("frozen-world mode", Frozen.active() ? "ON (fml.vulkan.frozen=true): no time progress, no random/ambiance ticks, capture windows pause the client tick and fix partial tick and clock"
+            : "off (-Pvk.frozen=true turns it on)");
+        checkMixinAudit(s, false);
         try {
             net.xiaoyu233.fml.vulkan.core.DeviceInfo d = RenderCore.deviceInfo();
             s.info("device", d.vendorName() + " " + d.deviceName() + ", driver " + d.driverInfo() + ", Vulkan api 0x" + Integer.toHexString(d.apiVersion()) + ", MoltenVK " + d.isMoltenVK()
@@ -316,13 +419,9 @@ final class TestBotScript {
         } catch (Throwable t) {
             s.warn("device", "RenderCore.deviceInfo() failed: " + t);
         }
-        s.info("window", Display.getWidth() + "x" + Display.getHeight() + " framebuffer pixels, framebuffer of the game " + bot.client(() -> mc.displayWidth + "x" + mc.displayHeight));
-        // GL calls are only valid on the render thread
-        String[] gl = bot.client(() -> new String[] {GL11.glGetString(GL11.GL_VENDOR), GL11.glGetString(GL11.GL_RENDERER), GL11.glGetString(GL11.GL_VERSION), GL11.glGetString(GL11.GL_EXTENSIONS)});
-        s.info("GL strings", gl[0] + " | " + gl[1] + " | " + gl[2]);
-        String ext = gl[3];
-        s.check(ext != null && !ext.contains("GL_EXT_framebuffer_object") && !ext.contains("GL_ARB_shader_objects"), "GL 2.0 shader programs and FBOs are reported unsupported (mods disable themselves)",
-            "extension string advertises shader objects / FBO: " + ext);
+        s.info("window", NativeWindow.width() + "x" + NativeWindow.height() + " framebuffer pixels, framebuffer of the game " + bot.client(() -> mc.displayWidth + "x" + mc.displayHeight));
+        s.info("renderer", "native " + net.xiaoyu233.fml.vulkan.VulkanConfig.nativeEnabled() + ", off areas '" + System.getProperty("fml.vulkan.native.off", "") + "', frozen "
+            + Frozen.active() + ", validation " + net.xiaoyu233.fml.vulkan.VulkanConfig.validation());
         s.info("options", "viewDistance index " + bot.client(() -> mc.gameSettings.getRenderDistance()) + ", fancy graphics " + bot.client(() -> mc.gameSettings.isFancyGraphicsEnabled())
             + ", testbot scale " + SCALE + ", seed " + SEED + ", server view distance property " + Integer.getInteger("fml.vulkan.testbot.viewDistance", 0)
             + ", vsync property " + System.getProperty("fml.vulkan.vsync") + ", presentMode " + System.getProperty("fml.vulkan.presentMode"));
@@ -432,6 +531,13 @@ final class TestBotScript {
         double[] sp = bot.client(() -> new double[] {mc.thePlayer.posX, mc.thePlayer.boundingBox.minY, mc.thePlayer.posZ});
         spawnX = sp[0];
         spawnZ = sp[2];
+        if (Frozen.active()) {
+            // the spawn column is random (MITE picks it with an unseeded RNG): scenes are built around a fixed column so that two runs show identical worlds
+            spawnX = 0.5;
+            spawnZ = 0.5;
+            place(spawnX, 120, spawnZ, 0.0F, 0.0F);
+            s.info("frozen spawn", "scenes are built around the fixed column 0.5 / 0.5 (random spawn was " + fmt(sp[0]) + " / " + fmt(sp[2]) + ")");
+        }
         s.info("spawn", fmt(sp[0]) + " / " + fmt(sp[1]) + " / " + fmt(sp[2]));
         double settled = settle(40, 40, 1200);
         s.info("first chunks", "renderer queue empty after " + fmt(settled) + " s, queue now " + pending());
@@ -649,12 +755,15 @@ final class TestBotScript {
      * waits until the client world shows it; reports how many ticks that took. World time keeps running (MITE ignores doDaylightCycle), the drift during a
      * screenshot is a few dozen ticks.
      */
-    void setTimeOfDay(long t) throws Exception {
+    @Override
+    public void setTimeOfDay(long t) throws Exception {
         long t0 = bot.tickCount();
         bot.server(() -> {
             for (WorldServer w : srv().worldServers) {
                 if (w != null && w.provider.dimensionId == 0) {
-                    w.setTotalWorldTime(w.getTotalWorldTimeAtStartOfToday() + t, true);
+                    // day 1 starts at total time -6000: adjusted times below 6000 would clamp to 0, so they are taken from the next day
+                    long base = w.getTotalWorldTimeAtStartOfToday();
+                    w.setTotalWorldTime(base + t < 0 ? base + 24000L + t : base + t, true);
                 }
             }
         });
@@ -675,9 +784,12 @@ final class TestBotScript {
         bot.ticks(3);
     }
 
-    private void buildMuseum(Report.Section s, double gx, double gz) throws Exception {
+    void buildMuseum(Report.Section s, double gx, double gz) throws Exception {
         int cx = (int) Math.floor(gx);
         int cz = (int) Math.floor(gz);
+        museumBuilt = true;
+        museumX = cx + 0.5;
+        museumZ = cz + 0.5;
         bot.server(() -> {
             WorldServer w = swOf(sp());
             // platform 49 x 25 at y=180 (stone), glass fence ring
@@ -701,7 +813,9 @@ final class TestBotScript {
                     w.setBlock(x, 181, cz - 1, 65, 2, 2);
                     w.setBlock(x, 182, cz - 1, 65, 2, 2);
                 } else {
-                    w.setBlock(x, 181, cz, MUSEUM_ROW[i][0], MUSEUM_ROW[i][1], 2);
+                    // ice next to the glowstone melts into flowing water that keeps re-meshing: snow block in frozen-world mode
+                    int id = Frozen.active() && MUSEUM_ROW[i][0] == 79 ? 80 : MUSEUM_ROW[i][0];
+                    w.setBlock(x, 181, cz, id, MUSEUM_ROW[i][1], 2);
                 }
             }
             // plants on grass: dandelion, rose, tall grass, sapling, cactus on sand, wheat-like crops
@@ -709,16 +823,20 @@ final class TestBotScript {
             int[][] plants = {{37, 0}, {38, 0}, {31, 1}, {6, 0}, {81, 0}, {83, 0}};
             for (int i = 0; i < plants.length; i++) {
                 int x = px + i * 2;
-                boolean cactus = plants[i][0] == 81 || plants[i][0] == 83;
+                // sugar cane (83) without water next to it pops off as a bobbing item entity (random hover phase): a second rose in frozen-world mode
+                int plant = Frozen.active() && plants[i][0] == 83 ? 38 : plants[i][0];
+                boolean cactus = plant == 81 || plant == 83;
                 w.setBlock(x, 180, cz + 3, cactus ? 12 : 2, 0, 2);
-                w.setBlock(x, 181, cz + 3, plants[i][0], plants[i][1], 2);
+                w.setBlock(x, 181, cz + 3, plant, plants[i][1], 2);
             }
             // water pool (stone rim, 3x3 source blocks) and lava pool
+            // (frozen-world mode: fluids spread and re-mesh by themselves, so the pools are solid stone there and the scenes stay reproducible)
+            boolean fluids = !Frozen.active();
             for (int dx = -2; dx <= 2; dx++) {
                 for (int dz = -2; dz <= 2; dz++) {
                     boolean rim = Math.abs(dx) == 2 || Math.abs(dz) == 2;
-                    w.setBlock(cx + 8 + dx, 181, cz + 6 + dz, rim ? 1 : 9, 0, 2);
-                    w.setBlock(cx + 14 + dx, 181, cz + 6 + dz, rim ? 1 : 11, 0, 2);
+                    w.setBlock(cx + 8 + dx, 181, cz + 6 + dz, rim || !fluids ? 1 : 9, 0, 2);
+                    w.setBlock(cx + 14 + dx, 181, cz + 6 + dz, rim || !fluids ? 1 : 11, 0, 2);
                 }
             }
             // glass pane wall + stained glass-like wool colours
@@ -744,7 +862,7 @@ final class TestBotScript {
         bot.ticks(10);
     }
 
-    private void giveHotbar() throws Exception {
+    void giveHotbar() throws Exception {
         Item[] items = {Item.swordIron, Item.pickaxeIron, null, Item.appleRed, null};
         int[] blockIds = {0, 0, 50, 0, 1};
         bot.server(() -> {
@@ -766,7 +884,7 @@ final class TestBotScript {
         bot.ticks(5);
     }
 
-    private List<Integer> spawnMobs(double cx, double cz) throws Exception {
+    List<Integer> spawnMobs(double cx, double cz) throws Exception {
         String[] names = {"Pig", "Cow", "Sheep", "Chicken", "Zombie", "Skeleton", "Creeper", "Spider", "Villager", "Wolf", "Horse", "Slime"};
         return bot.server(() -> {
             WorldServer w = swOf(sp());
@@ -940,6 +1058,97 @@ final class TestBotScript {
     }
 
     // ================================================================== 04 traverse
+
+    /**
+     * Dimension tour (runtime debugger round): enters each dimension by a server side {@code travelToDimension}, waits for the client world, places the player
+     * above the terrain, settles, takes four waypoint shots, flies a short line in steps and returns to the Overworld at the end.
+     */
+    void stepDimensions(Report.Section s) throws Exception {
+        wpRows.clear();
+        wpCount = 0;
+        Integer tf = null;
+        try {
+            tf = (Integer) Class.forName("twilightforest.dimension.TFDimension").getField("id").get(null);
+        } catch (ReflectiveOperationException | LinkageError e) {
+            s.info("twilight forest", "mod not installed: segment skipped");
+        }
+        int[] ids = tf == null ? new int[] {0, -2, -1} : new int[] {0, tf, -2, -1};
+        String[] names = tf == null ? new String[] {"overworld", "underworld", "nether"} : new String[] {"overworld", "tf", "underworld", "nether"};
+        for (int k = 0; k < ids.length; k++) {
+            final int id = ids[k];
+            String leg = "d" + k + "_" + names[k];
+            perf.setLeg(leg);
+            int now = bot.client(() -> mc.theWorld.getDimensionId());
+            if (now != id) {
+                bot.server(() -> {
+                    sp().travelToDimension(id);
+                    sp().timeUntilPortal = 100000; // the arrival portal would send the player straight back on the next ticks
+                });
+                boolean arrived = bot.waitFor(() -> mc.theWorld != null && mc.thePlayer != null && mc.theWorld.getDimensionId() == id, 1200);
+                s.check(arrived, "arrived in dimension " + id, "did not arrive in dimension " + id);
+                if (!arrived) {
+                    continue;
+                }
+                // the arrival portal sends the player straight back after a few ticks: block that before ticking at all
+                bot.server(() -> {
+                    sp().timeUntilPortal = 100000;
+                });
+                bot.ticks(4);
+            }
+            final int expect = id;
+            s.check(bot.client(() -> mc.theWorld.getDimensionId()) == expect, "still in dimension " + id + " after arrival", "portal sent the player back out of dimension " + id);
+            prepPlayer();
+            double[] p = bot.client(() -> new double[] {mc.thePlayer.posX, mc.thePlayer.posY, mc.thePlayer.posZ});
+            double x = Math.floor(p[0]) + 0.5;
+            double z = Math.floor(p[2]) + 0.5;
+            double y = p[1];
+            if (id == 0 || tf != null && id == tf) {
+                y = Math.max(y, bot.client(() -> mc.theWorld.getHeightValue((int) Math.floor(p[0]), (int) Math.floor(p[2]))) + 12.0);
+            } else if (id == -1) {
+                // the nether is mostly solid: find an open pocket (5 air blocks in a column) near the arrival point
+                final int fx = (int) Math.floor(x);
+                final int fz = (int) Math.floor(z);
+                y = bot.client(() -> {
+                    for (int yy = 40; yy < 110; yy++) {
+                        boolean open = true;
+                        for (int dy = 0; dy < 5 && open; dy++) {
+                            open = mc.theWorld.isAirBlock(fx, yy + dy, fz);
+                        }
+                        if (open) {
+                            return yy + 1.0;
+                        }
+                    }
+                    return 64.0;
+                });
+            } else {
+                y = Math.max(y, 60.0);
+            }
+            place(x, y, z, 0.0F, 10.0F);
+            double sec = settle(40, 40, 900);
+            s.info(leg, "provider " + bot.client(() -> mc.theWorld.provider.getClass().getName() + " dim=" + mc.theWorld.provider.dimensionId + " hell=" + mc.theWorld.provider.isHellWorld + " nether=" + mc.theWorld.isTheNether() + " mgr=" + mc.theWorld.provider.worldChunkMgr.getClass().getSimpleName() + " srv=" + mc.theWorld.getClass().getSimpleName()) + " serverProvider " + bot.server(() -> sp().worldObj.provider.getClass().getName() + " " + sp().worldObj.getDimensionId()));
+            s.info(leg, "arrived at " + fmt(x) + " / " + fmt(y) + " / " + fmt(z) + ", settled in " + fmt(sec) + " s");
+            for (int yaw = 0; yaw < 360; yaw += 90) {
+                place(x, y, z, yaw, 10.0F);
+                bot.ticks(8);
+                shot(s, leg + "_yaw" + yaw);
+            }
+            // short flight: 6 steps of 24 blocks along +X, looking along the flight direction
+            for (int i = 1; i <= 6; i++) {
+                place(x + 24.0 * i, y, z, 270.0F, 8.0F);
+                settle(10, 10, 300);
+            }
+            bot.ticks(8);
+            shot(s, leg + "_flight_end");
+        }
+        // back to the Overworld so later steps find their usual world
+        int now = bot.client(() -> mc.theWorld.getDimensionId());
+        if (now != 0) {
+            bot.server(() -> sp().travelToDimension(0));
+            bot.waitFor(() -> mc.theWorld != null && mc.thePlayer != null && mc.theWorld.getDimensionId() == 0, 1200);
+            bot.ticks(20);
+        }
+        s.markdown("Waypoint screenshots:\n\n" + wpTable());
+    }
 
     void stepTraverse(Report.Section s) throws Exception {
         wpRows.clear();
@@ -1157,7 +1366,11 @@ final class TestBotScript {
         int cz = (int) Math.floor(oz) + 10;
         int cy = (int) y - 3;
         bot.ticks(20);
+        setTimeOfDay(6000);
+        bot.ticks(3);
         String a = bot.screenshot(s, "t60_stale_a_before");
+        bot.ticks(7);
+        String a2 = bot.screenshot(s, "t60_stale_a2_before_again"); // noise floor (rain / clouds / animated textures move between frames)
         bot.server(() -> {
             WorldServer w = swOf(sp());
             for (int x = 0; x < 5; x++) {
@@ -1170,6 +1383,8 @@ final class TestBotScript {
         });
         settle(10, 30, 600);
         bot.ticks(10);
+        setTimeOfDay(6000);
+        bot.ticks(3);
         String b = bot.screenshot(s, "t60_stale_b_cube");
         bot.server(() -> {
             WorldServer w = swOf(sp());
@@ -1183,8 +1398,10 @@ final class TestBotScript {
         });
         settle(10, 30, 600);
         bot.ticks(10);
+        setTimeOfDay(6000);
+        bot.ticks(3);
         String c = bot.screenshot(s, "t60_stale_c_after");
-        if (a != null && b != null && c != null) {
+        if (a != null && a2 != null && b != null && c != null) {
             BufferedImage ia = ImageStats.read(a);
             BufferedImage ib = ImageStats.read(b);
             BufferedImage ic = ImageStats.read(c);
@@ -1192,7 +1409,9 @@ final class TestBotScript {
             double ac = ImageStats.meanAbsDiff(ia, ic, 0.3, 0.2, 0.4, 0.6);
             s.info("stale chunk test", "before vs cube " + fmt(ab) + ", before vs after removal " + fmt(ac) + " (mean abs diff 0..255 in the centre box)");
             s.check(ab > 2.0, "the cube is visible while it exists", "no visible change when the cube was placed (diff " + fmt(ab) + "): stale chunk mesh");
-            s.check(ac < ab * 0.35 + 0.5, "the frame after removal matches the frame before", "cube still visible after removal (diff " + fmt(ac) + " vs " + fmt(ab) + "): stale chunk mesh");
+            double noise = ImageStats.meanAbsDiff(ia, ImageStats.read(a2), 0.3, 0.2, 0.4, 0.6);
+            s.info("stale chunk test", "noise floor (two frames before) " + fmt(noise));
+            s.check(ac < Math.max(ab * 0.35 + 0.5, noise * 1.5 + 1.0), "the frame after removal matches the frame before", "cube still visible after removal (diff " + fmt(ac) + " vs " + fmt(ab) + "): stale chunk mesh");
         }
     }
 

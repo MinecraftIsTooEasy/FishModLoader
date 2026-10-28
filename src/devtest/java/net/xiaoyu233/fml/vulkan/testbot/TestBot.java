@@ -13,10 +13,7 @@ import net.minecraft.server.MinecraftServer;
 import net.xiaoyu233.fml.vulkan.VulkanConfig;
 import net.xiaoyu233.fml.vulkan.core.RenderCore;
 import org.lwjgl.input.Mouse;
-import org.lwjgl.opengl.Display;
-import org.lwjgl.opengl.DisplayMode;
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.util.glu.GLU;
+import net.xiaoyu233.fml.vulkan.window.NativeWindow;
 
 /**
  * Infrastructure of the dev-only client test bot of the Vulkan port, modelled on the test bot of the user's Twilight Forest port
@@ -65,6 +62,30 @@ public final class TestBot {
         }
     }
 
+    /** The running bot (created by the first client tick) or null. */
+    public static TestBot get() {
+        return instance;
+    }
+
+    private volatile Stage stage;
+
+    /** The scripted world (null until the script thread started). */
+    public Stage stage() {
+        return stage;
+    }
+
+    void setStage(Stage s) {
+        this.stage = s;
+    }
+
+    public Minecraft minecraft() {
+        return mc;
+    }
+
+    public Report report() {
+        return report;
+    }
+
     public static void log(String msg) {
         System.out.println(PREFIX + msg);
     }
@@ -106,7 +127,6 @@ public final class TestBot {
             }
         }
         bot.drain(bot.clientTasks);
-        bot.glCheck("client tick");
     }
 
     /** End of a game loop iteration (the frame that will be presented at the start of the next one is fully recorded). */
@@ -118,7 +138,6 @@ public final class TestBot {
         bot.frames++;
         bot.perf.onFrame(mc);
         bot.drain(bot.renderTasks);
-        bot.glCheck("frame");
     }
 
     public static void onServerTick(MinecraftServer server) {
@@ -225,13 +244,18 @@ public final class TestBot {
         if (!windowPlaced && ticks > 20) {
             windowPlaced = true;
             try {
-                DisplayMode desktop = Display.getDesktopDisplayMode();
-                int dw = desktop.getWidth();
-                int dh = desktop.getHeight();
-                int x = Math.max(0, (dw - Display.getWidth()) / 2);
-                int y = Math.max(40, (dh - Display.getHeight()) / 2 - 20);
-                Display.setLocation(x, y);
-                log("window " + Display.getWidth() + "x" + Display.getHeight() + " placed at " + x + "," + y + " (desktop " + dw + "x" + dh + ")");
+                int[] desktop = NativeWindow.desktopMode();
+                int dw = desktop[0];
+                int dh = desktop[1];
+                int x = Math.max(0, (dw - NativeWindow.width()) / 2);
+                int y = Math.max(40, (dh - NativeWindow.height()) / 2 - 20);
+                // no org.lwjgl.opengl in tooling (rule 3): the optional NativeWindow.setPosition(int,int) (contract request) is used when it exists
+                try {
+                    NativeWindow.class.getMethod("setPosition", int.class, int.class).invoke(null, x, y);
+                } catch (NoSuchMethodException e) {
+                    log("NativeWindow.setPosition not available: window left where the system put it");
+                }
+                log("window " + NativeWindow.width() + "x" + NativeWindow.height() + " placed at " + x + "," + y + " (desktop " + dw + "x" + dh + ")");
             } catch (Throwable t) {
                 log("could not position the window: " + t);
             }
@@ -250,7 +274,7 @@ public final class TestBot {
         String title = "VK TestBot - " + text;
         clientTasks.add(new Task<>(() -> {
             try {
-                Display.setTitle(title);
+                NativeWindow.setTitle(title);
             } catch (Throwable ignored) {
             }
             return null;
@@ -268,18 +292,6 @@ public final class TestBot {
         Task<?> t;
         while ((t = q.poll()) != null) {
             t.execute();
-        }
-    }
-
-    private void glCheck(String where) {
-        int err = GL11.glGetError();
-        if (err != 0) {
-            Report.Section s = report.current();
-            String what = err + " (" + GLU.gluErrorString(err) + ")";
-            if (s != null) {
-                s.glError(where, what);
-            }
-            log("GL error after " + where + ": " + what + (s != null ? " in step " + s.id : ""));
         }
     }
 

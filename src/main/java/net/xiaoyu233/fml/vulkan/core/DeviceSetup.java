@@ -10,8 +10,11 @@ import org.lwjgl.util.vma.Vma;
 import org.lwjgl.util.vma.VmaAllocatorCreateInfo;
 import org.lwjgl.util.vma.VmaVulkanFunctions;
 import org.lwjgl.vulkan.EXTDebugUtils;
+import org.lwjgl.vulkan.EXTExtendedDynamicState;
 import org.lwjgl.vulkan.KHRPortabilityEnumeration;
 import org.lwjgl.vulkan.KHRPortabilitySubset;
+import org.lwjgl.vulkan.KHRPresentId;
+import org.lwjgl.vulkan.KHRPresentWait;
 import org.lwjgl.vulkan.KHRSurface;
 import org.lwjgl.vulkan.KHRSwapchain;
 import org.lwjgl.vulkan.VK;
@@ -33,10 +36,13 @@ import org.lwjgl.vulkan.VkInstanceCreateInfo;
 import org.lwjgl.vulkan.VkLayerProperties;
 import org.lwjgl.vulkan.VkPhysicalDevice;
 import org.lwjgl.vulkan.VkPhysicalDeviceDriverProperties;
+import org.lwjgl.vulkan.VkPhysicalDeviceExtendedDynamicStateFeaturesEXT;
 import org.lwjgl.vulkan.VkPhysicalDeviceFeatures;
 import org.lwjgl.vulkan.VkPhysicalDeviceFeatures2;
 import org.lwjgl.vulkan.VkPhysicalDeviceMemoryProperties;
 import org.lwjgl.vulkan.VkPhysicalDevicePortabilitySubsetFeaturesKHR;
+import org.lwjgl.vulkan.VkPhysicalDevicePresentIdFeaturesKHR;
+import org.lwjgl.vulkan.VkPhysicalDevicePresentWaitFeaturesKHR;
 import org.lwjgl.vulkan.VkPhysicalDeviceProperties;
 import org.lwjgl.vulkan.VkPhysicalDeviceProperties2;
 import org.lwjgl.vulkan.VkQueue;
@@ -90,6 +96,8 @@ final class DeviceSetup {
         long allocator;
 
         DeviceInfo info;
+        /** Optional capabilities enabled by {@link DeviceSetup#createDevice}. */
+        DeviceCaps caps = DeviceCaps.NONE;
         /**
          * Unified memory: an integrated / Apple GPU whose DEVICE_LOCAL | HOST_VISIBLE | HOST_COHERENT memory is (about) all of its memory
          * (see {@link DeviceSetup#isUnifiedMemory}), so static buffers can be written directly instead of being staged.
@@ -772,9 +780,13 @@ final class DeviceSetup {
     private static void createDevice(Context c) {
         List<String> extensions = new ArrayList<>();
         extensions.add(KHRSwapchain.VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-        if (c.deviceExtensions.contains(KHRPortabilitySubset.VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
+        boolean portability = c.deviceExtensions.contains(KHRPortabilitySubset.VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
+        if (portability) {
             extensions.add(KHRPortabilitySubset.VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME); // mandatory to enable when exposed (MoltenVK)
         }
+        boolean offersEds = c.deviceExtensions.contains(EXTExtendedDynamicState.VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME);
+        boolean offersPresentWait = c.deviceExtensions.contains(KHRPresentId.VK_KHR_PRESENT_ID_EXTENSION_NAME)
+                && c.deviceExtensions.contains(KHRPresentWait.VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkDeviceQueueCreateInfo.Buffer queueInfo = VkDeviceQueueCreateInfo.calloc(1, stack)
@@ -782,12 +794,69 @@ final class DeviceSetup {
                     .queueFamilyIndex(c.queueFamily)
                     .pQueuePriorities(stack.floats(1.0f));
 
+            // what the device supports of the optional features: one vkGetPhysicalDeviceFeatures2 query with every candidate struct chained
+            // (a struct of an extension the device does not expose must not be chained)
+            VkPhysicalDeviceFeatures supported = VkPhysicalDeviceFeatures.malloc(stack);
+            vkGetPhysicalDeviceFeatures(c.physicalDevice, supported);
+            VkPhysicalDevicePortabilitySubsetFeaturesKHR portabilityFeatures = portability
+                    ? VkPhysicalDevicePortabilitySubsetFeaturesKHR.calloc(stack).sType$Default() : null;
+            VkPhysicalDeviceExtendedDynamicStateFeaturesEXT edsFeatures = offersEds
+                    ? VkPhysicalDeviceExtendedDynamicStateFeaturesEXT.calloc(stack).sType$Default() : null;
+            VkPhysicalDevicePresentIdFeaturesKHR presentIdFeatures = offersPresentWait
+                    ? VkPhysicalDevicePresentIdFeaturesKHR.calloc(stack).sType$Default() : null;
+            VkPhysicalDevicePresentWaitFeaturesKHR presentWaitFeatures = offersPresentWait
+                    ? VkPhysicalDevicePresentWaitFeaturesKHR.calloc(stack).sType$Default() : null;
+            long queryChain = 0L;
+            if (portabilityFeatures != null) {
+                portabilityFeatures.pNext(queryChain);
+                queryChain = portabilityFeatures.address();
+            }
+            if (edsFeatures != null) {
+                edsFeatures.pNext(queryChain);
+                queryChain = edsFeatures.address();
+            }
+            if (presentIdFeatures != null) {
+                presentIdFeatures.pNext(queryChain);
+                queryChain = presentIdFeatures.address();
+                presentWaitFeatures.pNext(queryChain);
+                queryChain = presentWaitFeatures.address();
+            }
+            if (queryChain != 0L) {
+                VkPhysicalDeviceFeatures2 features2 = VkPhysicalDeviceFeatures2.calloc(stack).sType$Default().pNext(queryChain);
+                VK11.vkGetPhysicalDeviceFeatures2(c.physicalDevice, features2);
+            }
+            boolean eds = edsFeatures != null && edsFeatures.extendedDynamicState();
+            boolean presentWait = presentIdFeatures != null && presentIdFeatures.presentId() && presentWaitFeatures.presentWait();
+
+            // the enabled chain: portability (every optional portability feature the device offers: swizzled image views, sampler LOD
+            // bias, ...) and only those optional structs whose extension is enabled
+            long chain = 0L;
+            if (portabilityFeatures != null) {
+                portabilityFeatures.pNext(chain);
+                chain = portabilityFeatures.address();
+            }
+            if (eds) {
+                extensions.add(EXTExtendedDynamicState.VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME);
+                edsFeatures.pNext(chain);
+                chain = edsFeatures.address();
+            }
+            if (presentWait) {
+                extensions.add(KHRPresentId.VK_KHR_PRESENT_ID_EXTENSION_NAME);
+                extensions.add(KHRPresentWait.VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
+                presentIdFeatures.pNext(chain);
+                chain = presentIdFeatures.address();
+                presentWaitFeatures.pNext(chain);
+                chain = presentWaitFeatures.address();
+            }
+
             // calloc: every feature we do not name must be VK_FALSE (a malloc'd struct enables random features)
             VkPhysicalDeviceFeatures features = VkPhysicalDeviceFeatures.calloc(stack)
                     .wideLines(c.info.wideLines())
                     .fillModeNonSolid(c.info.fillModeNonSolid())
                     .samplerAnisotropy(c.info.samplerAnisotropy())
-                    .logicOp(c.info.logicOp());
+                    .logicOp(c.info.logicOp())
+                    .multiDrawIndirect(supported.multiDrawIndirect())
+                    .drawIndirectFirstInstance(supported.drawIndirectFirstInstance());
 
             PointerBuffer ppExtensions = stack.mallocPointer(extensions.size());
             for (String extension : extensions) {
@@ -800,9 +869,8 @@ final class DeviceSetup {
                     .pQueueCreateInfos(queueInfo)
                     .ppEnabledExtensionNames(ppExtensions)
                     .pEnabledFeatures(features);
-            if (extensions.contains(KHRPortabilitySubset.VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
-                // enables every optional portability feature the device offers (swizzled image views, sampler LOD bias, ...)
-                createInfo.pNext(queryPortabilityFeatures(c.physicalDevice, stack).address());
+            if (chain != 0L) {
+                createInfo.pNext(chain);
             }
 
             PointerBuffer pDevice = stack.mallocPointer(1);
@@ -812,6 +880,23 @@ final class DeviceSetup {
             PointerBuffer pQueue = stack.mallocPointer(1);
             vkGetDeviceQueue(c.device, c.queueFamily, 0, pQueue);
             c.queue = new VkQueue(pQueue.get(0), c.device);
+
+            // timestamps of the graphics queue family
+            int validBits = 0;
+            IntBuffer pCount = stack.mallocInt(1);
+            vkGetPhysicalDeviceQueueFamilyProperties(c.physicalDevice, pCount, null);
+            VkQueueFamilyProperties.Buffer families = VkQueueFamilyProperties.malloc(pCount.get(0), stack);
+            vkGetPhysicalDeviceQueueFamilyProperties(c.physicalDevice, pCount, families);
+            if (c.queueFamily < pCount.get(0)) {
+                validBits = families.get(c.queueFamily).timestampValidBits();
+            }
+            VkPhysicalDeviceProperties props = VkPhysicalDeviceProperties.malloc(stack);
+            vkGetPhysicalDeviceProperties(c.physicalDevice, props);
+            c.caps = new DeviceCaps(supported.multiDrawIndirect(), supported.drawIndirectFirstInstance(), eds, presentWait, validBits,
+                    props.limits().timestampPeriod());
+            VkLog.LOGGER.info("Device features: multiDrawIndirect {}, drawIndirectFirstInstance {}, extendedDynamicState {}, presentWait {}, "
+                            + "timestamps {} ({} bits, {} ns/tick)", c.caps.multiDrawIndirect(), c.caps.drawIndirectFirstInstance(), eds,
+                    presentWait, c.caps.timestamps(), validBits, c.caps.timestampPeriodNs());
         }
     }
 

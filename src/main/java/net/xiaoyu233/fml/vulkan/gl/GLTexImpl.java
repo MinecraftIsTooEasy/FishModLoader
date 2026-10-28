@@ -3,6 +3,7 @@ package net.xiaoyu233.fml.vulkan.gl;
 import net.xiaoyu233.fml.vulkan.VkLog;
 import net.xiaoyu233.fml.vulkan.gl.draw.DisplayLists;
 import net.xiaoyu233.fml.vulkan.gl.state.GLState;
+import net.xiaoyu233.fml.vulkan.render.legacy.StateMirror;
 import net.xiaoyu233.fml.vulkan.texture.TextureManager;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.system.MemoryUtil;
@@ -35,7 +36,13 @@ public final class GLTexImpl {
     // binding, names
     // ---------------------------------------------------------------------------------------------------------
 
+    /** Pulls the native-dirty Draw groups before a texture op reads the bound texture / active unit (ARCHITECTURE-NATIVE 1.16.3). */
+    private static void pullNative() {
+        if (StateMirror.nativeDirty != 0 && GLState.checkRenderThread()) StateMirror.syncNativeToLegacy();
+    }
+
     public static void glBindTexture(int target, int texture) {
+        if (!GLState.checkRenderThread()) return;
         if (DisplayLists.isCompiling() && !DisplayLists.record(() -> bindTexture(target, texture))) return;
         bindTexture(target, texture);
     }
@@ -46,7 +53,12 @@ public final class GLTexImpl {
             GLUnsupported.call("glBindTexture(target 0x" + Integer.toHexString(target) + ")");
             return;
         }
-        TextureManager.bindTexture(GLState.get().activeTexture(), texture);
+        // skip the volatile write when the bit is already set (avoids a locked store per glBindTexture)
+        final int bit = net.xiaoyu233.fml.vulkan.render.state.LegacyGroups.TEXTURE_BIND;
+        if ((net.xiaoyu233.fml.vulkan.render.legacy.StateMirror.legacyDirty & bit) != bit) {
+            net.xiaoyu233.fml.vulkan.render.legacy.StateMirror.legacyDirty |= bit;
+        }
+        TextureManager.bindTexture(GLState.facade().activeTexture(), texture);
     }
 
     public static void glDeleteTextures(int textures) {
@@ -74,16 +86,19 @@ public final class GLTexImpl {
     // ---------------------------------------------------------------------------------------------------------
 
     public static void glCopyTexImage2D(int target, int level, int internalformat, int x, int y, int width, int height, int border) {
+        pullNative();
         if (DisplayLists.isCompiling() && !DisplayLists.record(() -> TextureManager.copyTexImage2D(target, level, internalformat, x, y, width, height, border))) return;
         TextureManager.copyTexImage2D(target, level, internalformat, x, y, width, height, border);
     }
 
     public static void glCopyTexSubImage2D(int target, int level, int xoffset, int yoffset, int x, int y, int width, int height) {
+        pullNative();
         if (DisplayLists.isCompiling() && !DisplayLists.record(() -> TextureManager.copyTexSubImage2D(target, level, xoffset, yoffset, x, y, width, height))) return;
         TextureManager.copyTexSubImage2D(target, level, xoffset, yoffset, x, y, width, height);
     }
 
     public static void glGenerateMipmap(int target) {
+        pullNative();
         if (DisplayLists.isCompiling() && !DisplayLists.record(() -> TextureManager.generateMipmap(target))) return;
         TextureManager.generateMipmap(target);
     }
@@ -93,48 +108,59 @@ public final class GLTexImpl {
     // ---------------------------------------------------------------------------------------------------------
 
     public static void glGetTexImage(int target, int level, int format, int type, long pixels_buffer_offset) {
+        pullNative();
         GLUnsupported.call("glGetTexImage"); // pixel buffer objects are not supported
     }
 
     public static void glGetTexImage(int target, int level, int format, int type, ByteBuffer pixels) {
+        pullNative();
         TextureManager.getTexImage(target, level, format, type, address(pixels), bytes(pixels));
     }
 
     public static void glGetTexImage(int target, int level, int format, int type, DoubleBuffer pixels) {
+        pullNative();
         GLUnsupported.call("glGetTexImage");
     }
 
     public static void glGetTexImage(int target, int level, int format, int type, FloatBuffer pixels) {
+        pullNative();
         TextureManager.getTexImage(target, level, format, type, address(pixels), bytes(pixels));
     }
 
     public static void glGetTexImage(int target, int level, int format, int type, IntBuffer pixels) {
+        pullNative();
         TextureManager.getTexImage(target, level, format, type, address(pixels), bytes(pixels));
     }
 
     public static void glGetTexImage(int target, int level, int format, int type, ShortBuffer pixels) {
+        pullNative();
         TextureManager.getTexImage(target, level, format, type, address(pixels), bytes(pixels));
     }
 
     public static void glGetTexLevelParameter(int target, int level, int pname, FloatBuffer params) {
+        pullNative();
         needRemaining(params, 1);
         params.put(params.position(), glGetTexLevelParameterf(target, level, pname));
     }
 
     public static void glGetTexLevelParameter(int target, int level, int pname, IntBuffer params) {
+        pullNative();
         needRemaining(params, 1);
         params.put(params.position(), glGetTexLevelParameteri(target, level, pname));
     }
 
     public static float glGetTexLevelParameterf(int target, int level, int pname) {
+        pullNative();
         return glGetTexLevelParameteri(target, level, pname);
     }
 
     public static int glGetTexLevelParameteri(int target, int level, int pname) {
+        pullNative();
         return TextureManager.getTexLevelParameteri(target, level, pname);
     }
 
     public static void glGetTexParameter(int target, int pname, FloatBuffer params) {
+        pullNative();
         needRemaining(params, 1);
         if (pname == GL11.GL_TEXTURE_BORDER_COLOR && params.remaining() >= 4) {
             float[] c = new float[4];
@@ -148,6 +174,7 @@ public final class GLTexImpl {
     }
 
     public static void glGetTexParameter(int target, int pname, IntBuffer params) {
+        pullNative();
         needRemaining(params, 1);
         if (pname == GL11.GL_TEXTURE_BORDER_COLOR && params.remaining() >= 4) {
             float[] c = new float[4];
@@ -162,10 +189,12 @@ public final class GLTexImpl {
     }
 
     public static float glGetTexParameterf(int target, int pname) {
+        pullNative();
         return TextureManager.getTexParameterf(target, pname);
     }
 
     public static int glGetTexParameteri(int target, int pname) {
+        pullNative();
         return TextureManager.getTexParameteri(target, pname);
     }
 
@@ -210,57 +239,69 @@ public final class GLTexImpl {
     // ---------------------------------------------------------------------------------------------------------
 
     public static void glTexImage2D(int target, int level, int internalformat, int width, int height, int border, int format, int type, long pixels_buffer_offset) {
+        pullNative();
         GLUnsupported.call("glTexImage2D"); // pixel buffer objects are not supported
     }
 
     public static void glTexImage2D(int target, int level, int internalformat, int width, int height, int border, int format, int type, ByteBuffer pixels) {
+        pullNative();
         if (DisplayLists.isCompiling() && !recordTexImage(target, level, internalformat, width, height, border, format, type, addressSafe(pixels), bytes(pixels))) return;
         TextureManager.texImage2D(target, level, internalformat, width, height, border, format, type, addressSafe(pixels), bytes(pixels));
     }
 
     public static void glTexImage2D(int target, int level, int internalformat, int width, int height, int border, int format, int type, DoubleBuffer pixels) {
+        pullNative();
         GLUnsupported.call("glTexImage2D");
     }
 
     public static void glTexImage2D(int target, int level, int internalformat, int width, int height, int border, int format, int type, FloatBuffer pixels) {
+        pullNative();
         if (DisplayLists.isCompiling() && !recordTexImage(target, level, internalformat, width, height, border, format, type, addressSafe(pixels), bytes(pixels))) return;
         TextureManager.texImage2D(target, level, internalformat, width, height, border, format, type, addressSafe(pixels), bytes(pixels));
     }
 
     public static void glTexImage2D(int target, int level, int internalformat, int width, int height, int border, int format, int type, IntBuffer pixels) {
+        pullNative();
         if (DisplayLists.isCompiling() && !recordTexImage(target, level, internalformat, width, height, border, format, type, addressSafe(pixels), bytes(pixels))) return;
         TextureManager.texImage2D(target, level, internalformat, width, height, border, format, type, addressSafe(pixels), bytes(pixels));
     }
 
     public static void glTexImage2D(int target, int level, int internalformat, int width, int height, int border, int format, int type, ShortBuffer pixels) {
+        pullNative();
         if (DisplayLists.isCompiling() && !recordTexImage(target, level, internalformat, width, height, border, format, type, addressSafe(pixels), bytes(pixels))) return;
         TextureManager.texImage2D(target, level, internalformat, width, height, border, format, type, addressSafe(pixels), bytes(pixels));
     }
 
     public static void glTexSubImage2D(int target, int level, int xoffset, int yoffset, int width, int height, int format, int type, long pixels_buffer_offset) {
+        pullNative();
         GLUnsupported.call("glTexSubImage2D"); // pixel buffer objects are not supported
     }
 
     public static void glTexSubImage2D(int target, int level, int xoffset, int yoffset, int width, int height, int format, int type, ByteBuffer pixels) {
+        pullNative();
         if (DisplayLists.isCompiling() && !recordTexSubImage(target, level, xoffset, yoffset, width, height, format, type, addressSafe(pixels), bytes(pixels))) return;
         TextureManager.texSubImage2D(target, level, xoffset, yoffset, width, height, format, type, addressSafe(pixels), bytes(pixels));
     }
 
     public static void glTexSubImage2D(int target, int level, int xoffset, int yoffset, int width, int height, int format, int type, DoubleBuffer pixels) {
+        pullNative();
         GLUnsupported.call("glTexSubImage2D");
     }
 
     public static void glTexSubImage2D(int target, int level, int xoffset, int yoffset, int width, int height, int format, int type, FloatBuffer pixels) {
+        pullNative();
         if (DisplayLists.isCompiling() && !recordTexSubImage(target, level, xoffset, yoffset, width, height, format, type, addressSafe(pixels), bytes(pixels))) return;
         TextureManager.texSubImage2D(target, level, xoffset, yoffset, width, height, format, type, addressSafe(pixels), bytes(pixels));
     }
 
     public static void glTexSubImage2D(int target, int level, int xoffset, int yoffset, int width, int height, int format, int type, IntBuffer pixels) {
+        pullNative();
         if (DisplayLists.isCompiling() && !recordTexSubImage(target, level, xoffset, yoffset, width, height, format, type, addressSafe(pixels), bytes(pixels))) return;
         TextureManager.texSubImage2D(target, level, xoffset, yoffset, width, height, format, type, addressSafe(pixels), bytes(pixels));
     }
 
     public static void glTexSubImage2D(int target, int level, int xoffset, int yoffset, int width, int height, int format, int type, ShortBuffer pixels) {
+        pullNative();
         if (DisplayLists.isCompiling() && !recordTexSubImage(target, level, xoffset, yoffset, width, height, format, type, addressSafe(pixels), bytes(pixels))) return;
         TextureManager.texSubImage2D(target, level, xoffset, yoffset, width, height, format, type, addressSafe(pixels), bytes(pixels));
     }
@@ -270,6 +311,7 @@ public final class GLTexImpl {
     // ---------------------------------------------------------------------------------------------------------
 
     public static void glTexParameter(int target, int pname, FloatBuffer param) {
+        pullNative();
         needRemaining(param, 1);
         if (pname == GL11.GL_TEXTURE_BORDER_COLOR && param.remaining() >= 4) {
             int p = param.position();
@@ -285,16 +327,19 @@ public final class GLTexImpl {
     }
 
     public static void glTexParameter(int target, int pname, IntBuffer param) {
+        pullNative();
         needRemaining(param, 1);
         glTexParameteri(target, pname, param.get(param.position()));
     }
 
     public static void glTexParameterf(int target, int pname, float param) {
+        pullNative();
         if (DisplayLists.isCompiling() && !DisplayLists.record(() -> TextureManager.texParameterf(target, pname, param))) return;
         TextureManager.texParameterf(target, pname, param);
     }
 
     public static void glTexParameteri(int target, int pname, int param) {
+        pullNative();
         if (DisplayLists.isCompiling() && !DisplayLists.record(() -> TextureManager.texParameteri(target, pname, param))) return;
         TextureManager.texParameteri(target, pname, param);
     }

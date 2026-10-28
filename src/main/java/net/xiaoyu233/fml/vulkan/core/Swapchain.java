@@ -3,10 +3,12 @@ package net.xiaoyu233.fml.vulkan.core;
 import net.xiaoyu233.fml.vulkan.VkLog;
 import net.xiaoyu233.fml.vulkan.VulkanConfig;
 import org.lwjgl.system.MemoryStack;
+import org.lwjgl.vulkan.KHRPresentWait;
 import org.lwjgl.vulkan.KHRSurface;
 import org.lwjgl.vulkan.KHRSwapchain;
 import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkPhysicalDevice;
+import org.lwjgl.vulkan.VkPresentIdKHR;
 import org.lwjgl.vulkan.VkPresentInfoKHR;
 import org.lwjgl.vulkan.VkQueue;
 import org.lwjgl.vulkan.VkSemaphoreCreateInfo;
@@ -34,6 +36,8 @@ final class Swapchain {
     final long[] renderFinished;
     /** Result of the last successful {@link #acquire}. */
     int lastImageIndex;
+    /** VK_KHR_present_id: id of the last present that carried one (0 = none yet). */
+    private long lastPresentId;
 
     private final VkDevice device;
 
@@ -71,7 +75,20 @@ final class Swapchain {
                 return null;
             }
 
+            // fml.vulkan.latency=low: the minimum image count (the GPU cannot queue frames ahead); otherwise one more than the minimum
             int minImages = caps.minImageCount() + 1;
+            String minProp = System.getProperty(net.xiaoyu233.fml.vulkan.render.frame.FramePacer.PROP_MIN_SWAPCHAIN);
+            if (RenderCore.isLowLatency() || (minProp != null && !minProp.isBlank() && !"false".equalsIgnoreCase(minProp.trim()))) {
+                minImages = caps.minImageCount();
+                if (minProp != null) {
+                    try {
+                        int n = Integer.parseInt(minProp.trim());
+                        minImages = Math.max(caps.minImageCount(), n);
+                    } catch (NumberFormatException ignored) {
+                        // "true": minimum
+                    }
+                }
+            }
             if (caps.maxImageCount() > 0) {
                 minImages = Math.min(minImages, caps.maxImageCount());
             }
@@ -244,8 +261,31 @@ final class Swapchain {
                     .swapchainCount(1)
                     .pSwapchains(stack.longs(handle))
                     .pImageIndices(stack.ints(imageIndex));
-            return KHRSwapchain.vkQueuePresentKHR(queue, info);
+            long id = 0L;
+            if (RenderCore.deviceCaps().presentWait()) {
+                id = lastPresentId + 1L;
+                VkPresentIdKHR presentId = VkPresentIdKHR.calloc(stack)
+                        .sType$Default()
+                        .swapchainCount(1)
+                        .pPresentIds(stack.longs(id));
+                info.pNext(presentId);
+            }
+            int result = KHRSwapchain.vkQueuePresentKHR(queue, info);
+            if (id != 0L && result >= 0) {
+                lastPresentId = id;
+            }
+            return result;
         }
+    }
+
+    /** VK_KHR_present_wait: waits until the last present with an id was shown; false when there is none, on timeout or on error. */
+    boolean waitForLastPresent(long timeoutNanos) {
+        long id = lastPresentId;
+        if (id == 0L) {
+            return false;
+        }
+        int result = KHRPresentWait.vkWaitForPresentKHR(device, handle, id, timeoutNanos);
+        return result == VK_SUCCESS;
     }
 
     /** Current size of the surface as reported by the driver, or null if it cannot be queried; used to ignore bogus SUBOPTIMAL. */

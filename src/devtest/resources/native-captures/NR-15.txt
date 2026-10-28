@@ -1,0 +1,7 @@
+# NR-15 capture scenes (particles). Format: <scene> <tolerance class T0|T1|T2> <description>
+explosion   T1  command nr15.explosion: 12 EntityLargeExplodeFX (seed 0x5EED15), ticking frozen after spawn: polygon offset + brightness 240 merged per RenderType
+footsteps   T1  command nr15.footsteps: 16 EntityFootStepFX in a line, frozen: footprint.png blend, lighting off, per-particle state
+blockbreak  T1  command nr15.blockbreak: addBlockDestroyEffects(stone) + 2 hit effects, frozen: blocks atlas layer 1, depth mask on
+firework    T1  command nr15.firework: EntityFireworkStarterFX + 64 EntityFireworkSparkFX ring, frozen: particles.png layer 0 alpha fade
+stress      T1  command nr15.stress 300: 4 layers x 4000 particles frozen, one batch per layer; FPS reported, capture must match the native=false run
+counts      T1  command nr15.counts: seeded spawn + 600 ticks; per-layer counts with -Dfml.vulkan.particles.fast=true and =false must be equal (ENT-01/02/06 keep semantics)

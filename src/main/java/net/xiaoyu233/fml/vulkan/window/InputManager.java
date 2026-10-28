@@ -1,9 +1,11 @@
 package net.xiaoyu233.fml.vulkan.window;
 
+import net.xiaoyu233.fml.vulkan.VkLog;
 import net.xiaoyu233.fml.vulkan.VulkanConfig;
 import org.lwjgl.input.Keyboard;
 
 import java.util.Arrays;
+import java.util.function.BooleanSupplier;
 
 import static org.lwjgl.glfw.GLFW.*;
 
@@ -78,6 +80,8 @@ public final class InputManager {
     /** Last GLFW cursor position (screen coordinates, y down) while grabbed (virtual cursor of GLFW_CURSOR_DISABLED). */
     private static double lastRawX;
     private static double lastRawY;
+    /** INP-07: the next grabbed cursor callback only re-bases the virtual cursor (its delta is a jump, not motion). */
+    private static boolean resyncRaw;
     private static double fracX;
     private static double fracY;
     private static int accDX;
@@ -96,6 +100,263 @@ public final class InputManager {
     private static int evDY;
     private static int evWheel;
     private static long evMouseNanos;
+
+    // ---- focus handling, counters, raw backend (OPT R3)
+    /** Window within which the first button press after a focus gain is the click that refocused the window. */
+    private static final long PHANTOM_CLICK_NANOS = 250_000_000L;
+    private static final long SUMMARY_NANOS = 60_000_000_000L;
+    private static long focusGainNanos;
+    private static boolean focusGainPending;
+    /** Buttons whose press was dropped by the phantom guard; their release is dropped too. */
+    private static int suppressedButtons;
+    private static volatile BooleanSupplier screenOpenProbe;
+    private static volatile int keyOverflow;
+    private static volatile int mouseOverflow;
+    private static volatile int phantomDropped;
+    private static long nextSummaryNanos;
+    private static volatile RawInputBackend backend;
+    private static final long[] backendDelta = new long[2];
+
+    /**
+     * H11 hook for a native raw input backend (R4). Called on the render thread once per poll, before glfwPollEvents.
+     * Implementations write the motion accumulated since the previous call, in screen units with y up positive (the unit of
+     * {@code Mouse.getDX/getDY}), into {@code dxdy[0]} (x) and {@code dxdy[1]} (y) and return true when there was any. While a
+     * backend is set and the cursor is grabbed the GLFW cursor deltas are ignored (no double counting).
+     */
+    public interface RawInputBackend {
+        boolean poll(long[] dxdy);
+    }
+
+    public static void setBackend(RawInputBackend b) {
+        backend = b;
+    }
+
+    public static RawInputBackend getBackend() {
+        return backend;
+    }
+
+    /** Pulls the accumulated deltas of the backend into the mouse queue; no-op without backend or while not grabbed. */
+    static void consumeBackendDeltas() {
+        RawInputBackend b = backend;
+        if (b == null || !mouseCreated) {
+            return;
+        }
+        backendDelta[0] = 0L;
+        backendDelta[1] = 0L;
+        boolean any;
+        try {
+            any = b.poll(backendDelta);
+        } catch (Throwable t) {
+            backend = null;
+            VkLog.LOGGER.warn("RawInputBackend failed, falling back to GLFW cursor deltas", t);
+            return;
+        }
+        if (!any || !mouseGrabbed) {
+            return;
+        }
+        int dx = (int) backendDelta[0];
+        int dy = (int) backendDelta[1];
+        if (dx == 0 && dy == 0) {
+            return;
+        }
+        int fbW = WindowManager.getFramebufferWidth();
+        int fbH = WindowManager.getFramebufferHeight();
+        mouseX = clamp(mouseX + (int) Math.round(dx * WindowManager.getScaleX()), 0, fbW - 1);
+        mouseY = clamp(mouseY + (int) Math.round(dy * WindowManager.getScaleY()), 0, fbH - 1);
+        accDX += dx;
+        accDY += dy;
+        queueMove(mouseX, mouseY, dx, dy);
+    }
+
+    /** Optional probe telling whether a GUI screen is open (phantom click guard); default: screen open == cursor not grabbed. */
+    public static void setScreenOpenProbe(BooleanSupplier probe) {
+        screenOpenProbe = probe;
+    }
+
+    public static int getKeyOverflowCount() {
+        return keyOverflow;
+    }
+
+    public static int getMouseOverflowCount() {
+        return mouseOverflow;
+    }
+
+    /** Ring overflow plus phantom-click drops, total. */
+    public static int getDroppedEventCount() {
+        return keyOverflow + mouseOverflow + phantomDropped;
+    }
+
+    public static int getPhantomClickDropCount() {
+        return phantomDropped;
+    }
+
+    public static String statsLine() {
+        return "input: keyOverflow=" + keyOverflow + " mouseOverflow=" + mouseOverflow + " phantomClicks=" + phantomDropped
+                + " backlog=" + getNumKeyboardEvents() + "/" + (mqTail - mqHead);
+    }
+
+    private static void maybeLogSummary() {
+        long now = System.nanoTime();
+        if (nextSummaryNanos == 0L) {
+            nextSummaryNanos = now + SUMMARY_NANOS;
+        } else if (now - nextSummaryNanos >= 0L) {
+            nextSummaryNanos = now + SUMMARY_NANOS;
+            if (VkLog.LOGGER.isDebugEnabled()) {
+                VkLog.LOGGER.debug(statsLine());
+            }
+        }
+    }
+
+    /**
+     * Focus callback. Loss: every pressed key/button is released with a synthetic release event so nothing sticks (the
+     * {@code KeyBinding.unPressAllKeys} situation of {@code setIngameNotInFocus}), unless {@code input.restoreHeldKeys} is on, in
+     * which case the state is kept and reconciled with the physical state on regain. Gain: resync with glfwGetKey/glfwGetMouseButton
+     * (never emits press events), arm the phantom click guard.
+     */
+    public static void onFocus(boolean focused) {
+        if (!focused) {
+            focusGainPending = false;
+            if (!VulkanConfig.inputRestoreHeldKeys()) {
+                releaseAll();
+            }
+            return;
+        }
+        focusGainNanos = System.nanoTime();
+        focusGainPending = true;
+        suppressedButtons = 0;
+        if (VulkanConfig.inputRestoreHeldKeys()) {
+            restoreHeld();
+        }
+    }
+
+    private static void releaseAll() {
+        if (keyboardCreated) {
+            for (int k = 0; k < keyDown.length; k++) {
+                if (keyDown[k]) {
+                    keyDown[k] = false;
+                    kqPut(k, false, (char) 0, false);
+                }
+            }
+            lastPressValid = false;
+        }
+        if (mouseCreated) {
+            for (int b = 0; b < MOUSE_BUTTONS; b++) {
+                if (buttonDown[b]) {
+                    buttonDown[b] = false;
+                    mqPut(b, false, mouseX, mouseY, 0, 0, 0);
+                }
+            }
+        }
+    }
+
+    /** Resync with the physical state: released while unfocused -> synthetic release; still held -> stays down. */
+    private static void restoreHeld() {
+        long window = WindowManager.getWindow();
+        if (window == 0L) {
+            return;
+        }
+        if (keyboardCreated) {
+            for (int g = GLFW_KEY_SPACE; g <= GLFW_KEY_LAST; g++) {
+                int k = GLFWKeyMap.glfwToLWJGL(g);
+                if (k <= 0 || k >= keyDown.length) {
+                    continue;
+                }
+                boolean phys = glfwGetKey(window, g) == GLFW_PRESS;
+                if (keyDown[k] && !phys) {
+                    keyDown[k] = false;
+                    kqPut(k, false, (char) 0, false);
+                } else if (!keyDown[k] && phys) {
+                    keyDown[k] = true; // state only, never a press event
+                }
+            }
+            lastPressValid = false;
+        }
+        if (mouseCreated) {
+            for (int b = 0; b < MOUSE_BUTTONS; b++) {
+                boolean phys = glfwGetMouseButton(window, b) == GLFW_PRESS;
+                if (buttonDown[b] && !phys) {
+                    buttonDown[b] = false;
+                    mqPut(b, false, mouseX, mouseY, 0, 0, 0);
+                }
+            }
+        }
+    }
+
+    private static boolean screenOpen() {
+        BooleanSupplier p = screenOpenProbe;
+        if (p != null) {
+            try {
+                return p.getAsBoolean();
+            } catch (RuntimeException e) {
+                return !mouseGrabbed;
+            }
+        }
+        return !mouseGrabbed;
+    }
+
+    // ---- raw mouse toggle (fml.vulkan.rawMouse)
+
+    /** False where GLFW has no raw motion (macOS). */
+    public static boolean isRawMouseSupported() {
+        if (!WindowManager.isGLFWReady()) {
+            return false;
+        }
+        try {
+            return glfwRawMouseMotionSupported();
+        } catch (RuntimeException | LinkageError e) {
+            return false;
+        }
+    }
+
+    /** Button label: Raw Mouse: ON / OFF / Unsupported. */
+    public static String rawMouseLabel() {
+        if (!isRawMouseSupported()) {
+            return "Raw Mouse: Unsupported";
+        }
+        return "Raw Mouse: " + (VulkanConfig.rawMouse() ? "ON" : "OFF");
+    }
+
+    /** Flips fml.vulkan.rawMouse at runtime, persists it and re-applies the grab. No-op when unsupported. */
+    public static void toggleRawMouse() {
+        if (!isRawMouseSupported()) {
+            return;
+        }
+        boolean value = !VulkanConfig.rawMouse();
+        System.setProperty(VulkanConfig.PROP_RAW_MOUSE, Boolean.toString(value));
+        persistRawMouse(value);
+        if (mouseCreated && mouseGrabbed) {
+            applyGrab(true);
+        }
+    }
+
+    private static void persistRawMouse(boolean value) {
+        try {
+            java.nio.file.Path path = VulkanConfig.gameDir().resolve("config/fml-vulkan.properties");
+            java.util.List<String> lines = java.nio.file.Files.exists(path)
+                    ? new java.util.ArrayList<>(java.nio.file.Files.readAllLines(path, java.nio.charset.StandardCharsets.UTF_8))
+                    : new java.util.ArrayList<>();
+            String entry = "rawMouse=" + value;
+            boolean done = false;
+            for (int i = 0; i < lines.size(); i++) {
+                String t = lines.get(i).trim();
+                if (t.startsWith("rawMouse=") || t.startsWith("#rawMouse=")) {
+                    if (!done) {
+                        lines.set(i, entry);
+                        done = true;
+                    } else if (t.startsWith("rawMouse=")) {
+                        lines.remove(i--);
+                    }
+                }
+            }
+            if (!done) {
+                lines.add(entry);
+            }
+            java.nio.file.Files.createDirectories(path.getParent());
+            java.nio.file.Files.write(path, lines, java.nio.charset.StandardCharsets.UTF_8);
+        } catch (java.io.IOException | RuntimeException e) {
+            VkLog.LOGGER.warn("Cannot persist rawMouse: {}", e.toString());
+        }
+    }
 
     private InputManager() {
     }
@@ -156,6 +417,8 @@ public final class InputManager {
 
     /** Called before every glfwPollEvents: key and char callbacks of one key stroke always arrive in the same poll. */
     static void beginPoll() {
+        maybeLogSummary();
+        consumeBackendDeltas();
         lastPressValid = false;
         suppressChar = false;
     }
@@ -244,6 +507,18 @@ public final class InputManager {
             return;
         }
         boolean down = action == GLFW_PRESS;
+        if (down && focusGainPending) {
+            focusGainPending = false;
+            if (System.nanoTime() - focusGainNanos < PHANTOM_CLICK_NANOS && !screenOpen()) {
+                // the click that refocused the window must not attack/place
+                suppressedButtons |= 1 << button;
+                phantomDropped++;
+                return;
+            }
+        } else if (!down && (suppressedButtons & (1 << button)) != 0) {
+            suppressedButtons &= ~(1 << button);
+            return;
+        }
         buttonDown[button] = down;
         mqPut(button, down, mouseX, mouseY, 0, 0, 0);
     }
@@ -264,6 +539,16 @@ public final class InputManager {
             // GLFW_CURSOR_DISABLED: the callback reports an unbounded virtual cursor; its differences are the raw motion
             // in screen units (not scaled, like the LWJGL 2 deltas), y up is positive. Fractions are carried over so slow
             // motion is not lost.
+            if (resyncRaw) {
+                resyncRaw = false;
+                lastRawX = xpos;
+                lastRawY = ypos;
+            }
+            if (backend != null) {
+                lastRawX = xpos;
+                lastRawY = ypos;
+                return;
+            }
             fracX += xpos - lastRawX;
             fracY += lastRawY - ypos;
             lastRawX = xpos;
@@ -402,6 +687,7 @@ public final class InputManager {
 
     private static boolean kqPut(int key, boolean state, char ch, boolean repeat) {
         if (kqTail - kqHead >= KQ_SIZE) {
+            keyOverflow++;
             return false;
         }
         int i = kqTail & KQ_MASK;
@@ -470,6 +756,7 @@ public final class InputManager {
 
     private static boolean mqPut(int button, boolean state, int x, int y, int dx, int dy, int wheel) {
         if (mqTail - mqHead >= MQ_SIZE) {
+            mouseOverflow++;
             return false;
         }
         int i = mqTail & MQ_MASK;
@@ -499,6 +786,20 @@ public final class InputManager {
             }
         }
         mqPut(-1, false, x, y, dx, dy, 0);
+    }
+
+    /**
+     * A synthetic relative mouse move, queued like a GLFW cursor event (automation and the latency measurement of the devtest
+     * commands); returns the event time ({@code System.nanoTime()}) or 0 when the mouse does not exist. Any thread.
+     */
+    public static synchronized long injectMouseMove(int dx, int dy) {
+        if (!mouseCreated) {
+            return 0L;
+        }
+        accDX += dx;
+        accDY += dy;
+        queueMove(mouseX, mouseY, dx, dy);
+        return mqNanos[(mqTail - 1) & MQ_MASK];
     }
 
     public static boolean nextMouseEvent() {
@@ -596,6 +897,26 @@ public final class InputManager {
         return mouseGrabbed || cursorInside;
     }
 
+    /**
+     * INP-07: drops the motion collected so far and the one of the next grabbed cursor callback (grab, focus gain, resize and
+     * fullscreen switches make GLFW report a jump of the virtual cursor). Button/key events and the position are untouched.
+     */
+    public static void discardMotion() {
+        accDX = accDY = 0;
+        fracX = fracY = 0.0;
+        resyncRaw = true;
+    }
+
+    /**
+     * INP-09: drops the key and mouse events that are still queued (they were queued while the game handled them, e.g. the second
+     * press of the key that opened a GUI). Key and button states and the accumulated motion stay.
+     */
+    public static void drainPending() {
+        kqHead = kqTail;
+        mqHead = mqTail;
+        lastPressValid = false;
+    }
+
     /** Called by the window right after it is created (state requested earlier is applied now). */
     static void onWindowCreated() {
         cursorInside = WindowManager.isCursorOverWindow();
@@ -617,13 +938,41 @@ public final class InputManager {
         }
     }
 
+    private static void startRawBackend(long window) {
+        if (backend != null || !RawInputWin32.available()) {
+            return;
+        }
+        try {
+            if (RawInputWin32.start(window)) {
+                backend = d -> {
+                    RawInputWin32.poll();
+                    int x = RawInputWin32.takeDeltaX();
+                    int y = -RawInputWin32.takeDeltaY();
+                    d[0] = x;
+                    d[1] = y;
+                    return x != 0 || y != 0;
+                };
+            }
+        } catch (Throwable t) {
+            VkLog.LOGGER.warn("raw input backend start failed", t);
+        }
+    }
+
+    private static void stopRawBackend() {
+        if (backend != null && RawInputWin32.isActive()) {
+            backend = null;
+            RawInputWin32.stop();
+        }
+    }
+
     /** Grabs or releases the cursor in GLFW (needs a window); drops the motion collected so far like LWJGL 2 does. */
-    private static void applyGrab(boolean grab) {
+    public static void applyGrab(boolean grab) {
         long window = WindowManager.getWindow();
         if (window == 0L) {
             return;
         }
         if (grab) {
+            startRawBackend(window);
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
             if (glfwRawMouseMotionSupported()) {
                 glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, VulkanConfig.rawMouse() ? GLFW_TRUE : GLFW_FALSE);
@@ -635,6 +984,7 @@ public final class InputManager {
             lastRawX = cx[0];
             lastRawY = cy[0];
         } else {
+            stopRawBackend();
             if (glfwRawMouseMotionSupported()) {
                 glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_FALSE);
             }
@@ -648,6 +998,7 @@ public final class InputManager {
         }
         accDX = accDY = 0;
         fracX = fracY = 0.0;
+        resyncRaw = true;
     }
 
     /** Reads the cursor from GLFW into the position state (no event, no delta). */

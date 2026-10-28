@@ -8,7 +8,12 @@
     "BotMinecraftMixin",
     "BotMinecraftServerMixin",
     "BotIntegratedPlayerListMixin",
-    "BotMouseHelperMixin"
+    "BotMouseHelperMixin",
+    "BotTimerMixin",
+    "BotWorldServerMixin",
+    "BotWorldClientMixin",
+    "BotWorldMixin",
+    "BotTextureMapMixin"
   ],
   "injectors": {
     "defaultRequire": 1

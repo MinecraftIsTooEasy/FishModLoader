@@ -41,7 +41,9 @@ final class PerfLog {
 
     private long lastNs;
     private int lastChunkUpdates;
+    private long lastCommits = -1;
     private volatile long chunkUpdatesTotal;
+    private volatile int quietRun;
     private long frameRows;
     private Field toUpdateField;
     private Field loadedField;
@@ -183,8 +185,16 @@ final class PerfLog {
         return chunkUpdatesTotal;
     }
 
+    /** Consecutive presented frames (up to now) in which no chunk mesh was rebuilt; frame accurate, unlike polling from the tick. */
+    int quietFrameRun() {
+        return quietRun;
+    }
+
     /** Renderers (16x16x16 chunk meshes) queued for a rebuild; -1 when unknown. */
     int pendingUpdates(Minecraft mc) {
+        if (TerrainSignals.nativeCounters()) {
+            return TerrainSignals.nativePending();
+        }
         resolveFields(mc);
         if (toUpdateField == null) {
             return -1;
@@ -223,7 +233,14 @@ final class PerfLog {
         int cu = WorldRenderer.chunksUpdated;
         int dcu = cu >= lastChunkUpdates ? cu - lastChunkUpdates : cu;
         lastChunkUpdates = cu;
+        long commits = TerrainSignals.nativeCommits();
+        if (commits >= 0) {
+            // native terrain: the phase-1 static no longer moves, the commit counter does
+            dcu = lastCommits >= 0 && commits >= lastCommits ? (int) (commits - lastCommits) : 0;
+            lastCommits = commits;
+        }
         chunkUpdatesTotal += dcu;
+        quietRun = dcu == 0 ? quietRun + 1 : 0;
         int pending = pendingUpdates(mc);
         Runtime rt = Runtime.getRuntime();
         long heapMb = (rt.totalMemory() - rt.freeMemory()) >> 20;

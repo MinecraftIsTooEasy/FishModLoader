@@ -41,6 +41,7 @@ import net.xiaoyu233.fml.util.Constants;
 import net.xiaoyu233.fml.util.MITEReleaseAccess;
 import net.xiaoyu233.fml.util.RemoteModInfo;
 import net.xiaoyu233.fml.util.UrlUtil;
+import net.xiaoyu233.fml.vulkan.mixin.nat.NativeMixinPlugin;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.spongepowered.asm.launch.MixinBootstrap;
@@ -380,6 +381,14 @@ public class FishModLoader {
       Mixins.registerConfiguration((InjectionConfig.Builder.of(MOD_ID, MinecraftServerTrans.class.getPackage(), MixinEnvironment.Phase.DEFAULT).build().toConfig(classLoader, MixinService.getService(),MixinEnvironment.getCurrentEnvironment())));
       // The Vulkan mixins are listed per module in a JSON config (resolved through the Knot class loader by MixinService)
       Mixins.addConfiguration(VULKAN_MIXIN_CONFIG);
+      // The native renderer's per-area configs (stub classes until the owning packages fill them); NativeMixinPlugin applies the switches
+      for (String nativeConfig : NativeMixinPlugin.registeredConfigs()) {
+         Mixins.addConfiguration(nativeConfig);
+      }
+      // Non-render optimisation areas (one config per owner; mixin lists filled by the R-subtasks, gated by -Dfml.vulkan.opt.<area>)
+      for (String area : net.xiaoyu233.fml.vulkan.mixin.opt.OptMixinPlugin.AREAS) {
+         Mixins.addConfiguration(net.xiaoyu233.fml.vulkan.mixin.opt.OptMixinPlugin.configName(area));
+      }
    }
 
    public static MixinEnvironment.Side getSide(){

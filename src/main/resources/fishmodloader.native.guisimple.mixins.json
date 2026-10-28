@@ -1,0 +1,34 @@
+{
+  "required": true,
+  "minVersion": "0.8.7",
+  "package": "net.xiaoyu233.fml.vulkan.mixin.nat.guisimple",
+  "compatibilityLevel": "JAVA_21",
+  "mixinPriority": 500,
+  "plugin": "net.xiaoyu233.fml.vulkan.mixin.nat.NativeMixinPlugin",
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  },
+  "mixins": [],
+  "client": [
+    "GuiBrewingStandGuisimpleMixin",
+    "GuiButtonGuisimpleMixin",
+    "GuiButtonForumGuisimpleMixin",
+    "GuiButtonLanguageGuisimpleMixin",
+    "GuiButtonMerchantGuisimpleMixin",
+    "GuiButtonNextPageGuisimpleMixin",
+    "GuiChatGuisimpleMixin",
+    "GuiChestGuisimpleMixin",
+    "GuiConfirmOpenLinkGuisimpleMixin",
+    "GuiCraftingGuisimpleMixin",
+    "GuiDispenserGuisimpleMixin",
+    "GuiFurnaceGuisimpleMixin",
+    "GuiGameOverGuisimpleMixin",
+    "GuiHopperGuisimpleMixin",
+    "GuiScreenBookGuisimpleMixin",
+    "GuiScreenDemoGuisimpleMixin",
+    "GuiSliderGuisimpleMixin"
+  ]
+}

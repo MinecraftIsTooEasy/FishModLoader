@@ -225,6 +225,7 @@ final class AttribStack {
         }
         final Entry e = entries[--depth];
         final int mask = e.mask;
+        final long capsBefore = s.caps;
 
         if (e.capMask != 0) {
             s.caps = (s.caps & ~e.capMask) | (e.caps & e.capMask);
@@ -329,7 +330,7 @@ final class AttribStack {
         if ((mask & GL_SCISSOR_BIT) != 0) {
             System.arraycopy(e.scissorBox, 0, s.scissorBox, 0, 4);
         }
-        s.attribRestored((mask & UNIFORM_GROUPS) != 0);
+        s.attribRestored(mask, capsBefore);
         return true;
     }
 }

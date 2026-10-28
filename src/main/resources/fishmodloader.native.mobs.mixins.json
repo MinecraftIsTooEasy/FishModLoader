@@ -1,0 +1,34 @@
+{
+  "required": true,
+  "minVersion": "0.8.7",
+  "package": "net.xiaoyu233.fml.vulkan.mixin.nat.mobs",
+  "compatibilityLevel": "JAVA_21",
+  "mixinPriority": 500,
+  "plugin": "net.xiaoyu233.fml.vulkan.mixin.nat.NativeMixinPlugin",
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  },
+  "mixins": [],
+  "client": [
+    "RenderBatMobsMixin",
+    "RenderBlackWidowSpiderMobsMixin",
+    "RenderCaveSpiderMobsMixin",
+    "RenderDireWolfMobsMixin",
+    "RenderGelatinousCubeMobsMixin",
+    "RenderGhastMobsMixin",
+    "RenderGiantZombieMobsMixin",
+    "RenderHorseMobsMixin",
+    "RenderMagmaCubeMobsMixin",
+    "RenderOcelotMobsMixin",
+    "RenderSheepMobsMixin",
+    "RenderSkeletonMobsMixin",
+    "RenderSlimeMobsMixin",
+    "RenderSquidMobsMixin",
+    "RenderVillagerMobsMixin",
+    "RenderWolfMobsMixin",
+    "RenderWoodSpiderMobsMixin"
+  ]
+}
