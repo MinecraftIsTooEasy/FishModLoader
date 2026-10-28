@@ -419,28 +419,190 @@ final class BenchScript {
         return String.format(Locale.ROOT, fmt, median(s)) + " (" + String.format(Locale.ROOT, fmt, lo) + "-" + String.format(Locale.ROOT, fmt, hi) + ")";
     }
 
+    /** A refresh period (120 Hz, 60 Hz) whose +-5% band a p50 frame time must stay out of, else the display or a cap paced the run. */
+    private static final double[] PINNED_MS = {1000.0 / 120.0, 1000.0 / 60.0};
+
+    /**
+     * Presentation counts of one segment read from the frame CSV: rendered and presented frames (the {@code presented} column, absent on
+     * builds that do not write it), and the render / presented rates over the segment's frame time.
+     */
+    private record Presentation(boolean hasColumn, long rendered, long presented, double renderFps, double presentedFps) {
+        static final Presentation NONE = new Presentation(false, 0, 0, Double.NaN, Double.NaN);
+
+        double ratio() {
+            return hasColumn && rendered > 0 ? (double) presented / rendered : Double.NaN;
+        }
+    }
+
+    /** One run of one segment with its presentation numbers and the reason it is invalid ("" = valid). */
+    private record Row(BenchStats.Summary s, Presentation p, String reason) {
+    }
+
+    /**
+     * The effective {@code fml.vulkan.presentMinMs} (VulkanConfig): 0 = limiter off (default, every frame presented), positive = opt-in
+     * minimum ms between presents (makes a bench run INVALID); NaN when the build has no limiter (OpenGL baseline).
+     */
+    private static double effectiveGateMs() {
+        try {
+            Class<?> c = Class.forName("net.xiaoyu233.fml.vulkan.VulkanConfig");
+            return ((Number) c.getMethod("presentMinMs").invoke(null)).doubleValue();
+        } catch (ReflectiveOperationException | LinkageError | RuntimeException e) {
+            return Double.NaN;
+        }
+    }
+
+    private static String gateText(double gate) {
+        if (Double.isNaN(gate)) {
+            return "n/a (no present limiter on this build)";
+        }
+        if (gate <= 0) {
+            return "OFF (fml.vulkan.presentMinMs=0: every rendered frame is presented)";
+        }
+        return String.format(Locale.ROOT, "ON, %.2f ms (fml.vulkan.presentMinMs) - NOT a valid benchmark configuration", gate);
+    }
+
+    /** Per segment of one run: rendered / presented counts and rates, from the frame CSV (missing or unreadable file = no data). */
+    private Map<String, Presentation> presentations(String dim, String rd, String run) {
+        Map<String, Presentation> out = new LinkedHashMap<>();
+        File f = new File(bench.outDir, "bench-" + Bench.BUILD + "-" + dim + "-" + rd + "-" + run + "-frames.csv");
+        if (!f.exists()) {
+            return out;
+        }
+        try {
+            List<String> lines = Files.readAllLines(f.toPath(), StandardCharsets.UTF_8);
+            if (lines.isEmpty()) {
+                return out;
+            }
+            String[] h = lines.get(0).trim().split(",");
+            int iFrame = Arrays.asList(h).indexOf("frame_ns");
+            int iSeg = Arrays.asList(h).indexOf("segment");
+            int iPres = Arrays.asList(h).indexOf("presented");
+            if (iFrame < 0 || iSeg < 0) {
+                return out;
+            }
+            Map<String, long[]> acc = new LinkedHashMap<>(); // rendered, presented, frame ns
+            for (int i = 1; i < lines.size(); i++) {
+                String[] c = lines.get(i).split(",");
+                if (c.length <= Math.max(iFrame, iSeg)) {
+                    continue;
+                }
+                long[] a = acc.computeIfAbsent(c[iSeg], x -> new long[3]);
+                a[0]++;
+                a[2] += Long.parseLong(c[iFrame].trim());
+                if (iPres >= 0 && iPres < c.length && "1".equals(c[iPres].trim())) {
+                    a[1]++;
+                }
+            }
+            // the headline: frames actually handed to the display, one row each in the -presents.csv (written by Bench.writePresents)
+            File pf = new File(bench.outDir, "bench-" + Bench.BUILD + "-" + dim + "-" + rd + "-" + run + "-presents.csv");
+            boolean hasPresents = pf.exists();
+            if (hasPresents) {
+                for (long[] a : acc.values()) {
+                    a[1] = 0;
+                }
+                List<String> pl = Files.readAllLines(pf.toPath(), StandardCharsets.UTF_8);
+                for (int i = 1; i < pl.size(); i++) {
+                    String line = pl.get(i);
+                    int comma = line.indexOf(',');
+                    long[] a = comma < 0 ? null : acc.get(line.substring(comma + 1).trim());
+                    if (a != null) {
+                        a[1]++;
+                    }
+                }
+            }
+            boolean has = iPres >= 0 || hasPresents;
+            for (Map.Entry<String, long[]> e : acc.entrySet()) {
+                long[] a = e.getValue();
+                double secs = a[2] / 1e9;
+                out.put(e.getKey(), new Presentation(has, a[0], a[1], secs > 0 ? a[0] / secs : Double.NaN,
+                    has && secs > 0 ? a[1] / secs : Double.NaN));
+            }
+        } catch (IOException | RuntimeException e) {
+            Bench.log("frame CSV " + f.getName() + " not read: " + e);
+        }
+        return out;
+    }
+
+    /**
+     * Why a segment is not a valid measurement ("" = valid): its p50 frame time sits within 5% of 120 Hz or 60 Hz (the display or a cap
+     * paced it), or, with the present gate disabled, fewer than 90% of the rendered frames were presented (or the presented column is
+     * missing on a build that has the gate, so presentation cannot be checked).
+     */
+    private static String invalidReason(BenchStats.Summary s, Presentation p, boolean nativeGate, boolean gateDisabled) {
+        List<String> why = new ArrayList<>();
+        double p50 = s.p50();
+        if (!Double.isNaN(p50) && p50 > 0) {
+            for (double period : PINNED_MS) {
+                if (Math.abs(p50 - period) <= 0.05 * period) {
+                    why.add(String.format(Locale.ROOT, "p50 %.2f ms within 5%% of %.2f ms (display or frame cap pinned)", p50, period));
+                    break;
+                }
+            }
+        }
+        if (nativeGate && !gateDisabled) {
+            why.add("present limiter fml.vulkan.presentMinMs is ON (frames are rendered but not shown)");
+        }
+        if (nativeGate && gateDisabled) {
+            if (!p.hasColumn()) {
+                why.add("no presented column in the frame CSV, presentation not verifiable");
+            } else if (p.ratio() < 0.9) {
+                why.add(String.format(Locale.ROOT, "presented/rendered %.3f < 0.9 with no present gate", p.ratio()));
+            }
+        }
+        return String.join("; ", why);
+    }
+
+    private static String num(double v, String fmt) {
+        return Double.isNaN(v) ? "-1" : String.format(Locale.ROOT, fmt, v);
+    }
+
     private void writeSummary() throws IOException {
         File dir = bench.outDir;
-        StringBuilder csv = new StringBuilder("build,dimension,rd,run," + BenchStats.Summary.header() + "\n");
-        Map<String, List<BenchStats.Summary>> groups = new LinkedHashMap<>();
+        double gate = effectiveGateMs();
+        boolean nativeGate = !Double.isNaN(gate);
+        boolean gateDisabled = nativeGate && gate <= 0.0;
+        StringBuilder csv = new StringBuilder("build,dimension,rd,run," + BenchStats.Summary.header()
+            + ",render_fps,presented_fps,presented_ratio,gate_ms,validity,invalid_reason\n");
+        Map<String, List<Row>> groups = new LinkedHashMap<>();
+        Map<String, List<BenchStats.Summary>> summaryGroups = new LinkedHashMap<>();
         List<String> keys = bench.summaryKeys();
         List<BenchStats.Summary> all = bench.summaries();
+        Map<String, Map<String, Presentation>> presCache = new LinkedHashMap<>();
+        List<String> invalidLines = new ArrayList<>();
         for (int i = 0; i < keys.size(); i++) {
             String[] k = keys.get(i).split("\\|");
-            csv.append(Bench.BUILD).append(',').append(k[0]).append(',').append(k[1]).append(',').append(k[2]).append(',').append(all.get(i).csv()).append('\n');
-            groups.computeIfAbsent(k[0] + "|" + k[1] + "|" + all.get(i).segment(), x -> new ArrayList<>()).add(all.get(i));
+            BenchStats.Summary s = all.get(i);
+            Map<String, Presentation> pm = presCache.computeIfAbsent(keys.get(i), x -> presentations(k[0], k[1], k[2]));
+            Presentation p = pm.getOrDefault(s.segment(), Presentation.NONE);
+            String reason = invalidReason(s, p, nativeGate, gateDisabled);
+            if (!reason.isEmpty()) {
+                invalidLines.add(k[0] + " " + k[1] + " run " + k[2] + " " + s.segment() + ": " + reason);
+            }
+            csv.append(Bench.BUILD).append(',').append(k[0]).append(',').append(k[1]).append(',').append(k[2]).append(',').append(s.csv()).append(',')
+                .append(num(p.renderFps(), "%.2f")).append(',').append(num(p.presentedFps(), "%.2f")).append(',').append(num(p.ratio(), "%.4f")).append(',')
+                .append(Double.isNaN(gate) ? "n/a" : num(gate, "%.2f")).append(',').append(reason.isEmpty() ? "VALID" : "INVALID").append(',')
+                .append(reason.replace(',', ';')).append('\n');
+            String gk = k[0] + "|" + k[1] + "|" + s.segment();
+            groups.computeIfAbsent(gk, x -> new ArrayList<>()).add(new Row(s, p, reason));
+            summaryGroups.computeIfAbsent(gk, x -> new ArrayList<>()).add(s);
         }
         Files.writeString(new File(dir, "summary.csv").toPath(), csv.toString(), StandardCharsets.UTF_8);
+        if (!invalidLines.isEmpty()) {
+            Bench.log("INVALID segments: " + invalidLines.size() + " (see summary.md)");
+        }
 
         StringBuilder md = new StringBuilder();
         md.append("# Bench summary - ").append(Bench.TAG).append(" (build ").append(Bench.BUILD).append(")\n\n");
         md.append("Median over ").append(RUNS).append(" measured run(s) with min-max in parentheses. Frame times in ms. `arrival` is the 10 s warm-up after arriving in a dimension (not part of the ")
-            .append("headline numbers; its chunk updates and the settle time give the meshing throughput and the time to an empty rebuild queue).\n\n");
-        md.append("| dimension | rd | segment | avg FPS | 1% low FPS | 0.1% low FPS | frame ms stddev | p99 ms | max ms | heap max MB | RSS max MB | VMA max MB | GC count | GC ms | chunk updates | settle s |\n");
-        md.append("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n");
-        for (Map.Entry<String, List<BenchStats.Summary>> e : groups.entrySet()) {
+            .append("headline numbers; its chunk updates and the settle time give the meshing throughput and the time to an empty rebuild queue). ")
+            .append("Render FPS is the rate of rendered frames; presented FPS counts the frames handed to the display (one row each in the -presents.csv, its own timestamp).\n\n");
+        md.append("| dimension | rd | segment | avg FPS | 1% low FPS | 0.1% low FPS | frame ms stddev | p99 ms | max ms | heap max MB | RSS max MB | VMA max MB | GC count | GC ms | chunk updates | settle s | presented FPS | presented/rendered | validity |\n");
+        md.append("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n");
+        for (Map.Entry<String, List<Row>> e : groups.entrySet()) {
             String[] k = e.getKey().split("\\|");
-            List<BenchStats.Summary> g = e.getValue();
+            List<Row> rows = e.getValue();
+            List<BenchStats.Summary> g = summaryGroups.get(e.getKey());
+            long bad = rows.stream().filter(r -> !r.reason().isEmpty()).count();
             md.append("| ").append(k[0]).append(" | ").append(k[1]).append(" | ").append(k[2]).append(" | ");
             md.append(stat(col(g, BenchStats.Summary::avgFps), "%.1f")).append(" | ").append(stat(col(g, BenchStats.Summary::low1), "%.1f")).append(" | ");
             md.append(stat(col(g, BenchStats.Summary::low01), "%.1f")).append(" | ").append(stat(col(g, BenchStats.Summary::stddevMs), "%.2f")).append(" | ");
@@ -448,7 +610,9 @@ final class BenchScript {
             md.append(stat(col(g, s -> (double) s.heapMaxMb()), "%.0f")).append(" | ").append(stat(col(g, s -> (double) s.rssMaxMb()), "%.0f")).append(" | ");
             md.append(stat(col(g, s -> (double) s.vmaMaxMb()), "%.0f")).append(" | ").append(stat(col(g, s -> (double) s.gcCount()), "%.0f")).append(" | ");
             md.append(stat(col(g, s -> (double) s.gcMs()), "%.0f")).append(" | ").append(stat(col(g, s -> (double) s.chunkUpdates()), "%.0f")).append(" | ");
-            md.append(stat(col(g, BenchStats.Summary::settleSeconds), "%.1f")).append(" |\n");
+            md.append(stat(col(g, BenchStats.Summary::settleSeconds), "%.1f")).append(" | ");
+            md.append(stat(colRows(rows, r -> r.p().presentedFps()), "%.1f")).append(" | ").append(stat(colRows(rows, r -> r.p().ratio()), "%.3f")).append(" | ");
+            md.append(bad == 0 ? "VALID" : bad + "/" + rows.size() + " INVALID").append(" |\n");
         }
         md.append("\n## Environment\n\n");
         md.append("- build: ").append(Bench.BUILD).append(", tag ").append(Bench.TAG).append("\n");
@@ -456,9 +620,19 @@ final class BenchScript {
             .append("), os.arch ").append(System.getProperty("os.arch")).append(", ").append(System.getProperty("os.name")).append(' ').append(System.getProperty("os.version")).append("\n");
         md.append("- JVM flags: ").append(String.join(" ", java.lang.management.ManagementFactory.getRuntimeMXBean().getInputArguments())).append("\n");
         md.append("- cores: ").append(Runtime.getRuntime().availableProcessors()).append(", max heap ").append(Runtime.getRuntime().maxMemory() >> 20).append(" MB\n");
-        md.append("- frame limits: ").append(limits()).append("\n");
+        md.append("- frame limits: ").append(limits(gate)).append("\n");
+        md.append("- present limiter (fml.vulkan.presentMinMs, effective): ").append(gateText(gate)).append("\n");
+        String pres = Bench.presentationName();
+        md.append("- presentation: ").append(pres == null ? "OpenGL swap (baseline)" : pres).append(", images ").append(Bench.swapchainImages()).append("\n");
         md.append("- seed ").append(Bench.SEED).append(", route scale ").append(SCALE).append(", dimensions ").append(DIMS).append(", render distances ").append(RDS).append("\n");
-        List<String> warns = displayBoundWarnings(groups);
+        if (!invalidLines.isEmpty()) {
+            md.append("\n## INVALID segments\n\n");
+            for (String l : invalidLines) {
+                md.append("- ").append(l).append('\n');
+            }
+            md.append("\nAn INVALID segment does not measure the renderer (the display, a frame cap or an unpresented frame set its rate). Do not compare it with a valid run.\n");
+        }
+        List<String> warns = displayBoundWarnings(summaryGroups);
         if (!warns.isEmpty()) {
             md.append("\n## WARNING: display bound\n\n");
             for (String w : warns) {
@@ -476,7 +650,15 @@ final class BenchScript {
         Bench.log("summary written to " + new File(dir, "summary.md"));
     }
 
-    private static String limits() {
+    private static List<Double> colRows(List<Row> g, java.util.function.ToDoubleFunction<Row> f) {
+        List<Double> out = new ArrayList<>();
+        for (Row r : g) {
+            out.add(f.applyAsDouble(r));
+        }
+        return out;
+    }
+
+    private static String limits(double gate) {
         StringBuilder b = new StringBuilder();
         String[] keys = {"vsync", "presentMode", "capUnfocused", "capMinimised"};
         for (String k : keys) {
@@ -490,7 +672,7 @@ final class BenchScript {
         } catch (ReflectiveOperationException | LinkageError e) {
             b.append("(no VulkanConfig: OpenGL baseline), ");
         }
-        b.append("FPS_LIMIT 9999, in-game limitFramerate 0");
+        b.append("effective presentMinMs=").append(Double.isNaN(gate) ? "n/a" : String.valueOf(gate)).append(", FPS_LIMIT 9999, in-game limitFramerate 0");
         return b.toString();
     }
 

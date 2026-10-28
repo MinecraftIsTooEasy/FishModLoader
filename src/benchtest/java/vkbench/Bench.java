@@ -64,6 +64,9 @@ public final class Bench {
     // frame recorder (render thread)
     private volatile BenchStats recording;
     private BufferedWriter csv;
+    /** One row per frame handed to the display (native: RenderCore.presentTime; baseline: every frame end, GL swaps each frame). */
+    private BufferedWriter presentsCsv;
+    private long presentIdx = -1;
     private final StringBuilder row = new StringBuilder(256);
     private long lastFrameEndNs;
     private long t0Ns;
@@ -178,6 +181,7 @@ public final class Bench {
         lastFrameEndNs = now;
         BenchStats rec = recording;
         if (prev == 0 || rec == null || csv == null) {
+            presentIdx = PRESENT_COUNT == null ? -1 : presentCount();
             lastChunkUpdates = WorldRenderer.chunksUpdated;
             lastCommits = nativeCommits();
             return;
@@ -205,12 +209,84 @@ public final class Bench {
         r.append(now - t0Ns).append(',').append(frameNs).append(',').append(cpuNs).append(',').append(metrics.presentNanos).append(',');
         r.append(metrics.gpuMs < 0 ? "-1" : String.format(Locale.ROOT, "%.3f", metrics.gpuMs)).append(',').append(metrics.draws).append(',').append(metrics.encodedDraws).append(',');
         r.append(metrics.sectionsVisible).append(',').append(dcu).append(',').append(metrics.captureNanos).append(',').append(heap).append(',').append(rss).append(',');
-        r.append(metrics.vmaMb).append(',').append(gcC).append(',').append(gcM).append(',').append(rec.segment).append('\n');
+        r.append(metrics.vmaMb).append(',').append(gcC).append(',').append(gcM).append(',').append(rec.segment).append(',').append(metrics.submitNanos).append(',').append(metrics.presented).append(',').append(metrics.fenceWaitNanos).append('\n');
         try {
             csv.write(r.toString());
+            writePresents(now, rec);
         } catch (IOException e) {
             // disk full: the run goes on, the summary still has the numbers
         }
+    }
+
+    private static final java.lang.reflect.Method PRESENT_COUNT = coreMethod("presentCount");
+    private static final java.lang.reflect.Method PRESENT_TIME = coreMethod("presentTime", long.class);
+    private static final java.lang.reflect.Method PRESENTATION_NAME = coreMethod("presentationName");
+    private static final java.lang.reflect.Method IMAGE_COUNT = coreMethod("swapchainImageCount");
+
+    private static java.lang.reflect.Method coreMethod(String name, Class<?>... args) {
+        try {
+            return Class.forName("net.xiaoyu233.fml.vulkan.core.RenderCore").getMethod(name, args);
+        } catch (ReflectiveOperationException | LinkageError e) {
+            return null; // OpenGL baseline
+        }
+    }
+
+    private static long presentCount() {
+        try {
+            return ((Number) PRESENT_COUNT.invoke(null)).longValue();
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return -1;
+        }
+    }
+
+    /** Presentation path actually used (native), e.g. "layer presenter (...)" / "swapchain IMMEDIATE"; null on the baseline. */
+    static String presentationName() {
+        try {
+            return PRESENTATION_NAME == null ? null : (String) PRESENTATION_NAME.invoke(null);
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    static int swapchainImages() {
+        try {
+            return IMAGE_COUNT == null ? -1 : ((Number) IMAGE_COUNT.invoke(null)).intValue();
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return -1;
+        }
+    }
+
+    /** Every present since the last frame end, with its own timestamp; the baseline presents exactly once per frame (at its end). */
+    private void writePresents(long now, BenchStats rec) throws IOException {
+        if (presentsCsv == null) {
+            return;
+        }
+        if (PRESENT_COUNT == null) {
+            presentsCsv.write(Long.toString(now - t0Ns));
+            presentsCsv.write(',');
+            presentsCsv.write(rec.segment);
+            presentsCsv.write('\n');
+            return;
+        }
+        long n = presentCount();
+        if (presentIdx < 0) {
+            presentIdx = n;
+        }
+        for (long i = presentIdx; i < n; i++) {
+            long t;
+            try {
+                t = ((Number) PRESENT_TIME.invoke(null, i)).longValue();
+            } catch (ReflectiveOperationException | RuntimeException e) {
+                t = 0;
+            }
+            if (t != 0) {
+                presentsCsv.write(Long.toString(t - t0Ns));
+                presentsCsv.write(',');
+                presentsCsv.write(rec.segment);
+                presentsCsv.write('\n');
+            }
+        }
+        presentIdx = n;
     }
 
     // ------------------------------------------------------------------ script thread
@@ -308,7 +384,15 @@ public final class Bench {
     private void start() {
         thread = new Thread(() -> {
             try {
-                new BenchScript(this).run();
+                String light = System.getProperty("fml.vulkan.lightScene");
+                String water = System.getProperty("fml.vulkan.waterScene");
+                if (water != null) {
+                    new WaterScene(this, new java.io.File(water)).run();
+                } else if (light != null) {
+                    new LightScene(this, new java.io.File(light)).run();
+                } else {
+                    new BenchScript(this).run();
+                }
             } catch (Throwable t) {
                 t.printStackTrace();
                 log("FATAL: script died: " + t);
@@ -350,7 +434,10 @@ public final class Bench {
         closeCsv();
         File f = new File(outDir, "bench-" + BUILD + "-" + dim + "-" + rd + "-" + run + "-frames.csv");
         csv = Files.newBufferedWriter(f.toPath(), StandardCharsets.UTF_8);
-        csv.write("t_ns,frame_ns,cpu_render_ns,present_wait_ns,gpu_ms,draws,encoded_draws,sections_visible,sections_built,capture_ns,heap_used_mb,rss_mb,vma_mb,gc_count,gc_ms,segment\n");
+        csv.write("t_ns,frame_ns,cpu_render_ns,present_wait_ns,gpu_ms,draws,encoded_draws,sections_visible,sections_built,capture_ns,heap_used_mb,rss_mb,vma_mb,gc_count,gc_ms,segment,submit_ns,presented,fence_wait_ns\n");
+        presentsCsv = Files.newBufferedWriter(new File(outDir, "bench-" + BUILD + "-" + dim + "-" + rd + "-" + run + "-presents.csv").toPath(), StandardCharsets.UTF_8);
+        presentsCsv.write("t_ns,segment\n");
+        presentIdx = -1;
         t0Ns = System.nanoTime();
         lastFrameEndNs = 0;
     }
@@ -361,10 +448,14 @@ public final class Bench {
             if (csv != null) {
                 csv.close();
             }
+            if (presentsCsv != null) {
+                presentsCsv.close();
+            }
         } catch (IOException ignored) {
             // nothing to do
         }
         csv = null;
+        presentsCsv = null;
     }
 
     /** Starts recording frames into the open CSV under a segment name; returns the stats object that fills up. */
@@ -379,6 +470,9 @@ public final class Bench {
         try {
             if (csv != null) {
                 csv.flush();
+            }
+            if (presentsCsv != null) {
+                presentsCsv.flush();
             }
         } catch (IOException ignored) {
             // see recordFrame
@@ -401,6 +495,17 @@ public final class Bench {
             }
             Thread.sleep(5);
         }
+        path = null;
+    }
+
+    /** Starts a camera path without waiting (scene captures). */
+    void startPath(BenchRoute.Path p) {
+        pathDone = false;
+        pathTick = 0;
+        path = p;
+    }
+
+    void stopPath() {
         path = null;
     }
 
@@ -481,6 +586,10 @@ public final class Bench {
     // ------------------------------------------------------------------ world helpers
 
     void createWorld(boolean keep) throws Exception {
+        createWorld(keep, WORLD);
+    }
+
+    void createWorld(boolean keep, String WORLD) throws Exception {
         client(() -> {
             WorldSettings ws = null;
             if (keep && mc.getSaveLoader().getWorldInfo(WORLD) != null) {

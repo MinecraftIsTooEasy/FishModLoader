@@ -138,6 +138,7 @@ tasks.register('runBench', JavaExec) {
         jvm.add("-Xmx${project.findProperty('xmx') ?: '4G'}".toString())
         jvm.add('-Dlog.file.prefix=client')
         jvm.addAll(benchJvmArgs(false))
+        if (System.getenv('PERF_JVM')) { jvm.addAll(System.getenv('PERF_JVM').split(' ') as List) }
         // an uncapped run: no unfocused / minimised frame cap (the user works while a bench runs in the background), vsync off. -Pvk.* can override (and then shows in summary.md)
         def vkProps = [:]
         vkProps['capUnfocused'] = '9999'
@@ -173,8 +174,8 @@ tasks.register('runBench', JavaExec) {
         }
         jvmArgs(jvm)
         def clientArgs = new ArrayList(runConfig.gameArgs as Collection)
-        clientArgs[clientArgs.indexOf('--width') + 1] = '1920'
-        clientArgs[clientArgs.indexOf('--height') + 1] = '1080'
+        clientArgs[clientArgs.indexOf('--width') + 1] = (project.findProperty('bench_width') ?: '1920').toString()
+        clientArgs[clientArgs.indexOf('--height') + 1] = (project.findProperty('bench_height') ?: '1080').toString()
         args(clientArgs)
     }
 }

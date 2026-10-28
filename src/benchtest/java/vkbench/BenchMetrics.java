@@ -30,6 +30,9 @@ final class BenchMetrics {
     long encodedDraws = -1;
     long sectionsVisible = -1;
     long captureNanos = -1;
+    long submitNanos = -1;
+    long presented = -1;
+    long fenceWaitNanos = -1;
     long vmaMb = -1;
 
     BenchMetrics() {
@@ -72,6 +75,9 @@ final class BenchMetrics {
         encodedDraws = -1;
         sectionsVisible = -1;
         captureNanos = -1;
+        submitNanos = -1;
+        presented = -1;
+        fenceWaitNanos = -1;
         if (statsLatest != null) {
             try {
                 Object frame = statsLatest.invoke(null);
@@ -79,7 +85,7 @@ final class BenchMetrics {
                     if (frameAccessors == null || frameClass != frame.getClass()) {
                         frameClass = frame.getClass();
                         frameAccessors = new Method[] {accessor(frame, "cpuNanos"), accessor(frame, "presentNanos"), accessor(frame, "gpuMs"), accessor(frame, "draws"),
-                            accessor(frame, "encodedDraws"), accessor(frame, "sectionsVisible"), accessor(frame, "captureNanos")};
+                            accessor(frame, "encodedDraws"), accessor(frame, "sectionsVisible"), accessor(frame, "captureNanos"), accessor(frame, "submitNanos"), accessor(frame, "presented"), accessor(frame, "fenceWaitNanos")};
                     }
                     cpuNanos = (long) num(frame, frameAccessors[0]);
                     presentNanos = (long) num(frame, frameAccessors[1]);
@@ -88,6 +94,11 @@ final class BenchMetrics {
                     encodedDraws = (long) num(frame, frameAccessors[4]);
                     sectionsVisible = (long) num(frame, frameAccessors[5]);
                     captureNanos = (long) num(frame, frameAccessors[6]);
+                    submitNanos = (long) num(frame, frameAccessors[7]);
+                    fenceWaitNanos = (long) num(frame, frameAccessors[9]);
+                    if (frameAccessors[8] != null) {
+                        presented = Boolean.TRUE.equals(frameAccessors[8].invoke(frame)) ? 1 : 0;
+                    }
                 }
             } catch (ReflectiveOperationException | RuntimeException e) {
                 // FrameStats changed shape: values stay -1
