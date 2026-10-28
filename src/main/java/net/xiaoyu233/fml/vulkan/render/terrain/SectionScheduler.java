@@ -35,8 +35,8 @@ public final class SectionScheduler {
     private static final int IN_FLIGHT_CAP = 2 * MESH_THREADS;
     private static final long CAPTURE_NANOS = (long) (prop("fml.vulkan.captureMs", 1.5) * 1_000_000.0);
     private static final int CAPTURES_PER_FRAME = Integer.getInteger("fml.vulkan.capturesPerFrame", 64);
-    private static final long COMMIT_NANOS = (long) (prop("fml.vulkan.sectionCommitMs", 2.0) * 1_000_000.0);
-    private static final long UPLOAD_BYTES = Integer.getInteger("fml.vulkan.sectionUploadMiB", 32) * 1024L * 1024L;
+    private static final long COMMIT_NANOS = (long) (prop("fml.vulkan.sectionCommitMs", 0.5) * 1_000_000.0);
+    private static final long UPLOAD_BYTES = Integer.getInteger("fml.vulkan.sectionUploadMiB", 4) * 1024L * 1024L;
 
     private static final class Entry {
         final Section section;
@@ -164,6 +164,19 @@ public final class SectionScheduler {
         commitLoop(deadlineNanos);
         submitFar(viewer, frame);
         commitLoop(deadlineNanos);
+        // far tasks of sections with a non-worker-safe block are only run by helpOnce on this thread: give them the frame budget left
+        while (budgetSpentNanos < COMMIT_NANOS && MeshWorkers.hasRenderOnlyWork()) {
+            long t0 = System.nanoTime();
+            boolean ran = MeshWorkers.helpOnce();
+            budgetSpentNanos += System.nanoTime() - t0;
+            if (!ran) {
+                break;
+            }
+            MeshResult res;
+            while ((res = MeshWorkers.pollResult()) != null) {
+                commitResult(res);
+            }
+        }
         if (!NEAR_OUT.isEmpty()) {
             joinNear(); // near sections re-submitted by handleResult during the far commits
         }
@@ -600,6 +613,9 @@ public final class SectionScheduler {
             return;
         }
         s.version++;
+        // an outstanding resort must never block the rebuild of an edited section
+        RESORT_OUT.remove(s);
+        s.resortPending = false;
         int nx = r.posXPlus - 8, ny = r.posYPlus - 8, nz = r.posZPlus - 8;
         if (nx != s.x || ny != s.y || nz != s.z) {
             // Ring move: the held geometry was built for the old origin, but TerrainDraw places it at s.x/y/z, so it
@@ -617,9 +633,10 @@ public final class SectionScheduler {
             s.y = ny;
             s.z = nz;
         }
-        if (s.state == Section.QUEUED || s.state == Section.BUILDING) {
+        if ((s.state == Section.QUEUED && ENTRIES.containsKey(s)) || (s.state == Section.BUILDING && IN_FLIGHT.containsKey(s))) {
             return; // coalesced / stale result will requeue
         }
+        // any other state (incl. a QUEUED/BUILDING section whose entry or task was dropped by a reset / epoch bump) is queued again
         s.state = Section.DIRTY;
         enqueue(s);
     }
@@ -654,6 +671,11 @@ public final class SectionScheduler {
     /** Queued plus in-flight plus parked / gated sections: zero means the terrain is fully meshed for the current world state. */
     static int pendingTotal() {
         return ENTRIES.size() + IN_FLIGHT.size() + PARKED.size();
+    }
+
+    static String debugCounts() {
+        return "entries=" + ENTRIES.size() + " inFlight=" + IN_FLIGHT.size() + " near=" + NEAR_OUT.size() + " parked=" + PARKED.size() + " gated=" + GATED.size()
+                + " pending=" + PENDING.size() + " heap=" + HEAP.size();
     }
 
     static int queued() {

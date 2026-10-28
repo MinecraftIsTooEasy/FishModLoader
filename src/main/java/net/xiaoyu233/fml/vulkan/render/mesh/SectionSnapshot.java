@@ -266,7 +266,7 @@ public final class SectionSnapshot implements IBlockAccess {
                             this.special.add(te);
                         }
                     } else {
-                        te = (TileEntity) chunk.chunkTileEntityMap.get(new ChunkPosition(x & 15, y, z & 15));
+                        te = chunk.chunkTileEntityMap.isEmpty() ? null : (TileEntity) chunk.chunkTileEntityMap.get(new ChunkPosition(x & 15, y, z & 15));
                         if (te != null && te.isInvalid()) {
                             te = null;
                         }

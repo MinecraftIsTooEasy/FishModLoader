@@ -1,8 +1,6 @@
 package net.xiaoyu233.fml.vulkan.render.terrain;
 
 import java.nio.ByteBuffer;
-import net.xiaoyu233.fml.vulkan.render.mesh.MeshTask;
-import net.xiaoyu233.fml.vulkan.render.mesh.MeshWorkers;
 
 /** Distance-sorted translucent section order (2.7) and resort scheduling. Render thread. NR-09 subtask S5. */
 public final class TranslucentOrder {
@@ -131,18 +129,10 @@ public final class TranslucentOrder {
                 }
             }
             submitted++;
-            s.resortPending = true;
-            SectionScheduler.noteResortSubmitted(s, camX, camY, camZ);
-            try {
-                MeshWorkers.submit(new MeshTask(s.owner(), s.version(), null, camX, camY, camZ, true), 1);
-            } catch (RuntimeException e) {
-                SectionScheduler.noteResortDropped(s);
-                s.resortPending = false;
-                if (!(e instanceof UnsupportedOperationException)) {
-                    throw e;
-                }
-                resortSync(s, camX, camY, camZ);
-            }
+            // Resort on the render thread: MeshWorkers.runTask drops resort-only tasks without producing a result, so an async
+            // resort left RESORT_OUT / resortPending set forever and the scheduler then never rebuilt that section again
+            // (stale water after block edits).
+            resortSync(s, camX, camY, camZ);
         }
     }
 

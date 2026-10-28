@@ -325,6 +325,11 @@ public final class MeshWorkers {
      * {@link TessBridge#renderThread()} on this thread, so the task meshes on that instance. Its target, sink and translation are
      * restored afterwards; it is left alone (returns false) while it is mid-draw.
      */
+    /** True while a render-thread-only task is queued (SectionScheduler runs them with the frame's left-over budget). */
+    public static boolean hasRenderOnlyWork() {
+        return !RENDER_ONLY.isEmpty();
+    }
+
     public static boolean helpOnce() {
         NativeTess tess = TessBridge.renderThread();
         if (tess.isDrawing()) {

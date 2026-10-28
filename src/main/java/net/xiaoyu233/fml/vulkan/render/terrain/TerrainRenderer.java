@@ -22,6 +22,15 @@ public final class TerrainRenderer {
         TerrainGrid.set(grid, wide, tall, deep);
         SectionScheduler.reset();
         VisibilityBfs.reset();
+        // The new renderers were marked dirty in their constructor / loadRenderers BEFORE this call, and reset() just dropped those
+        // queue entries (state DIRTY, needsUpdate=true). markRenderersForNewPosition only re-marks renderers that move, and
+        // RenderGlobal.markBlocksForUpdate skips renderers with needsUpdate=true, so every unmoved section stayed unbuilt forever and
+        // ignored all later block edits ("placed blocks invisible in some sections"). Queue the whole new grid again.
+        for (WorldRenderer r : grid) {
+            if (r != null) {
+                SectionScheduler.markDirty(r);
+            }
+        }
     }
 
     public static void onWorldChanged(WorldClient world) {
@@ -85,6 +94,17 @@ public final class TerrainRenderer {
     /** Monotonic number of committed section meshes (testbot settle signal, 7.2). */
     public static long sectionCommits() {
         return SectionCommit.commitCount();
+    }
+
+    /** Debug: state of the section that renders block (x, y, z) (water scene / testbot). */
+    public static String sectionDebug(int x, int y, int z) {
+        WorldRenderer r = TerrainGrid.rendererFor(x, y, z);
+        if (r == null) {
+            return "none";
+        }
+        Section s = TerrainGrid.sectionOf(r);
+        return "state=" + s.state + " v=" + s.version + " built=" + s.builtVersion + " needsUpdate=" + r.needsUpdate + " quads=" + s.quads[0] + "/"
+                + s.quads[1] + "/" + s.quads[2] + " " + SectionScheduler.debugCounts();
     }
 
     public static void shutdown() {

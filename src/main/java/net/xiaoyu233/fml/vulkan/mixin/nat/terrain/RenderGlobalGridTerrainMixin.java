@@ -323,8 +323,10 @@ public abstract class RenderGlobalGridTerrainMixin {
                         iz += this.renderChunksDeep;
                     }
                     WorldRenderer r = this.worldRenderers[(iz * this.renderChunksTall + iy) * this.renderChunksWide + ix];
-                    if (r != null && !r.needsUpdate) {
-                        r.markDirty();
+                    // MITE skips renderers that already have needsUpdate set (they are in its update list). Here a block edit must
+                    // always reach the scheduler: it coalesces queued sections itself, and a section whose needsUpdate stayed set
+                    // without a queue entry would otherwise never be rebuilt again.
+                    if (r != null) {
                         TerrainRenderer.markDirty(r);
                     }
                 }

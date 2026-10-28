@@ -362,7 +362,11 @@ public abstract class EntityRendererFrameWorldMixin {
                 Lighting.disable();
                 this.mc.mcProfiler.endStartSection("terrain");
                 Frame.beginPhase(Phase.TERRAIN);
+                // MITE RenderGlobal.renderAllRenderLists: the lightmap (unit 1) is enabled for the terrain draw
+                this.enableLightmap(par1);
                 TerrainRenderer.drawOpaque();
+                // ... and disabled again at its end (RenderGlobal.renderAllRenderLists), else the lightmap stays on for the next frame's sky
+                this.disableLightmap(par1);
                 Draw.smoothShading(false);
                 if (this.debugViewDirection == 0) {
                     Lighting.enableStandard();
@@ -413,7 +417,9 @@ public abstract class EntityRendererFrameWorldMixin {
                     Draw.colorMask(true, true, true, true);
                 }
 
+                this.enableLightmap(par1);
                 TerrainRenderer.drawTranslucent();
+                this.disableLightmap(par1);
                 Draw.smoothShading(false);
 
                 Draw.depthMask(true);
