@@ -280,9 +280,36 @@ public class InstallFrame extends JFrame {
         }
     }
 
+    /**
+     * The client renders with Vulkan through LWJGL 3 natives that the FML jar bundles for these platforms only
+     * (NativeExtractor.SUPPORTED_PLATFORMS); null when this machine is one of them, otherwise the reason it is not.
+     */
+    static String unsupportedClientPlatform(String osName, String osArch) {
+        String os = osName.toLowerCase(java.util.Locale.ROOT);
+        String arch = osArch.toLowerCase(java.util.Locale.ROOT);
+        boolean x64 = arch.equals("amd64") || arch.equals("x86_64") || arch.equals("x86-64") || arch.equals("x64");
+        boolean arm64 = arch.equals("aarch64") || arch.equals("arm64");
+        boolean supported;
+        if (os.contains("mac") || os.contains("darwin")) {
+            supported = x64 || arm64;
+        } else if (os.startsWith("win")) {
+            supported = x64;
+        } else if (os.contains("linux")) {
+            supported = x64 || arm64;
+        } else {
+            supported = false;
+        }
+        return supported ? null : "FishModLoader " + VERSION + " 的客户端使用 Vulkan 渲染, 只支持 Windows x64、macOS (Intel / Apple 芯片) 和 Linux x64 / arm64,"
+                + " 不支持当前系统 (" + osName + " " + osArch + ")。服务端不受影响。";
+    }
+
     private void startInstall() throws IOException, InstallException {
         if (!this.fileTextField.getText().isEmpty()) {
             if (forClient) {
+                String unsupported = unsupportedClientPlatform(System.getProperty("os.name", ""), System.getProperty("os.arch", ""));
+                if (unsupported != null) {
+                    throwInstallException(unsupported);
+                }
                 File minecraftDir = new File(this.fileTextField.getText());
                 if (minecraftDir.exists() && minecraftDir.isDirectory()) {
                     extractJarToLibrary(minecraftDir);

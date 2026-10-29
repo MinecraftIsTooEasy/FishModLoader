@@ -79,12 +79,13 @@ dependencies {
     shaded 'org.lwjgl.lwjgl:lwjgl_util:2.9.0'
 
     // LWJGL 3 (Vulkan backend). Java classes of lwjgl-openal and lwjgl-opengl are NOT shipped (the LWJGL 2 compat owns those
-    // package names), lwjgl-openal contributes natives only. lwjgl-vulkan natives = MoltenVK, macOS only (Windows uses the system loader).
+    // package names), lwjgl-openal contributes natives only. lwjgl-vulkan natives = MoltenVK, macOS only (Windows and Linux use the
+    // system Vulkan loader). Keep this list in sync with NativeExtractor.SUPPORTED_PLATFORMS.
     shaded "org.lwjgl:lwjgl:${lwjglVersion}"
     shaded "org.lwjgl:lwjgl-glfw:${lwjglVersion}"
     shaded "org.lwjgl:lwjgl-vulkan:${lwjglVersion}"
     shaded "org.lwjgl:lwjgl-vma:${lwjglVersion}"
-    ['natives-windows', 'natives-macos', 'natives-macos-arm64'].each { nativesClassifier ->
+    ['natives-windows', 'natives-macos', 'natives-macos-arm64', 'natives-linux', 'natives-linux-arm64'].each { nativesClassifier ->
         shaded "org.lwjgl:lwjgl:${lwjglVersion}:${nativesClassifier}"
         shaded "org.lwjgl:lwjgl-glfw:${lwjglVersion}:${nativesClassifier}"
         shaded "org.lwjgl:lwjgl-vma:${lwjglVersion}:${nativesClassifier}"

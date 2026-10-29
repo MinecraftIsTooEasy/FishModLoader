@@ -5,12 +5,17 @@ import net.xiaoyu233.fml.util.UrlUtil;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.channels.OverlappingFileLockException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -37,9 +42,14 @@ import java.util.zip.ZipFile;
  *   (and verify) this directory instead, so there is exactly one copy of every library,</li>
  *   <li>{@code fml.natives.dir}: the same directory (used by the OpenAL compat for {@code libopenal.dylib}/{@code OpenAL.dll}),</li>
  *   <li>{@code org.lwjgl.vulkan.libname}: {@code -Dfml.vulkan.library=<path>} when given, otherwise (macOS) the bundled MoltenVK.
- *   Windows uses the system Vulkan loader.</li>
+ *   Windows and Linux use the system Vulkan loader ({@code vulkan-1.dll} / {@code libvulkan.so.1}).</li>
  * </ul>
  * {@code -Dfml.natives.dir=<dir>} chooses another extraction directory (for example for a read-only game directory).
+ * <p>
+ * The extracted files are loaded as native code, so the directory is handled defensively: a symbolic link in place of the directory
+ * or of a library is refused (a link could make FML write to, or load, a file outside the directory), concurrent launches of the
+ * same game directory serialise on {@code .lock} in the directory, and every failure names the directory and the
+ * {@code -Dfml.natives.dir} way out.
  * <p>
  * {@code org.lwjgl.vulkan.explicitInit} is deliberately left alone (LWJGL default: automatic initialisation). LWJGL 3.4's {@code VK}
  * class initialiser creates the Vulkan loader on the first touch of the class (using {@code org.lwjgl.vulkan.libname}), and
@@ -59,8 +69,8 @@ public final class NativeExtractor {
     private static final String PROP_LWJGL_EXTRACT_PATH = "org.lwjgl.system.SharedLibraryExtractPath";
     private static final String PROP_LWJGL_VULKAN_LIBNAME = "org.lwjgl.vulkan.libname";
 
-    /** Platforms whose natives are bundled in the FML jar. Linux can be added here (plus the Gradle natives) later. */
-    private static final Set<String> SUPPORTED_PLATFORMS = Set.of("windows/x64", "macos/x64", "macos/arm64");
+    /** Platforms whose natives are bundled in the FML jar (the natives classifiers of build.gradle). */
+    static final Set<String> SUPPORTED_PLATFORMS = Set.of("windows/x64", "macos/x64", "macos/arm64", "linux/x64", "linux/arm64");
 
     private NativeExtractor() {
     }
@@ -81,17 +91,17 @@ public final class NativeExtractor {
                 : gameDir.resolve(".fml").resolve("natives").resolve("lwjgl-" + LWJGL_VERSION + "-" + os + "-" + arch);
         nativesDir = nativesDir.toAbsolutePath().normalize();
 
-        try {
-            Files.createDirectories(nativesDir);
-        } catch (IOException e) {
-            throw new IOException("Cannot create the natives directory " + nativesDir
-                    + " (use -D" + PROP_NATIVES_DIR + "=<writable directory> to choose another one): " + e, e);
-        }
+        prepareDirectory(nativesDir);
 
         List<Path> sources = findNativeSources();
         int[] counts = new int[2]; // [0] libraries present and up to date afterwards, [1] of which (re)written now
-        for (Path source : sources) {
-            extractFromJar(source, platform, nativesDir, counts);
+        // one launch at a time per directory: a second instance waits until the first finished verifying / writing the libraries
+        try (FileChannel lockChannel = FileChannel.open(nativesDir.resolve(".lock"), StandardOpenOption.CREATE, StandardOpenOption.WRITE,
+                LinkOption.NOFOLLOW_LINKS);
+             FileLock ignored = lock(lockChannel, nativesDir)) {
+            for (Path source : sources) {
+                extractFromJar(source, platform, nativesDir, counts);
+            }
         }
         if (counts[0] == 0) {
             throw new IllegalStateException("No LWJGL " + LWJGL_VERSION + " natives for " + platform + " found in "
@@ -120,7 +130,42 @@ public final class NativeExtractor {
             }
             System.setProperty(PROP_LWJGL_VULKAN_LIBNAME, moltenVk.toString());
         }
-        // Windows: org.lwjgl.vulkan.libname stays unset, LWJGL loads the system loader (vulkan-1.dll)
+        // Windows / Linux: org.lwjgl.vulkan.libname stays unset, LWJGL loads the system loader (vulkan-1.dll / libvulkan.so.1)
+    }
+
+    /** Creates {@code dir} and checks it is a real, writable directory (not a symbolic link, not a file). */
+    private static void prepareDirectory(Path dir) throws IOException {
+        String hint = " (use -D" + PROP_NATIVES_DIR + "=<writable directory> to choose another one)";
+        if (Files.isSymbolicLink(dir)) {
+            throw new IOException("The natives directory " + dir + " is a symbolic link; FML loads native code from it and refuses to"
+                    + " follow links. Remove the link" + hint);
+        }
+        try {
+            Files.createDirectories(dir);
+        } catch (IOException e) {
+            throw new IOException("Cannot create the natives directory " + dir + hint + ": " + e, e);
+        }
+        if (!Files.isDirectory(dir, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IOException("The natives path " + dir + " exists but is not a directory" + hint);
+        }
+        if (!Files.isWritable(dir)) {
+            throw new IOException("The natives directory " + dir + " is not writable" + hint);
+        }
+    }
+
+    /**
+     * Exclusive lock on the natives directory. File systems without locks (some network shares) are tolerated: extraction is still
+     * safe there, because every library is written to a temporary file and renamed into place.
+     */
+    private static FileLock lock(FileChannel channel, Path dir) throws IOException {
+        try {
+            return channel.lock();
+        } catch (OverlappingFileLockException e) {
+            return null; // this JVM already holds it (a second extraction in the same process)
+        } catch (IOException e) {
+            System.err.println("[FML] Cannot lock the natives directory " + dir + ", extracting without the lock: " + e);
+            return null;
+        }
     }
 
     // ---------------------------------------------------------------------------------------------------------
@@ -239,20 +284,12 @@ public final class NativeExtractor {
      * @return true when the file was (re)written
      */
     private static boolean extractEntry(ZipFile zip, ZipEntry entry, Path target) throws IOException {
-        long size = entry.getSize();
-
-        if (Files.isRegularFile(target) && Files.size(target) == size) {
-            String expected = readSha1File(zip, entry.getName());
-            if (expected == null) {
-                try (InputStream in = zip.getInputStream(entry)) {
-                    expected = sha1(in);
-                }
-            }
-            try (InputStream in = Files.newInputStream(target)) {
-                if (expected.equalsIgnoreCase(sha1(in))) {
-                    return false;
-                }
-            }
+        if (Files.isSymbolicLink(target)) {
+            // never load (or write through) a link planted in the natives directory: replace it with the real library
+            Files.delete(target);
+        }
+        if (isIntact(zip, entry, target)) {
+            return false;
         }
 
         Path temp = target.resolveSibling("." + target.getFileName() + "." + Long.toHexString(ThreadLocalRandom.current().nextLong()) + ".tmp");
@@ -267,15 +304,33 @@ public final class NativeExtractor {
             }
             return true;
         } catch (IOException e) {
-            // Windows: the library is mapped by another running instance and cannot be replaced. Keep using it when it has
-            // the expected size (same LWJGL version), otherwise this launch cannot work
-            if (Files.isRegularFile(target) && Files.size(target) == size) {
-                System.err.println("[FML] Cannot replace " + target + " (in use by another process?), keeping the existing file: " + e);
+            // Windows: the library is mapped by another running instance and cannot be replaced. Keep using it only when it is
+            // byte-identical to the bundled one (checked again: it may have been replaced meanwhile), otherwise this launch cannot work
+            if (isIntact(zip, entry, target)) {
+                System.err.println("[FML] Cannot replace " + target + " (in use by another process?), keeping the existing identical file: " + e);
                 return false;
             }
-            throw e;
+            throw new IOException("Cannot write " + target + " and the existing file differs from the bundled library (in use by"
+                    + " another process, or no write permission?). Close other game instances or use -D" + PROP_NATIVES_DIR
+                    + "=<writable directory>: " + e, e);
         } finally {
             Files.deleteIfExists(temp);
+        }
+    }
+
+    /** True when {@code target} is a regular file (not a link) with the size and SHA-1 of {@code entry}. */
+    private static boolean isIntact(ZipFile zip, ZipEntry entry, Path target) throws IOException {
+        if (!Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS) || Files.size(target) != entry.getSize()) {
+            return false;
+        }
+        String expected = readSha1File(zip, entry.getName());
+        if (expected == null) {
+            try (InputStream in = zip.getInputStream(entry)) {
+                expected = sha1(in);
+            }
+        }
+        try (InputStream in = Files.newInputStream(target, LinkOption.NOFOLLOW_LINKS)) {
+            return expected.equalsIgnoreCase(sha1(in));
         }
     }
 
