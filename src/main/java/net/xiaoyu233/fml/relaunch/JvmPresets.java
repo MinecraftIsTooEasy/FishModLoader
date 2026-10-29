@@ -32,12 +32,20 @@ import java.util.concurrent.TimeUnit;
  * the same way {@link MacFirstThread} restarts for {@code -XstartOnFirstThread}: the child gets the same arguments plus
  * {@code -Dfml.jvm.presetApplied=true}, inherits the IO and its exit code is propagated. The child does not restart again.
  * <p>
+ * The restart only rebuilds a plain {@code java <jvm args> -cp <class path> net.xiaoyu233.fml.relaunch.client.Main <args>} command.
+ * It is skipped (the game runs in this JVM, the preset flags are printed so they can be added to the launcher's JVM arguments) when
+ * that would change how the game was started: the JVM was not started with FML's client {@code Main} as its main class (a launcher
+ * wrapper or agent-based bootstrap sits in front), a debugger is attached ({@code -agentlib:jdwp}: the child would lose it), or
+ * {@code -Dfml.jvm.relaunch=false} is given.
+ * <p>
  * AppClassLoader side: no log4j, no LWJGL, no backend classes; messages go to stdout/stderr with the {@code [FML]} prefix.
  */
 public final class JvmPresets {
     public static final String PROP_PRESET = "fml.jvm.preset";
     public static final String ENV_PRESET = "FML_JVM_PRESET";
     public static final String PROP_APPLIED = "fml.jvm.presetApplied";
+    public static final String PROP_RELAUNCH = "fml.jvm.relaunch";
+    static final String CLIENT_MAIN = "net.xiaoyu233.fml.relaunch.client.Main";
     public static final String DEFAULT = "default";
 
     private static final long MIB = 1024L * 1024L;
@@ -120,10 +128,43 @@ public final class JvmPresets {
         if (presetArgs.isEmpty()) {
             return;
         }
+        String blocker = relaunchBlocker(System.getProperty("sun.java.command", ""), inputArguments(), System.getProperty(PROP_RELAUNCH));
+        if (blocker != null) {
+            warn("not restarting the JVM (" + blocker + "); the preset flags are NOT active. Add them to the JVM arguments of the"
+                    + " launcher instead: " + String.join(" ", presetArgs));
+            return;
+        }
         OptionalInt exitCode = relaunch(presetArgs, args);
         if (exitCode.isPresent()) {
             System.exit(exitCode.getAsInt());
         }
+    }
+
+    /**
+     * Why the client must not restart itself, or null when it may: the restart reproduces only a plain launch of {@link #CLIENT_MAIN}
+     * from the class path, so any other entry point (a launcher wrapper, an agent bootstrap, {@code -jar}) and an attached debugger
+     * would not survive it.
+     *
+     * @param javaCommand the {@code sun.java.command} property (main class or jar, then the program arguments)
+     */
+    static String relaunchBlocker(String javaCommand, List<String> jvmArguments, String relaunchProperty) {
+        if (relaunchProperty != null && relaunchProperty.trim().equalsIgnoreCase("false")) {
+            return "-D" + PROP_RELAUNCH + "=false";
+        }
+        for (String argument : jvmArguments) {
+            if (argument.startsWith("-agentlib:jdwp") || argument.startsWith("-Xrunjdwp")) {
+                return "a debugger is attached (" + argument + ")";
+            }
+        }
+        String main = javaCommand == null ? "" : javaCommand.trim();
+        int space = main.indexOf(' ');
+        if (space >= 0) {
+            main = main.substring(0, space);
+        }
+        if (!main.equals(CLIENT_MAIN)) {
+            return "the JVM was started with " + (main.isEmpty() ? "an unknown main class" : main) + ", not " + CLIENT_MAIN;
+        }
+        return null;
     }
 
     /**
@@ -134,16 +175,11 @@ public final class JvmPresets {
         List<String> command = new ArrayList<>();
         command.add(javaExecutable());
         command.addAll(presetArgs);
-        for (String argument : inputArguments()) {
-            if (argument.startsWith("-agentlib:jdwp") || argument.startsWith("-Xrunjdwp")) {
-                continue; // a fixed debug port would collide with the one of this process
-            }
-            command.add(argument);
-        }
+        command.addAll(inputArguments()); // no jdwp here: relaunchBlocker() refuses to restart under a debugger
         command.add("-D" + PROP_APPLIED + "=true");
         command.add("-cp");
         command.add(System.getProperty("java.class.path"));
-        command.add("net.xiaoyu233.fml.relaunch.client.Main");
+        command.add(CLIENT_MAIN);
         Collections.addAll(command, args);
 
         Process child;
