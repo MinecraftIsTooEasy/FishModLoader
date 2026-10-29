@@ -9,7 +9,8 @@
     "BenchMinecraftServerMixin",
     "BenchMouseHelperMixin",
     "BenchIntegratedPlayerListMixin",
-    "BenchNetClientHandlerMixin"
+    "BenchNetClientHandlerMixin",
+    "BenchSoundMixin"
   ],
   "injectors": {
     "defaultRequire": 1

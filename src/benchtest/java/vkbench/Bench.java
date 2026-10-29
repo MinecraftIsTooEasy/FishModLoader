@@ -130,6 +130,7 @@ public final class Bench {
             return;
         }
         frameHooksLive = true;
+        PlaceScene.onFrame(mc);
         b.recordFrame(mc);
     }
 
@@ -428,7 +429,13 @@ public final class Bench {
             try {
                 String light = System.getProperty("fml.vulkan.lightScene");
                 String water = System.getProperty("fml.vulkan.waterScene");
-                if (water != null) {
+                String hand = System.getProperty("fml.vulkan.handScene");
+                String place = System.getProperty("fml.vulkan.placeScene");
+                if (place != null) {
+                    new PlaceScene(this, new java.io.File(place)).run();
+                } else if (hand != null) {
+                    new HandScene(this, new java.io.File(hand)).run();
+                } else if (water != null) {
                     new WaterScene(this, new java.io.File(water)).run();
                 } else if (light != null) {
                     new LightScene(this, new java.io.File(light)).run();
