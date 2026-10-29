@@ -109,14 +109,9 @@ public abstract class MinecraftStartupMinecraftMixin {
         this.getLogAgent().logInfo("Native Vulkan renderer, GLFW " + GLFW.glfwGetVersionString());
         ByteBuffer[] icons = null;
         if (Util.getOSType() != EnumOS.MACOS) {
-            try {
-                icons = new ByteBuffer[]{
-                    this.readImage(new File(this.fileAssets, "/icons/icon_16x16.png")),
-                    this.readImage(new File(this.fileAssets, "/icons/icon_32x32.png"))
-                };
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            // vanilla read icons/icon_16x16.png + icon_32x32.png from the assets dir; WindowIcons also falls back to the copies
+            // bundled in the jar and adds the 48..256 px sizes the Windows taskbar wants
+            icons = net.xiaoyu233.fml.vulkan.window.WindowIcons.load(this.fileAssets);
         }
 
         boolean retried = false;

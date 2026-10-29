@@ -233,6 +233,7 @@ public final class WindowManager {
             }
         }
         glfwShowWindow(window);
+        applyIcons(); // again once the window is visible: the taskbar button of a window shown later picks up WM_SETICON
         focused = glfwGetWindowAttrib(window, GLFW_FOCUSED) == GLFW_TRUE;
         iconified = glfwGetWindowAttrib(window, GLFW_ICONIFIED) == GLFW_TRUE;
         closeRequested = false;
@@ -639,6 +640,7 @@ public final class WindowManager {
                 images.get(i).set(size, size, iconPixels.get(i));
             }
             glfwSetWindowIcon(window, images);
+            VkLog.LOGGER.info("Window icon set ({} images, {} px)", iconPixels.size(), iconSizes);
         } catch (Throwable t) {
             VkLog.LOGGER.warn("Could not set the window icon", t);
         }
