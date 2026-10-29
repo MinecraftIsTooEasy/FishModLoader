@@ -10,7 +10,7 @@ package net.xiaoyu233.fml.config;
  *   <li>{@code fpsCap > 0}: fixed cap in fps for the whole game, whatever the Performance option says.</li>
  *   <li>{@code fpsCap < 0}: MITE original mapping (120 / 35 / 120).</li>
  * </ul>
- * Before 4.0.0-vulkan.2 the key was {@code fpsLimit} with default 120, which silently capped every run at 120 fps; that key is ignored now.
+ * In earlier pre-release builds the key was {@code fpsLimit} with default 120, which silently capped every run at 120 fps; that key is ignored now.
  */
 public final class FpsLimit {
     /** Returned by {@link #cap(int)} for "no cap" (a value that is safe as a divisor and is recognised by the frame limiter). */
