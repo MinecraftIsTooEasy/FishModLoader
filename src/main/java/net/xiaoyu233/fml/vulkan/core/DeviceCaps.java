@@ -10,11 +10,12 @@ package net.xiaoyu233.fml.vulkan.core;
  * @param presentWait               VK_KHR_present_id and VK_KHR_present_wait enabled
  * @param timestampValidBits        valid bits of the timestamps of the graphics queue family (0 = no timestamps)
  * @param timestampPeriodNs         nanoseconds per timestamp tick
+ * @param presentId                 VK_KHR_present_id enabled (with present_wait, or for VK_NV_low_latency2)
  */
 public record DeviceCaps(boolean multiDrawIndirect, boolean drawIndirectFirstInstance, boolean extendedDynamicState,
-                         boolean presentWait, int timestampValidBits, float timestampPeriodNs) {
+                         boolean presentWait, int timestampValidBits, float timestampPeriodNs, boolean presentId) {
     /** Nothing optional enabled. */
-    public static final DeviceCaps NONE = new DeviceCaps(false, false, false, false, 0, 0.0f);
+    public static final DeviceCaps NONE = new DeviceCaps(false, false, false, false, 0, 0.0f, false);
 
     /** True when GPU timestamps of the graphics queue can be used. */
     public boolean timestamps() {

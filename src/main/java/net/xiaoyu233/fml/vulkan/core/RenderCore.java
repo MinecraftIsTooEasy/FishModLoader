@@ -26,6 +26,7 @@ import org.lwjgl.vulkan.VkFenceCreateInfo;
 import org.lwjgl.vulkan.VkImageBlit;
 import org.lwjgl.vulkan.VkImageMemoryBarrier;
 import org.lwjgl.vulkan.VkInstance;
+import org.lwjgl.vulkan.VkLatencySubmissionPresentIdNV;
 import org.lwjgl.vulkan.VkMemoryBarrier;
 import org.lwjgl.vulkan.VkPhysicalDevice;
 import org.lwjgl.vulkan.VkQueue;
@@ -226,6 +227,7 @@ public final class RenderCore {
             }
             if (presenter == null) {
                 swapchain = Swapchain.create(surface, windowWidth, windowHeight, effectiveVsync(), null);
+                LowLatency.onSwapchain(swapchain != null ? swapchain.handle : 0L);
             }
             VkLog.LOGGER.info("Presentation: {}, {} images (latency low: {}, present limiter {})", presentationName(), swapchainImageCount(),
                     lowLatency, PRESENT_MIN_MS > 0 ? PRESENT_MIN_MS + " ms (fml.vulkan.presentMinMs)" : "off");
@@ -1308,9 +1310,14 @@ public final class RenderCore {
                         .pWaitDstStageMask(stack.ints(VK_PIPELINE_STAGE_TRANSFER_BIT))
                         .pSignalSemaphores(stack.longs(swapchain.renderFinished[imageIndex]));
             }
+            if (LowLatency.nvEnabled()) {
+                // Reflex: attribute this submission to the frame's present id (honoured by low_latency2 revision 3+)
+                submitInfo.pNext(VkLatencySubmissionPresentIdNV.calloc(stack).sType$Default().presentID(LowLatency.currentPresentId()));
+            }
             // the fence is reset only now that a submit that signals it is certain
             VkUtil.check(vkResetFences(device, slot.fence), "vkResetFences");
             VkUtil.check(vkQueueSubmit(queue, submitInfo, slot.fence), "vkQueueSubmit");
+            LowLatency.renderSubmitEnd();
             if (imageIndex >= 0 && presenter != null) {
                 presenter.submitted(imageIndex, slot.fence);
             }
@@ -1455,6 +1462,7 @@ public final class RenderCore {
         if (swapchain != null) {
             swapchain.destroy();
             swapchain = null;
+            LowLatency.onSwapchain(0L);
         }
         swapchainDirty = false;
         try {
@@ -1525,6 +1533,7 @@ public final class RenderCore {
         }
         swapchain = fresh;
         swapchainDirty = false;
+        LowLatency.onSwapchain(fresh != null ? fresh.handle : 0L); // the sleep mode is per swapchain: applied again at the next sleep
     }
 
     /**

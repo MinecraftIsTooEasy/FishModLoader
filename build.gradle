@@ -134,6 +134,21 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
 
+// "<git short sha>[-dirty] <build date>", shown on the Vulkan F3 block (read from this jar's manifest)
+def fmlBuildId() {
+    def run = { List<String> cmd ->
+        try {
+            def p = new ProcessBuilder(cmd).directory(projectDir).redirectErrorStream(true).start()
+            def out = p.inputStream.text.trim()
+            p.waitFor()
+            return out
+        } catch (Exception e) { return '' }
+    }
+    def sha = run(['git', 'rev-parse', '--short', 'HEAD']) ?: 'nogit'
+    def dirty = run(['git', 'status', '--porcelain']) ? '-dirty' : ''
+    return sha + dirty + ' ' + new Date().format("yyyy-MM-dd HH:mm")
+}
+
 tasks.register('shadowJar', Jar) {
     group = 'fishmodloader'
 
@@ -155,6 +170,7 @@ tasks.register('shadowJar', Jar) {
     }
 
     manifest {
+        attributes 'FML-Build': fmlBuildId()
         attributes 'Main-Class': 'net.xiaoyu233.fml.relaunch.DevLaunchInjector'
         // lwjgl-3.4.3.jar has META-INF/versions/{11,25,27}/org/lwjgl/system classes: they are only served from a multi-release jar
         attributes 'Multi-Release': 'true'

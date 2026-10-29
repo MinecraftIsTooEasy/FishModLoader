@@ -5,6 +5,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import net.minecraft.Minecraft;
 import net.xiaoyu233.fml.vulkan.VkLog;
 import net.xiaoyu233.fml.vulkan.VulkanConfig;
+import net.xiaoyu233.fml.vulkan.core.LowLatency;
 import net.xiaoyu233.fml.vulkan.core.RenderCore;
 import net.xiaoyu233.fml.vulkan.render.gpu.DeviceFeatures;
 import net.xiaoyu233.fml.vulkan.render.gpu.GpuTimer;
@@ -111,8 +112,8 @@ public final class FramePacer {
         if (frameStart == 0L) {
             frameStart = now;
         }
-        if (lowLatency && DeviceFeatures.presentWait()) {
-            waitForPreviousPresent();
+        if (lowLatency && DeviceFeatures.presentWait() && !LowLatency.sleepActive()) {
+            waitForPreviousPresent(); // Reflex / Anti-Lag already paced this frame in limit(): never stack both waits
         }
         FrameStats.notePoll(System.nanoTime());
         Runnable probe = pollProbe;
@@ -120,6 +121,7 @@ public final class FramePacer {
             pollProbe = null;
             probe.run();
         }
+        LowLatency.inputSample();
         NativeWindow.pollEvents();
         if (guiPerFrame) {
             Minecraft mc = Minecraft.getMinecraft();
@@ -137,6 +139,7 @@ public final class FramePacer {
                 }
             }
         }
+        LowLatency.simulationEndRenderStart(); // camera update + command recording follow
     }
 
     /**
@@ -187,9 +190,15 @@ public final class FramePacer {
         limitCap = cap;
         limitReason = cap <= 0 ? REASON_NONE : cap != afterAfk ? (NativeWindow.isIconified() ? REASON_MINIMISED : REASON_UNFOCUSED)
                 : afterAfk != gameFps ? REASON_AFK : REASON_GAME;
-        FrameLimiter.sync(cap);
+        // NVIDIA Reflex / AMD Anti-Lag: the driver's sleep REPLACES the software limiter (the cap is its minimum interval / maxFPS);
+        // while minimised, without a swapchain or with reflex off the software limiter runs as before
+        if (!LowLatency.sleep(cap, NativeWindow.isIconified())) {
+            FrameLimiter.sync(cap);
+        }
+        LowLatency.beginFrame(); // SIMULATION_START of the next frame: ticks and input follow
         frameStart = System.nanoTime();
     }
+
 
     private static final int REASON_NONE = 0;
     private static final int REASON_GAME = 1;

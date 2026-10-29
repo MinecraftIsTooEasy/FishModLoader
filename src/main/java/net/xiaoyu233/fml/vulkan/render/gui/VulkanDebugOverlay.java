@@ -6,6 +6,7 @@ import net.minecraft.GuiIngame;
 import net.minecraft.Minecraft;
 import net.xiaoyu233.fml.vulkan.VulkanConfig;
 import net.xiaoyu233.fml.vulkan.core.DeviceInfo;
+import net.xiaoyu233.fml.vulkan.core.LowLatency;
 import net.xiaoyu233.fml.vulkan.core.RenderCore;
 import net.xiaoyu233.fml.vulkan.core.SwapchainInfo;
 import net.xiaoyu233.fml.vulkan.render.frame.FrameStats;
@@ -31,7 +32,7 @@ public final class VulkanDebugOverlay {
     private static final int REFRESH_MS = 250;
     private static final int COLOR = 0xE0E0E0;
     private static final int COLOR_HEAD = 0x80D8FF;
-    private static final int MAX_LINES = 14;
+    private static final int MAX_LINES = 18;
 
     private static final boolean ENABLED = VulkanConfig.debugOverlay();
     private static final String[] LINES = new String[MAX_LINES];
@@ -47,6 +48,7 @@ public final class VulkanDebugOverlay {
     private static long lastCommitNanos;
     private static final long[] SUM_L = new long[4];
     private static final double[] SUM_D = new double[1];
+    private static final double[] LATENCY_US = new double[4];
     private static String staticGpu;
     private static String staticDriver;
     private static String staticApi;
@@ -118,6 +120,7 @@ public final class VulkanDebugOverlay {
         }
         int k = 0;
         LINES[k++] = staticGpu;
+        LINES[k++] = buildLine();
         LINES[k++] = staticDriver;
         LINES[k++] = staticApi;
         StringBuilder sb = new StringBuilder(64);
@@ -128,6 +131,15 @@ public final class VulkanDebugOverlay {
         LINES[k++] = sb.append("Swapchain ").append(RenderCore.swapchainImageCount()).append(" images, ")
                 .append(RenderCore.framesInFlight()).append(" in flight").toString();
         sb.setLength(0);
+        LINES[k++] = sb.append("Reflex: ").append(LowLatency.statusText()).append(LowLatency.sleepActive() ? ", driver paces frames" : "")
+                .toString();
+        sb.setLength(0);
+        if (LowLatency.latencyTimings(LATENCY_US) > 0) { // markers are sent in every mode, also "off"
+            // driver reports (vkGetLatencyTimingsNV), refreshed with the overlay (4x per second)
+            LINES[k++] = sb.append("Latency: sim->present ").append(fmt2(LATENCY_US[0] / 1000.0)).append(" ms, submit->present ")
+                    .append(fmt2(LATENCY_US[1] / 1000.0)).append(" ms, GPU ").append(fmt2(LATENCY_US[3] / 1000.0)).append(" ms").toString();
+            sb.setLength(0);
+        }
         LINES[k++] = sb.append("Extent ").append(SwapchainInfo.width()).append('x').append(SwapchainInfo.height()).append(" fb ")
                 .append(WindowManager.getFramebufferWidth()).append('x').append(WindowManager.getFramebufferHeight()).toString();
         sb.setLength(0);
@@ -181,6 +193,30 @@ public final class VulkanDebugOverlay {
         for (int i = 0; i < k; i++) {
             WIDTHS[i] = font.getStringWidth(LINES[i]);
         }
+    }
+
+    private static String buildLine;
+
+    /** "FML 4.0.0 build <sha[-dirty] date>" from the jar manifest ("dev" when not running from the built jar). */
+    private static String buildLine() {
+        if (buildLine == null) {
+            String id = "dev";
+            try {
+                java.security.CodeSource cs = VulkanDebugOverlay.class.getProtectionDomain().getCodeSource();
+                if (cs != null && cs.getLocation().getPath().endsWith(".jar")) {
+                    try (java.util.jar.JarFile jf = new java.util.jar.JarFile(new java.io.File(cs.getLocation().toURI()))) {
+                        String v = jf.getManifest().getMainAttributes().getValue("FML-Build");
+                        if (v != null) {
+                            id = v;
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {
+                // keep "dev"
+            }
+            buildLine = "FML 4.0.0 build " + id;
+        }
+        return buildLine;
     }
 
     private static void buildStatic() {

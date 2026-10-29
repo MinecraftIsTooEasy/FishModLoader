@@ -464,6 +464,9 @@ public final class InputManager {
         switch (action) {
             case GLFW_PRESS -> {
                 suppressChar = false;
+                if (k == Keyboard.KEY_L && keyDown[Keyboard.KEY_F3]) {
+                    cycleReflex(); // F3 + L: Reflex off -> on -> boost (the L press still reaches the game, it has no F3 meaning there)
+                }
                 keyDown[k] = true;
                 queuePress(k, controlChar(key, scancode, mods), false);
             }
@@ -520,7 +523,22 @@ public final class InputManager {
             return;
         }
         buttonDown[button] = down;
+        if (down && button == 0 && mouseGrabbed) {
+            net.xiaoyu233.fml.vulkan.core.LowLatency.triggerFlash(); // Reflex latency analyzer / flash indicator (NVIDIA only)
+        }
         mqPut(button, down, mouseX, mouseY, 0, 0, 0);
+    }
+
+    private static void cycleReflex() {
+        String status = net.xiaoyu233.fml.vulkan.core.LowLatency.cycleMode();
+        try {
+            net.minecraft.Minecraft mc = net.minecraft.Minecraft.getMinecraft();
+            if (mc != null && mc.ingameGUI != null) {
+                mc.ingameGUI.getChatGUI().printChatMessage("Reflex: " + status);
+            }
+        } catch (RuntimeException e) {
+            VkLog.LOGGER.debug("Reflex toggle message not shown", e);
+        }
     }
 
     public static void onCursorPos(double xpos, double ypos) {

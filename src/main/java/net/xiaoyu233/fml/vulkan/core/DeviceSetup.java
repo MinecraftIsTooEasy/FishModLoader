@@ -11,7 +11,9 @@ import org.lwjgl.util.vma.VmaAllocatorCreateInfo;
 import org.lwjgl.util.vma.VmaVulkanFunctions;
 import org.lwjgl.vulkan.EXTDebugUtils;
 import org.lwjgl.vulkan.EXTExtendedDynamicState;
+import org.lwjgl.vulkan.AMDAntiLag;
 import org.lwjgl.vulkan.KHRPortabilityEnumeration;
+import org.lwjgl.vulkan.NVLowLatency2;
 import org.lwjgl.vulkan.KHRPortabilitySubset;
 import org.lwjgl.vulkan.KHRPresentId;
 import org.lwjgl.vulkan.KHRPresentWait;
@@ -43,6 +45,8 @@ import org.lwjgl.vulkan.VkPhysicalDeviceMemoryProperties;
 import org.lwjgl.vulkan.VkPhysicalDevicePortabilitySubsetFeaturesKHR;
 import org.lwjgl.vulkan.VkPhysicalDevicePresentIdFeaturesKHR;
 import org.lwjgl.vulkan.VkPhysicalDevicePresentWaitFeaturesKHR;
+import org.lwjgl.vulkan.VkPhysicalDeviceAntiLagFeaturesAMD;
+import org.lwjgl.vulkan.VkPhysicalDeviceTimelineSemaphoreFeatures;
 import org.lwjgl.vulkan.VkPhysicalDeviceProperties;
 import org.lwjgl.vulkan.VkPhysicalDeviceProperties2;
 import org.lwjgl.vulkan.VkQueue;
@@ -143,6 +147,11 @@ final class DeviceSetup {
             c.allocator = 0;
         }
         if (c.device != null) {
+            try {
+                LowLatency.destroy(c.device);
+            } catch (Throwable t) {
+                VkLog.LOGGER.warn("Low latency shutdown failed", t);
+            }
             try {
                 vkDestroyDevice(c.device, null);
             } catch (Throwable t) {
@@ -812,6 +821,16 @@ final class DeviceSetup {
         boolean offersEds = c.deviceExtensions.contains(EXTExtendedDynamicState.VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME);
         boolean offersPresentWait = c.deviceExtensions.contains(KHRPresentId.VK_KHR_PRESENT_ID_EXTENSION_NAME)
                 && c.deviceExtensions.contains(KHRPresentWait.VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
+        // NVIDIA Reflex / AMD Anti-Lag (fml.vulkan.reflex, LowLatency): VK_NV_low_latency2 needs VK_KHR_present_id (presentId feature)
+        // and timeline semaphores (core 1.2 here: the instance and the device must both be 1.2+ for vkWaitSemaphores)
+        int reflexMode = LowLatency.parseMode(VulkanConfig.reflex());
+        boolean vk12 = (c.instanceApiVersion & ~0xFFF) >= VK12.VK_API_VERSION_1_2 && (c.deviceApiVersion & ~0xFFF) >= VK12.VK_API_VERSION_1_2;
+        boolean offersNvLowLatency = reflexMode != LowLatency.MODE_OFF && vk12
+                && c.deviceExtensions.contains(NVLowLatency2.VK_NV_LOW_LATENCY_2_EXTENSION_NAME)
+                && c.deviceExtensions.contains(KHRPresentId.VK_KHR_PRESENT_ID_EXTENSION_NAME);
+        boolean offersAntiLag = reflexMode != LowLatency.MODE_OFF && !offersNvLowLatency
+                && c.deviceExtensions.contains(AMDAntiLag.VK_AMD_ANTI_LAG_EXTENSION_NAME);
+        boolean offersPresentId = offersPresentWait || offersNvLowLatency;
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkDeviceQueueCreateInfo.Buffer queueInfo = VkDeviceQueueCreateInfo.calloc(1, stack)
@@ -827,8 +846,12 @@ final class DeviceSetup {
                     ? VkPhysicalDevicePortabilitySubsetFeaturesKHR.calloc(stack).sType$Default() : null;
             VkPhysicalDeviceExtendedDynamicStateFeaturesEXT edsFeatures = offersEds
                     ? VkPhysicalDeviceExtendedDynamicStateFeaturesEXT.calloc(stack).sType$Default() : null;
-            VkPhysicalDevicePresentIdFeaturesKHR presentIdFeatures = offersPresentWait
+            VkPhysicalDevicePresentIdFeaturesKHR presentIdFeatures = offersPresentId
                     ? VkPhysicalDevicePresentIdFeaturesKHR.calloc(stack).sType$Default() : null;
+            VkPhysicalDeviceTimelineSemaphoreFeatures timelineFeatures = offersNvLowLatency
+                    ? VkPhysicalDeviceTimelineSemaphoreFeatures.calloc(stack).sType$Default() : null;
+            VkPhysicalDeviceAntiLagFeaturesAMD antiLagFeatures = offersAntiLag
+                    ? VkPhysicalDeviceAntiLagFeaturesAMD.calloc(stack).sType$Default() : null;
             VkPhysicalDevicePresentWaitFeaturesKHR presentWaitFeatures = offersPresentWait
                     ? VkPhysicalDevicePresentWaitFeaturesKHR.calloc(stack).sType$Default() : null;
             long queryChain = 0L;
@@ -843,15 +866,28 @@ final class DeviceSetup {
             if (presentIdFeatures != null) {
                 presentIdFeatures.pNext(queryChain);
                 queryChain = presentIdFeatures.address();
+            }
+            if (presentWaitFeatures != null) {
                 presentWaitFeatures.pNext(queryChain);
                 queryChain = presentWaitFeatures.address();
+            }
+            if (timelineFeatures != null) {
+                timelineFeatures.pNext(queryChain);
+                queryChain = timelineFeatures.address();
+            }
+            if (antiLagFeatures != null) {
+                antiLagFeatures.pNext(queryChain);
+                queryChain = antiLagFeatures.address();
             }
             if (queryChain != 0L) {
                 VkPhysicalDeviceFeatures2 features2 = VkPhysicalDeviceFeatures2.calloc(stack).sType$Default().pNext(queryChain);
                 VK11.vkGetPhysicalDeviceFeatures2(c.physicalDevice, features2);
             }
             boolean eds = edsFeatures != null && edsFeatures.extendedDynamicState();
-            boolean presentWait = presentIdFeatures != null && presentIdFeatures.presentId() && presentWaitFeatures.presentWait();
+            boolean presentWait = presentWaitFeatures != null && presentIdFeatures.presentId() && presentWaitFeatures.presentWait();
+            boolean nvLowLatency = offersNvLowLatency && presentIdFeatures.presentId() && timelineFeatures.timelineSemaphore();
+            boolean antiLag = antiLagFeatures != null && antiLagFeatures.antiLag();
+            boolean presentId = presentWait || nvLowLatency;
 
             // the enabled chain: portability (every optional portability feature the device offers: swizzled image views, sampler LOD
             // bias, ...) and only those optional structs whose extension is enabled
@@ -865,13 +901,25 @@ final class DeviceSetup {
                 edsFeatures.pNext(chain);
                 chain = edsFeatures.address();
             }
-            if (presentWait) {
+            if (presentId) {
                 extensions.add(KHRPresentId.VK_KHR_PRESENT_ID_EXTENSION_NAME);
-                extensions.add(KHRPresentWait.VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
                 presentIdFeatures.pNext(chain);
                 chain = presentIdFeatures.address();
+            }
+            if (presentWait) {
+                extensions.add(KHRPresentWait.VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
                 presentWaitFeatures.pNext(chain);
                 chain = presentWaitFeatures.address();
+            }
+            if (nvLowLatency) {
+                extensions.add(NVLowLatency2.VK_NV_LOW_LATENCY_2_EXTENSION_NAME);
+                timelineFeatures.pNext(chain);
+                chain = timelineFeatures.address();
+            }
+            if (antiLag) {
+                extensions.add(AMDAntiLag.VK_AMD_ANTI_LAG_EXTENSION_NAME);
+                antiLagFeatures.pNext(chain);
+                chain = antiLagFeatures.address();
             }
 
             // calloc: every feature we do not name must be VK_FALSE (a malloc'd struct enables random features)
@@ -918,7 +966,16 @@ final class DeviceSetup {
             VkPhysicalDeviceProperties props = VkPhysicalDeviceProperties.malloc(stack);
             vkGetPhysicalDeviceProperties(c.physicalDevice, props);
             c.caps = new DeviceCaps(supported.multiDrawIndirect(), supported.drawIndirectFirstInstance(), eds, presentWait, validBits,
-                    props.limits().timestampPeriod());
+                    props.limits().timestampPeriod(), presentId);
+            String llReason = reflexMode == LowLatency.MODE_OFF ? "reflex=off"
+                    : c.info.isMoltenVK() ? "MoltenVK"
+                    : nvLowLatency || antiLag ? null
+                    : offersNvLowLatency ? "presentId / timelineSemaphore feature missing"
+                    : offersAntiLag ? "antiLag feature missing"
+                    : c.deviceExtensions.contains(NVLowLatency2.VK_NV_LOW_LATENCY_2_EXTENSION_NAME) ? (vk12 ? "VK_KHR_present_id missing" : "Vulkan 1.2 required")
+                    : "no VK_NV_low_latency2 / VK_AMD_anti_lag";
+            LowLatency.configure(nvLowLatency, antiLag, llReason, reflexMode);
+            LowLatency.init(c.device);
             VkLog.LOGGER.info("Device features: multiDrawIndirect {}, drawIndirectFirstInstance {}, extendedDynamicState {}, presentWait {}, "
                             + "timestamps {} ({} bits, {} ns/tick)", c.caps.multiDrawIndirect(), c.caps.drawIndirectFirstInstance(), eds,
                     presentWait, c.caps.timestamps(), validBits, c.caps.timestampPeriodNs());

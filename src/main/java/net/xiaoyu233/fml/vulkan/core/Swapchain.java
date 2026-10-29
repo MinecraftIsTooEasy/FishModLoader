@@ -14,6 +14,7 @@ import org.lwjgl.vulkan.VkQueue;
 import org.lwjgl.vulkan.VkSemaphoreCreateInfo;
 import org.lwjgl.vulkan.VkSurfaceCapabilitiesKHR;
 import org.lwjgl.vulkan.VkSurfaceFormatKHR;
+import org.lwjgl.vulkan.VkSwapchainLatencyCreateInfoNV;
 import org.lwjgl.vulkan.VkSwapchainCreateInfoKHR;
 
 import java.nio.IntBuffer;
@@ -139,6 +140,10 @@ final class Swapchain {
                     .clipped(true)
                     .oldSwapchain(old != null ? old.handle : VK_NULL_HANDLE);
             info.imageExtent().set(width, height);
+            if (LowLatency.nvEnabled()) {
+                // Reflex: the swapchain must opt in to latency pacing for vkSetLatencySleepModeNV / vkLatencySleepNV
+                info.pNext(VkSwapchainLatencyCreateInfoNV.calloc(stack).sType$Default().latencyModeEnable(true));
+            }
 
             LongBuffer pSwapchain = stack.mallocLong(1);
             VkUtil.check(KHRSwapchain.vkCreateSwapchainKHR(device, info, null, pSwapchain), "vkCreateSwapchainKHR");
@@ -274,15 +279,26 @@ final class Swapchain {
                     .pSwapchains(stack.longs(handle))
                     .pImageIndices(stack.ints(imageIndex));
             long id = 0L;
-            if (RenderCore.deviceCaps().presentWait()) {
+            boolean reflex = LowLatency.nvEnabled();
+            if (reflex) {
+                // Reflex: the present carries the frame's id (the same as its markers and its submit), strictly increasing
+                id = LowLatency.currentPresentId();
+                if (id <= lastPresentId) {
+                    id = lastPresentId + 1L; // never reuse an id on this swapchain (VUID-VkPresentIdKHR-presentIds-04999)
+                }
+            } else if (RenderCore.deviceCaps().presentWait()) {
                 id = lastPresentId + 1L;
+            }
+            if (id != 0L) {
                 VkPresentIdKHR presentId = VkPresentIdKHR.calloc(stack)
                         .sType$Default()
                         .swapchainCount(1)
                         .pPresentIds(stack.longs(id));
                 info.pNext(presentId);
             }
+            LowLatency.presentStart(); // PRESENT_START (NVIDIA) / Anti-Lag present stage (AMD); one boolean test otherwise
             int result = KHRSwapchain.vkQueuePresentKHR(queue, info);
+            LowLatency.presentEnd();
             if (id != 0L && result >= 0) {
                 lastPresentId = id;
             }

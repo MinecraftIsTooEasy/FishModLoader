@@ -61,6 +61,7 @@ public final class VulkanConfig {
     public static final String PROP_GPU = "fml.vulkan.gpu";
     public static final String PROP_MAC_PRESENTER = "fml.vulkan.macPresenter";
     public static final String PROP_PRESENTER_SURFACES = "fml.vulkan.presenterSurfaces";
+    public static final String PROP_REFLEX = "fml.vulkan.reflex";
 
     private static final Set<String> WARNED = ConcurrentHashMap.newKeySet();
 
@@ -364,6 +365,14 @@ public final class VulkanConfig {
     /** fml.vulkan.latency: normal | low (4.2), default normal. */
     public static String latency() {
         return choice(PROP_LATENCY, "normal", "normal", "low");
+    }
+
+    /**
+     * fml.vulkan.reflex: {@code off | on | boost} (default {@code on}). NVIDIA Reflex through VK_NV_low_latency2 (AMD Anti-Lag through
+     * VK_AMD_anti_lag for on / boost) when the device supports it; {@code off} does not even enable the device extension.
+     */
+    public static String reflex() {
+        return choice(PROP_REFLEX, "on", "off", "on", "boost");
     }
 
     /** fml.vulkan.capUnfocused: frame cap while the window is unfocused, default 30. */
