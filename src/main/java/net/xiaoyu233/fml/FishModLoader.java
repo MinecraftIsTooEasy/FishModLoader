@@ -71,13 +71,19 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class FishModLoader {
-   public static final File CONFIG_DIR = new File("config");
+   /** Game directory: the --gameDir argument (system property fml.gameDir, set by the client Main) or the working directory. Mods and config are looked up here,
+    * not in the process working directory (a launcher may start java in another folder than --gameDir). */
+   private static File gameDirRelative(String name) {
+      String dir = System.getProperty("fml.gameDir");
+      return dir == null || dir.isBlank() ? new File(name) : new File(dir, name);
+   }
+   public static final File CONFIG_DIR = gameDirRelative("config");
    public static final String VERSION = Constants.VERSION;
    private static final String MOD_ID = Constants.MOD_ID;
    /** Mixin config of the Vulkan backend (window/clipboard/test harness mixins in the package net.xiaoyu233.fml.vulkan.mixin). */
    private static final String VULKAN_MIXIN_CONFIG = "fishmodloader.vulkan.mixins.json";
    public static final Logger LOGGER = LogManager.getLogger(MOD_ID);
-   public static final File MOD_DIR = new File("mods");
+   public static final File MOD_DIR = gameDirRelative("mods");
    private static final Map<String, ModContainerImpl> modsMapForLoginCheck  = new HashMap<>();
    private static final ArrayList<ModContainerImpl> mods = new ArrayList<>();
    private static final Map<String, ModContainerImpl> modsMap = new HashMap<>();
