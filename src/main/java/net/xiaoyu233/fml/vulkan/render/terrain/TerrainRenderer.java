@@ -62,7 +62,12 @@ public final class TerrainRenderer {
     }
 
     public static boolean updateChunks(EntityLivingBase viewer, long deadlineNanos, boolean force) {
-        return SectionScheduler.update(viewer, deadlineNanos, force);
+        long t0 = System.nanoTime();
+        try {
+            return SectionScheduler.update(viewer, deadlineNanos, force);
+        } finally {
+            net.xiaoyu233.fml.vulkan.render.frame.FrameStats.noteSched(System.nanoTime() - t0);
+        }
     }
 
     public static void drawOpaque() {

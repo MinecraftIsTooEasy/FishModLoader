@@ -101,7 +101,9 @@ public final class Textures {
 
     /** Uploads {@code w x h} ARGB ints (row 0 first) into level 0 at (x, y); nearest / linear and repeat / clamp from the flags. */
     public static void uploadArgb(int id, int[] argb, int width, int height, int x, int y, boolean linear, boolean clamp) {
+        long t0 = System.nanoTime();
         NativeTextures.uploadArgb(id, argb, width, height, x, y, linear, clamp);
+        net.xiaoyu233.fml.vulkan.render.frame.FrameStats.noteUpload(System.nanoTime() - t0);
     }
 
     public static void setFilter(int id, boolean linear) {

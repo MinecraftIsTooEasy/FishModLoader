@@ -45,6 +45,8 @@ public final class Bench {
 
     private static volatile Bench instance;
     private static volatile long frameStartNs;
+    /** nanoTime at the end of the last runTick of the frame being built (tick_ns = this - frameStartNs; 0 = no tick this frame). */
+    private static volatile long tickEndNs;
     private static volatile boolean frameHooksLive;
 
     final Minecraft mc;
@@ -104,6 +106,7 @@ public final class Bench {
             }
         }
         b.ticks++;
+        tickEndNs = System.nanoTime();
         b.followPath();
         b.drain(b.clientTasks);
     }
@@ -187,6 +190,18 @@ public final class Bench {
             return;
         }
         long frameNs = now - prev;
+        long tickNs = tickEndNs > frameStartNs && frameStartNs > 0 ? tickEndNs - frameStartNs : 0;
+        tickEndNs = 0;
+        long schedNs = -1;
+        long uploadNs = -1;
+        long pipeCreated = -1;
+        Object fr = latestFrame();
+        if (fr != null) {
+            schedNs = frameNum(fr, "schedNanos");
+            uploadNs = frameNum(fr, "uploadNanos");
+            pipeCreated = frameNum(fr, "pipelinesCreatedRenderThread");
+        }
+        int hitch = frameNs > 3_000_000L ? 1 : 0;
         long cpuNs = -1; // set from FrameStats.cpuNanos below (a wall time after present + limiter is not CPU render time)
         metrics.sample();
         cpuNs = metrics.cpuNanos;
@@ -209,12 +224,39 @@ public final class Bench {
         r.append(now - t0Ns).append(',').append(frameNs).append(',').append(cpuNs).append(',').append(metrics.presentNanos).append(',');
         r.append(metrics.gpuMs < 0 ? "-1" : String.format(Locale.ROOT, "%.3f", metrics.gpuMs)).append(',').append(metrics.draws).append(',').append(metrics.encodedDraws).append(',');
         r.append(metrics.sectionsVisible).append(',').append(dcu).append(',').append(metrics.captureNanos).append(',').append(heap).append(',').append(rss).append(',');
-        r.append(metrics.vmaMb).append(',').append(gcC).append(',').append(gcM).append(',').append(rec.segment).append(',').append(metrics.submitNanos).append(',').append(metrics.presented).append(',').append(metrics.fenceWaitNanos).append('\n');
+        r.append(metrics.vmaMb).append(',').append(gcC).append(',').append(gcM).append(',').append(rec.segment).append(',').append(metrics.submitNanos).append(',').append(metrics.presented).append(',').append(metrics.fenceWaitNanos);
+        r.append(',').append(tickNs).append(',').append(schedNs).append(',').append(pipeCreated).append(',').append(uploadNs).append(',').append(hitch).append('\n');
         try {
             csv.write(r.toString());
             writePresents(now, rec);
         } catch (IOException e) {
             // disk full: the run goes on, the summary still has the numbers
+        }
+    }
+
+    private static final java.lang.reflect.Method STATS_LATEST = statsMethod();
+
+    private static java.lang.reflect.Method statsMethod() {
+        try {
+            return Class.forName("net.xiaoyu233.fml.vulkan.render.frame.FrameStats").getMethod("latest");
+        } catch (ReflectiveOperationException | LinkageError e) {
+            return null;
+        }
+    }
+
+    private static Object latestFrame() {
+        try {
+            return STATS_LATEST == null ? null : STATS_LATEST.invoke(null);
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    private static long frameNum(Object frame, String name) {
+        try {
+            return ((Number) frame.getClass().getMethod(name).invoke(frame)).longValue();
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return -1;
         }
     }
 
@@ -434,7 +476,7 @@ public final class Bench {
         closeCsv();
         File f = new File(outDir, "bench-" + BUILD + "-" + dim + "-" + rd + "-" + run + "-frames.csv");
         csv = Files.newBufferedWriter(f.toPath(), StandardCharsets.UTF_8);
-        csv.write("t_ns,frame_ns,cpu_render_ns,present_wait_ns,gpu_ms,draws,encoded_draws,sections_visible,sections_built,capture_ns,heap_used_mb,rss_mb,vma_mb,gc_count,gc_ms,segment,submit_ns,presented,fence_wait_ns\n");
+        csv.write("t_ns,frame_ns,cpu_render_ns,present_wait_ns,gpu_ms,draws,encoded_draws,sections_visible,sections_built,capture_ns,heap_used_mb,rss_mb,vma_mb,gc_count,gc_ms,segment,submit_ns,presented,fence_wait_ns,tick_ns,sched_ns,pipeline_creations,texture_upload_ns,hitch\n");
         presentsCsv = Files.newBufferedWriter(new File(outDir, "bench-" + BUILD + "-" + dim + "-" + rd + "-" + run + "-presents.csv").toPath(), StandardCharsets.UTF_8);
         presentsCsv.write("t_ns,segment\n");
         presentIdx = -1;

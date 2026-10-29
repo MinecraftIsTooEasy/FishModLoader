@@ -131,4 +131,22 @@ public final class OptFlags {
         }
         return sb.toString();
     }
+
+    /** One INFO line per optimisation switch (name, state, property, reason); called once at startup by ConflictGuard. */
+    public static void logSwitches(org.apache.logging.log4j.Logger log) {
+        String[][] sw = {
+            {"tcpNoDelay", "net", "fml.vulkan.opt.net", "TCP_NODELAY on the integrated/remote connection"},
+            {"regionReadAhead", "regionio", "fml.vulkan.opt.regionio", "region file read-ahead"},
+            {"entityIndex", "entity", "fml.vulkan.opt.entity", "per-chunk entity query index"},
+            {"rawMouse", "input", "fml.vulkan.opt.input", "raw mouse input in controls"},
+            {"fpsPolicy", "fps", "fml.vulkan.opt.fps", "menu/unfocused/AFK frame policy"},
+            {"entityCull", "quality", "fml.vulkan.opt.quality", "entity distance and shadow culling"},
+            {"parallelReload", "reload", "fml.vulkan.opt.reload", "parallel resource reload"},
+        };
+        for (String[] s : sw) {
+            log.info("OptFlag {}={} ({}, property {}, area {})", s[0], area(s[1]) ? "on" : "off", s[3], s[2], s[1]);
+        }
+        log.info("OptFlag particlesFast={} (property {})", net.xiaoyu233.fml.vulkan.VulkanConfig.particlesFast() ? "on" : "off", "fml.vulkan.particles.fast");
+        log.info("OptFlag jvmPreset={} (JVM {} {})", System.getProperty("fml.vulkan.jvmPreset", "none"), System.getProperty("java.vm.name"), String.join(" ", java.lang.management.ManagementFactory.getRuntimeMXBean().getInputArguments().stream().filter(a -> a.startsWith("-XX:+Use") || a.startsWith("-Xm")).toList()));
+    }
 }

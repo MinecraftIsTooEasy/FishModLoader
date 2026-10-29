@@ -67,6 +67,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  *   swing                                 swing the arm
  *   gui &lt;none|inventory|menu|options|chat|singleplayer|multiplayer|video|controls|createworld|language&gt;
  * A step line starting with {@code m<frame>} instead of {@code <frame>} runs while no world is loaded (main menu tests).
+ *   key &lt;GLFW key code&gt; [down|up|tap]  synthetic key event through InputManager.onKey (F3 = 292)
  *   debug &lt;on|off&gt;                       F3 style debug text
  *   view &lt;0|1|2&gt;                         first person / back / front camera
  *   opt &lt;ao|clouds|particles|gamma|fov|guimode&gt; &lt;value&gt;
@@ -487,6 +488,17 @@ public final class AutoScript {
                     default -> VkLog.LOGGER.warn("[autoScript] unknown gui {}", t[1]);
                 }
             }
+            case "key" -> {
+                // key <GLFW key code> [down|up|tap]: a synthetic keyboard event through the real GLFW key path (InputManager.onKey)
+                int glfwKey = Integer.parseInt(t[1]);
+                String mode = t.length > 2 ? t[2].toLowerCase() : "tap";
+                if (!mode.equals("up")) {
+                    net.xiaoyu233.fml.vulkan.window.InputManager.onKey(glfwKey, 0, 1, 0);
+                }
+                if (!mode.equals("down")) {
+                    net.xiaoyu233.fml.vulkan.window.InputManager.onKey(glfwKey, 0, 0, 0);
+                }
+            }
             case "debug" -> mc.gameSettings.showDebugInfo = !"off".equalsIgnoreCase(t[1]);
             case "view" -> mc.gameSettings.thirdPersonView = Integer.parseInt(t[1]);
             case "opt" -> {
@@ -496,6 +508,7 @@ public final class AutoScript {
                     case "particles" -> mc.gameSettings.particleSetting = Integer.parseInt(t[2]);
                     case "gamma" -> mc.gameSettings.gammaSetting = Float.parseFloat(t[2]);
                     case "fov" -> mc.gameSettings.fovSetting = Float.parseFloat(t[2]);
+                    case "pauseonlostfocus" -> mc.gameSettings.pauseOnLostFocus = Boolean.parseBoolean(t[2]);
                     case "guimode" -> mc.gameSettings.gui_mode = Integer.parseInt(t[2]);
                     default -> VkLog.LOGGER.warn("[autoScript] unknown option {}", t[1]);
                 }

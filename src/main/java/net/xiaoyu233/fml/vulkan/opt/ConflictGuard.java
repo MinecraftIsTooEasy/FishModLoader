@@ -61,6 +61,7 @@ public final class ConflictGuard {
         }
         try {
             LOGGER.info("Opt flags: {}", OptFlags.dump());
+            OptFlags.logSwitches(LOGGER);
         } catch (Throwable ignored) {
         }
     }
