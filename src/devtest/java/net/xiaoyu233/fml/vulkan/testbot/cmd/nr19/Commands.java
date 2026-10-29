@@ -72,8 +72,8 @@ public final class Commands implements DevCommandProvider {
     static final float T0_PARTIAL = 0.5F;
     static final float T1_PARTIAL = 0.25F;
 
-    /** Default output: the NR-19 screenshot folder under the vulkan docs directory (override with {@code -Dfml.vulkan.testbot.docs}). */
-    static final String DEFAULT_DOCS = "/Users/xijinping/Documents/mite-itf/vulkan/docs";
+    /** Default output when {@code -Dfml.vulkan.testbot.docs} is not set (runClient -Ptestbot sets it to the docs directory next to the repo). */
+    static final String DEFAULT_DOCS = "docs";
 
     /**
      * {@code containerScreens [screen ...]}: opens each container screen on the player of the museum world, freezes the client clock

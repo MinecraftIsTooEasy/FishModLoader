@@ -1,7 +1,7 @@
 // NR-08: GL site scans (ARCHITECTURE-NATIVE 1.16.6). Implementation: tools/GlSiteScan.java (single-file Java 25 program).
 // Game jar lookup: libs/1.6.4-MITE.jar (build.gradle: implementation files('libs/1.6.4-MITE.jar')), the remapped MITE jar.
-// Reports go outside the repo: -PglScanOut=<dir> (default /Users/xijinping/Documents/mite-itf/vulkan/docs/native).
-def glScanOut = (project.findProperty('glScanOut') ?: '/Users/xijinping/Documents/mite-itf/vulkan/docs/native').toString()
+// Reports: -PglScanOut=<dir> (default build/reports/gl-site-scan, inside the project so it works on every machine and on CI).
+def glScanOut = (project.findProperty('glScanOut') ?: layout.buildDirectory.dir('reports/gl-site-scan').get().asFile).toString()
 
 tasks.register('glSiteScan', Exec) {
     group = 'fishmodloader'
