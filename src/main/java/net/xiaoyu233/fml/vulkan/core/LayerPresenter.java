@@ -44,7 +44,8 @@ import static org.lwjgl.vulkan.VK10.*;
  */
 final class LayerPresenter {
     private static final int BGRA = 0x42475241; // 'BGRA'
-    private static final long ACQUIRE_TIMEOUT_NANOS = 20_000_000L;
+    private static final long ACQUIRE_TIMEOUT_NANOS = 2_000_000L;
+    private static final long ACQUIRE_TIMEOUT_MAXED_NANOS = 1_000_000L; // pool at its maximum and still busy: drop the frame quickly
     private static final int MAX_SURFACES = 10;
 
     // Objective-C / CoreFoundation / IOSurface entry points (resolved once)
@@ -135,7 +136,7 @@ final class LayerPresenter {
             } finally {
                 JNI.invokePV(pool, poolPop);
             }
-            LayerPresenter p = new LayerPresenter(device, glfwWindow, host, sub, Math.max(3, poolSize));
+            LayerPresenter p = new LayerPresenter(device, glfwWindow, host, sub, Math.max(8, poolSize));
             p.resize(width, height);
             return p;
         } catch (Throwable t) {
@@ -265,7 +266,7 @@ final class LayerPresenter {
             publishCompleted();
             long now = System.nanoTime();
             if (deadline == 0L) {
-                deadline = now + ACQUIRE_TIMEOUT_NANOS;
+                deadline = now + (poolSize < MAX_SURFACES ? ACQUIRE_TIMEOUT_NANOS : ACQUIRE_TIMEOUT_MAXED_NANOS);
                 acquireWaits++;
             } else if (now > deadline && poolSize < MAX_SURFACES && pending.isEmpty()) {
                 // the window server holds more surfaces than expected (e.g. during a live resize): add one instead of dropping frames
@@ -280,7 +281,7 @@ final class LayerPresenter {
                         b.append(k).append(gpuBusy[k] ? " gpu" : "").append(k == shown ? " shown" : "")
                                 .append(JNI.invokePZ(surfaces[k], ioSurfaceIsInUse) ? " inUse" : "").append("; ");
                     }
-                    VkLog.LOGGER.warn("Layer presenter: no free surface for {} ms ({} skips so far, {} pending): {}", ACQUIRE_TIMEOUT_NANOS / 1_000_000L,
+                    VkLog.LOGGER.warn("Layer presenter: no free surface for {} ms ({} skips so far, {} pending): {}", ACQUIRE_TIMEOUT_MAXED_NANOS / 1_000_000L,
                             acquireSkips, pending.size(), b);
                 }
                 return -1;

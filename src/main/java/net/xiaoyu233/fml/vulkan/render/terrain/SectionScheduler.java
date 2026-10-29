@@ -10,6 +10,7 @@ import net.minecraft.Minecraft;
 import net.minecraft.World;
 import net.minecraft.WorldRenderer;
 import net.xiaoyu233.fml.vulkan.VkLog;
+import net.xiaoyu233.fml.vulkan.VulkanConfig;
 import net.xiaoyu233.fml.vulkan.render.frame.FrameStats;
 import net.xiaoyu233.fml.vulkan.render.mesh.MeshResult;
 import net.xiaoyu233.fml.vulkan.render.mesh.MeshTask;
@@ -35,8 +36,21 @@ public final class SectionScheduler {
     private static final int IN_FLIGHT_CAP = 2 * MESH_THREADS;
     private static final long CAPTURE_NANOS = (long) (prop("fml.vulkan.captureMs", 1.5) * 1_000_000.0);
     private static final int CAPTURES_PER_FRAME = Integer.getInteger("fml.vulkan.capturesPerFrame", 64);
-    private static final long COMMIT_NANOS = (long) (prop("fml.vulkan.sectionCommitMs", 0.5) * 1_000_000.0);
-    private static final long UPLOAD_BYTES = Integer.getInteger("fml.vulkan.sectionUploadMiB", 4) * 1024L * 1024L;
+    /** Base (busy-frame) budget, from VulkanConfig (single source of truth). */
+    private static final long BASE_COMMIT_NANOS = (long) (VulkanConfig.sectionCommitMs() * 1_000_000.0);
+    private static final long BASE_UPLOAD_BYTES = VulkanConfig.sectionUploadMiB() * 1024L * 1024L;
+    private static final long IDLE_UPLOAD_BYTES = Math.max(BASE_UPLOAD_BYTES, 16L * 1024L * 1024L);
+    private static final boolean ADAPTIVE = VulkanConfig.sectionAdaptive();
+    private static final double FRAME_TARGET_MS = 1000.0 / 60.0;
+    private static final double BUSY_FRAME_MS = 4.0;
+    private static final long MAX_COMMIT_NANOS = Math.max(BASE_COMMIT_NANOS, 3_000_000L);
+    /** Effective budget of the current frame (adaptive or the base values). */
+    private static long COMMIT_NANOS = BASE_COMMIT_NANOS;
+    private static long UPLOAD_BYTES = BASE_UPLOAD_BYTES;
+    static {
+        VkLog.LOGGER.info("SectionScheduler budget: commit {} ms, upload {} MiB (adaptive={}: commit up to {} ms, upload up to {} MiB when frame < {} ms)",
+                BASE_COMMIT_NANOS / 1e6, BASE_UPLOAD_BYTES >> 20, ADAPTIVE, MAX_COMMIT_NANOS / 1e6, IDLE_UPLOAD_BYTES >> 20, BUSY_FRAME_MS);
+    }
 
     private static final class Entry {
         final Section section;
@@ -434,6 +448,16 @@ public final class SectionScheduler {
             budgetFrame = frame;
             budgetSpentNanos = 0L;
             SectionCommit.beginFrame();
+            COMMIT_NANOS = BASE_COMMIT_NANOS;
+            UPLOAD_BYTES = BASE_UPLOAD_BYTES;
+            if (ADAPTIVE && !idle()) {
+                double lastMs = FrameStats.latest().cpuNanos() / 1e6;
+                if (lastMs < BUSY_FRAME_MS) {
+                    double ms = Math.max(0.5, Math.min(3.0, FRAME_TARGET_MS - lastMs - 0.3));
+                    COMMIT_NANOS = Math.max(BASE_COMMIT_NANOS, Math.min(MAX_COMMIT_NANOS, (long) (ms * 1e6)));
+                    UPLOAD_BYTES = IDLE_UPLOAD_BYTES;
+                }
+            }
         }
     }
 

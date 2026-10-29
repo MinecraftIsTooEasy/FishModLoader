@@ -245,14 +245,19 @@ public final class VulkanConfig {
         return Math.max(1, Math.min(8, integer(PROP_MESH_THREADS, def)));
     }
 
-    /** fml.vulkan.sectionCommitMs: render-thread budget per frame for committing finished sections, default 2.0. */
+    /** fml.vulkan.sectionCommitMs: render-thread budget per frame for committing finished sections, default 0.5 (busy-frame base; see sectionAdaptive). */
     public static double sectionCommitMs() {
-        return Math.max(0.0, decimal(PROP_SECTION_COMMIT_MS, 2.0));
+        return Math.max(0.0, decimal(PROP_SECTION_COMMIT_MS, 0.5));
     }
 
-    /** fml.vulkan.sectionUploadMiB: section upload budget per frame in MiB, default 32. */
+    /** fml.vulkan.sectionUploadMiB: section upload budget per frame in MiB, default 4 (busy-frame base; 16 when idle if adaptive). */
     public static int sectionUploadMiB() {
-        return Math.max(1, integer(PROP_SECTION_UPLOAD_MIB, 32));
+        return Math.max(1, integer(PROP_SECTION_UPLOAD_MIB, 4));
+    }
+
+    /** fml.vulkan.sectionAdaptive: adaptive commit budget (clamp(16.7 - lastFrameMs - 0.3, 0.5, 3) ms, 16 MiB upload) while the previous frame was below 4 ms; default true. */
+    public static boolean sectionAdaptive() {
+        return !"false".equalsIgnoreCase(System.getProperty("fml.vulkan.sectionAdaptive", "true"));
     }
 
     /** fml.vulkan.captureMs: render-thread budget per frame for far-set snapshot captures, default 1.5. */
