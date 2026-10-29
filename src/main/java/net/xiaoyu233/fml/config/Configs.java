@@ -17,7 +17,7 @@ public class Configs {
             addEntry(new ConfigCategory("Server").withComment("服务端")
                     .addEntry(new ConfigEntry<>("allowClientMods", Codec.BOOLEAN, true, Server.ALLOW_CLIENT_MODS).withComment("允许客户端使用客户端模组(如坐标器)"))).
             addEntry(new ConfigCategory("Client").withComment("客户端")
-                    .addEntry(new ConfigEntry<>("fpsLimit", Codec.INTEGER, 120, Client.FPS_LIMIT).withComment("FPS最大值"))).
+                    .addEntry(new ConfigEntry<>("fpsCap", Codec.INTEGER, 0, Client.FPS_LIMIT).withComment("FPS上限。0=自动(默认，不限制，由游戏内\"使用垂直同步\"决定；仅游戏内\"省电\"选项仍限35)；大于0=固定上限；小于0=MITE原版(120/35/120)。旧键fpsLimit(默认120)已废弃"))).
             addEntry(new ConfigCategory("Debug").withComment("调试").
                     addEntry(new ConfigEntry<>("debug", Debug.DEBUG).withComment("开启调试模式")).
                     addEntry(new ConfigEntry<>("dev_env", Debug.DEV_ENV).withComment("开发环境下自动开启MITE的DEV模式")).
@@ -44,7 +44,7 @@ public class Configs {
     }
 
     public static class Client {
-        public static final FieldReference<Integer> FPS_LIMIT = new FieldReference<>(120);
+        public static final FieldReference<Integer> FPS_LIMIT = new FieldReference<>(0);
     }
 
     public static class Debug {

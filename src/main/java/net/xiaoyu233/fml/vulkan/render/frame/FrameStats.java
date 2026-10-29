@@ -13,7 +13,7 @@ import java.util.function.Consumer;
 public final class FrameStats {
     public record Frame(long index, long cpuNanos, long presentNanos, double gpuMs, int draws, int encodedDraws, int sectionsVisible,
                         long captureNanos, int captures, int inlineCopies, int pipelineMisses, int pipelinesCreatedRenderThread, long heapUsed,
-                        long submitNanos, boolean presented, long fenceWaitNanos) {
+                        long submitNanos, boolean presented, long fenceWaitNanos, long schedNanos, long uploadNanos) {
     }
 
     public static final int RING = 1024;
@@ -38,6 +38,9 @@ public final class FrameStats {
     private static final long[] SUBMIT = new long[RING];
     private static final boolean[] PRESENTED = new boolean[RING];
     private static final long[] FENCE_WAIT = new long[RING];
+    /** Hitch attribution: SectionScheduler.update time and texture upload time of the frame. */
+    private static final long[] SCHED = new long[RING];
+    private static final long[] UPLOAD = new long[RING];
 
     // counters of the frame being built
     private static int curDraws;
@@ -51,6 +54,8 @@ public final class FrameStats {
     private static long curSubmitNanos;
     private static boolean curPresented;
     private static long curFenceWaitNanos;
+    private static long curSchedNanos;
+    private static long curUploadNanos;
 
     /** Number of frames recorded since start (the index of the next frame). */
     private static long count;
@@ -110,6 +115,16 @@ public final class FrameStats {
         curFenceWaitNanos = fenceWaitNanos;
     }
 
+    /** Time spent in SectionScheduler.update by the frame being built (adds up). */
+    public static void noteSched(long nanos) {
+        curSchedNanos += nanos;
+    }
+
+    /** Time spent uploading textures on the render thread in the frame being built (adds up). */
+    public static void noteUpload(long nanos) {
+        curUploadNanos += nanos;
+    }
+
     /** Called by {@link FramePacer#pollInput()}: the time (nanoTime) at which the frame being built sampled the input. */
     static void notePoll(long nanos) {
         POLL_AT[(int) (count & MASK)] = nanos;
@@ -135,6 +150,10 @@ public final class FrameStats {
         SUBMIT[i] = curSubmitNanos;
         PRESENTED[i] = curPresented;
         FENCE_WAIT[i] = curFenceWaitNanos;
+        SCHED[i] = curSchedNanos;
+        UPLOAD[i] = curUploadNanos;
+        curSchedNanos = 0L;
+        curUploadNanos = 0L;
         Runtime rt = Runtime.getRuntime();
         HEAP[i] = rt.totalMemory() - rt.freeMemory();
         curDraws = curEncoded = curCaptures = curInlineCopies = curMisses = curCreated = 0;
@@ -258,15 +277,17 @@ public final class FrameStats {
         curSubmitNanos = 0L;
         curPresented = false;
         curFenceWaitNanos = 0L;
+        curSchedNanos = 0L;
+        curUploadNanos = 0L;
     }
 
     private static Frame at(long index) {
         if (index < 0) {
-            return new Frame(0L, 0L, 0L, 0.0, 0, 0, 0, 0L, 0, 0, 0, 0, 0L, 0L, false, 0L);
+            return new Frame(0L, 0L, 0L, 0.0, 0, 0, 0, 0L, 0, 0, 0, 0, 0L, 0L, false, 0L, 0L, 0L);
         }
         int i = (int) (index & MASK);
         return new Frame(index, CPU[i], PRESENT[i], GPU[i], DRAWS[i], ENCODED[i], SECTIONS[i], CAPTURE_NANOS[i], CAPTURES[i],
-                INLINE_COPIES[i], MISSES[i], CREATED[i], HEAP[i], SUBMIT[i], PRESENTED[i], FENCE_WAIT[i]);
+                INLINE_COPIES[i], MISSES[i], CREATED[i], HEAP[i], SUBMIT[i], PRESENTED[i], FENCE_WAIT[i], SCHED[i], UPLOAD[i]);
     }
 
     /**

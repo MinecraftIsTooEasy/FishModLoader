@@ -176,10 +176,43 @@ public final class FramePacer {
         if (downtime) {
             runDowntime();
         }
+        if (fps >= net.xiaoyu233.fml.config.FpsLimit.UNLIMITED) {
+            fps = 0; // "no cap" of the game option / fpsCap config: no limiter slot at all
+        }
+        int gameFps = fps;
         fps = net.xiaoyu233.fml.vulkan.render.frame.FpsPolicy.clampFps(fps);
+        int afterAfk = fps;
         int cap = effectiveFps(fps, NativeWindow.isActive(), NativeWindow.isIconified(), capUnfocused, capMinimised);
+        limitGame = gameFps;
+        limitCap = cap;
+        limitReason = cap <= 0 ? REASON_NONE : cap != afterAfk ? (NativeWindow.isIconified() ? REASON_MINIMISED : REASON_UNFOCUSED)
+                : afterAfk != gameFps ? REASON_AFK : REASON_GAME;
         FrameLimiter.sync(cap);
         frameStart = System.nanoTime();
+    }
+
+    private static final int REASON_NONE = 0;
+    private static final int REASON_GAME = 1;
+    private static final int REASON_AFK = 2;
+    private static final int REASON_UNFOCUSED = 3;
+    private static final int REASON_MINIMISED = 4;
+    private static volatile int limitGame;
+    private static volatile int limitCap;
+    private static volatile int limitReason;
+
+    /**
+     * The software frame cap in force and why, for the F3 screen: {@code none}, {@code fml 120} / {@code game power saver 35} (what
+     * {@link net.xiaoyu233.fml.config.FpsLimit} reports), {@code afk 30}, {@code unfocused 30}, {@code minimised 10}. VSync is separate (see the Present line).
+     */
+    public static String limitDescription() {
+        int cap = limitCap;
+        return switch (limitReason) {
+            case REASON_GAME -> net.xiaoyu233.fml.config.FpsLimit.lastSource();
+            case REASON_AFK -> "afk " + cap;
+            case REASON_UNFOCUSED -> "unfocused " + cap;
+            case REASON_MINIMISED -> "minimised " + cap;
+            default -> "none";
+        };
     }
 
     /**

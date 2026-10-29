@@ -122,7 +122,8 @@ public final class VulkanDebugOverlay {
         LINES[k++] = staticApi;
         StringBuilder sb = new StringBuilder(64);
         boolean vsync = SwapchainInfo.vsyncMode();
-        LINES[k++] = sb.append("Present ").append(SwapchainInfo.presentMode()).append(", VSync ").append(vsync ? "on" : "off").toString();
+        LINES[k++] = sb.append("Present ").append(SwapchainInfo.presentMode()).append(", VSync ").append(vsync ? "on" : "off")
+                .append(", limit: ").append(vsync ? "vsync + " : "").append(net.xiaoyu233.fml.vulkan.render.frame.FramePacer.limitDescription()).toString();
         sb.setLength(0);
         LINES[k++] = sb.append("Swapchain ").append(RenderCore.swapchainImageCount()).append(" images, ")
                 .append(RenderCore.framesInFlight()).append(" in flight").toString();
@@ -168,6 +169,14 @@ public final class VulkanDebugOverlay {
             sb.append(" (+").append(fb).append(" shim)");
         }
         LINES[k++] = sb.toString();
+        if (k < MAX_LINES) {
+            net.xiaoyu233.fml.vulkan.render.frame.FrameStats.Frame lf = net.xiaoyu233.fml.vulkan.render.frame.FrameStats.latest();
+            sb.setLength(0);
+            LINES[k++] = sb.append("Opt: sched ").append(fmt0(lf.schedNanos() / 1000.0)).append(" us, upload ")
+                    .append(fmt0(lf.uploadNanos() / 1000.0)).append(" us, pipelines ").append(lf.pipelinesCreatedRenderThread())
+                    .append(", ").append(net.xiaoyu233.fml.vulkan.opt.OptFlags.area("entity") ? "entIdx " : "").append(net.xiaoyu233.fml.vulkan.opt.OptFlags.area("net") ? "nodelay " : "")
+                    .append(net.xiaoyu233.fml.vulkan.VulkanConfig.particlesFast() ? "partFast" : "").toString();
+        }
         lineCount = k;
         for (int i = 0; i < k; i++) {
             WIDTHS[i] = font.getStringWidth(LINES[i]);
