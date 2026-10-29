@@ -12,6 +12,7 @@ import net.xiaoyu233.fml.vulkan.render.gpu.GpuAllocation;
 import net.xiaoyu233.fml.vulkan.render.gpu.PassUniforms;
 import net.xiaoyu233.fml.vulkan.render.gpu.PipelineLibrary;
 import net.xiaoyu233.fml.vulkan.render.gpu.Program;
+import net.xiaoyu233.fml.vulkan.render.legacy.LegacyInterop;
 import net.xiaoyu233.fml.vulkan.render.state.AlphaRefs;
 import net.xiaoyu233.fml.vulkan.render.state.BlendFactor;
 import net.xiaoyu233.fml.vulkan.render.state.Draw;
@@ -113,6 +114,9 @@ public final class TerrainDraw {
         if (!RenderCore.isInitialized() || QuadIndexBuffers.u32Buffer() == 0L) {
             return false;
         }
+        // The terrain is recorded straight into the command stream: an emulated draw still held back by the GL emulation (a mod sky
+        // drawn from display lists, e.g. Twilight Forest's lower sky disc) must be recorded first, else it lands on top of the terrain.
+        LegacyInterop.beforeRawCommands();
         PassUniforms.setProjection(Draw.projection().top());
         PassUniforms.setTerrainView(Draw.pose().top());
         PassUniforms.setTerrainParams(PassUniforms.SECTION_SCALE, 8.0F * (PassUniforms.SECTION_SCALE - 1.0F));

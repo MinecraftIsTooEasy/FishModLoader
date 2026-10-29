@@ -45,6 +45,7 @@ public final class VulkanConfig {
     public static final String PROP_MDI = "fml.vulkan.mdi";
     public static final String PROP_TRANSLUCENCY = "fml.vulkan.translucency";
     public static final String PROP_MESH_DENY_CLASSES = "fml.vulkan.meshDenyClasses";
+    public static final String PROP_MESH_ALLOW_PACKAGES = "fml.vulkan.meshAllowPackages";
     public static final String PROP_MIPMAPS = "fml.vulkan.mipmaps";
     public static final String PROP_ANISOTROPY = "fml.vulkan.anisotropy";
     public static final String PROP_PARTICLES_FAST = "fml.vulkan.particles.fast";

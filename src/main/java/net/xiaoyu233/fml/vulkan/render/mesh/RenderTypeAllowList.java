@@ -2,6 +2,7 @@ package net.xiaoyu233.fml.vulkan.render.mesh;
 
 import net.minecraft.Block;
 import net.minecraft.IBlockAccess;
+import net.xiaoyu233.fml.vulkan.VulkanConfig;
 
 /**
  * Blocks whose rendering is safe on a mesh worker (2.3).
@@ -14,6 +15,11 @@ import net.minecraft.IBlockAccess;
  * 33 flower pot, 34 beacon, 35 anvil, 36 redstone logic, 37 comparator, 38 hopper, 39 quartz). Type -1 (no block rendering) and
  * types &gt;= 40 are not allowed. A block is denied when its class is listed in the system property {@code fml.vulkan.meshDenyClasses}
  * (comma list of simple or binary names) or lives outside {@code net.minecraft.*}.
+ *
+ * <p>A mod whose block rendering only reads the {@code IBlockAccess} it is given (no live world, no GL state) can opt in by adding its
+ * package prefix to {@code fml.vulkan.meshAllowPackages} (comma list, e.g. {@code twilightforest.}) before the renderer starts. Blocks of
+ * those packages mesh on workers with any render type the mod dispatches itself (its {@code RenderBlocks} hook runs on the worker too).
+ * Without the opt-in every section containing one of its blocks is meshed on the render thread, which is slow in a world made of them.
  *
  * <p>The decision is cached per block id; {@link #refresh()} (render thread) precomputes every registered block, so workers only
  * read the array.
@@ -81,12 +87,16 @@ public final class RenderTypeAllowList {
             if (type == -1) {
                 return true; // nothing is rendered
             }
-            if (type < 0 || type > 39) {
+            if (type < 0) {
                 return false;
             }
             Class<?> cls = block.getClass();
             String name = cls.getName();
-            if (!name.startsWith("net.minecraft.")) {
+            if (name.startsWith("net.minecraft.")) {
+                if (type > 39) {
+                    return false;
+                }
+            } else if (!listed(System.getProperty(VulkanConfig.PROP_MESH_ALLOW_PACKAGES), name)) {
                 return false;
             }
             String deny = System.getProperty("fml.vulkan.meshDenyClasses");
@@ -102,5 +112,19 @@ public final class RenderTypeAllowList {
         } catch (Throwable t) {
             return false;
         }
+    }
+
+    /** True when {@code className} starts with one of the prefixes of the comma list {@code prefixes}. */
+    private static boolean listed(String prefixes, String className) {
+        if (prefixes == null || prefixes.isEmpty()) {
+            return false;
+        }
+        for (String p : prefixes.split(",")) {
+            p = p.trim();
+            if (!p.isEmpty() && className.startsWith(p)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
