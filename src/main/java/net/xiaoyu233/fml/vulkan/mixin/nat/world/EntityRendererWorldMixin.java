@@ -3,6 +3,7 @@ package net.xiaoyu233.fml.vulkan.mixin.nat.world;
 import net.minecraft.*;
 import net.xiaoyu233.fml.vulkan.render.state.Draw;
 import net.xiaoyu233.fml.vulkan.render.state.Frame;
+import net.xiaoyu233.fml.vulkan.render.texture.Textures;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Final;
@@ -324,7 +325,11 @@ public abstract class EntityRendererWorldMixin {
         // MITE's scale(1/256)+translate(8) texture matrix targets unit 1; the shader folds (c+8)/256 itself
         // (ARCHITECTURE-NATIVE 1.10), so Draw.uvMatrix() (unit 0) must stay untouched.
         this.mc.getTextureManager().bindTexture(this.locationLightMap);
-        // glTexParameteri dropped: filter/wrap come from the lightmap dynamic texture
+        // MITE sets GL_LINEAR (min+mag) and GL_CLAMP on the lightmap here every call. DynamicTexture.updateDynamicTexture uploads with
+        // blurred=false (NEAREST) each frame, so without this the per-vertex averaged light values snap to 16 texels (banding).
+        int lm = Draw.lightmapTexture();
+        Textures.setFilter(lm, true);
+        Textures.setWrap(lm, true);
         Draw.color(1.0F, 1.0F, 1.0F, 1.0F);
         Draw.texturing(true);
         Draw.activeUnit(0);
