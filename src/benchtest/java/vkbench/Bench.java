@@ -431,7 +431,10 @@ public final class Bench {
                 String water = System.getProperty("fml.vulkan.waterScene");
                 String hand = System.getProperty("fml.vulkan.handScene");
                 String place = System.getProperty("fml.vulkan.placeScene");
-                if (place != null) {
+                String tfSky = System.getProperty("fml.vulkan.tfSkyScene");
+                if (tfSky != null) {
+                    new TfSkyScene(this, new java.io.File(tfSky)).run();
+                } else if (place != null) {
                     new PlaceScene(this, new java.io.File(place)).run();
                 } else if (hand != null) {
                     new HandScene(this, new java.io.File(hand)).run();

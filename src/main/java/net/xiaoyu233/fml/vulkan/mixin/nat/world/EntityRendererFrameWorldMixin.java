@@ -234,6 +234,7 @@ public abstract class EntityRendererFrameWorldMixin {
             this.updateLightmap(par1);
         }
 
+        net.xiaoyu233.fml.vulkan.gl.state.StateDump.worldPassStart(this.mc.currentScreen);
         Draw.cull(true);
         Draw.depthTest(true);
         if (this.mc.renderViewEntity == null) {

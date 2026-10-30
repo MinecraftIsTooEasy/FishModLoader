@@ -780,7 +780,11 @@ public final class CommandStream {
             VK10.vkCmdSetLineWidth(cb, lineWidth);
         }
 
-        if (dynamicDepthCullDirty) {
+        // Only for a native pipeline: the phase-1 pipelines bake depth test/write/compare and cull. Setting the dynamic values while one of
+        // them is bound is invalid, and NVIDIA's driver then draws with the dynamic values instead of the baked ones: a mod sky drawn with
+        // glDepthMask(false) through the emulation (Twilight Forest's sky discs) wrote depth and hid the terrain behind it. The state
+        // stays dirty, so it is recorded once a native pipeline is bound again.
+        if (dynamicDepthCullDirty && !boundHasLineBlendDynamic) {
             dynamicDepthCullDirty = false;
             if (dynamicDepthCullUsed) {
                 EXTExtendedDynamicState.vkCmdSetDepthTestEnableEXT(cb, dynamicDepthTest);
