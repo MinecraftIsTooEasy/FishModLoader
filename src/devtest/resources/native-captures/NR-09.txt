@@ -1,0 +1,6 @@
+# NR-09 capture scenes (terrain renderer). Format: <scene> <tolerance class T0|T1|T2> <description>
+terrain-overworld-day      T1  overworld, day, default view: opaque terrain pass equals the legacy RenderGlobal output within the tolerance of the screen
+terrain-dusk               T1  overworld, dusk lighting: terrain colours and fog match the legacy run within the tolerance of the screen
+terrain-nether             T1  nether, fog and lighting: terrain pass matches the legacy run within the tolerance of the screen
+terrain-translucent-water  T2  water surface seen through translucent pass: distance order of translucent sections (resort budget applied)
+terrain-caveculling-off    T1  cave culling disabled: every loaded section drawn, same pixels as the culled run apart from hidden surfaces

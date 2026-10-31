@@ -1,0 +1,233 @@
+// NR-28: integration gates (ARCHITECTURE-NATIVE 7.1, 7.2). Applied by tasks.gradle through gradle/native/*.gradle.
+//   sh ./gradlew nativeGates --offline -PexportAfter=<ISO-8601 instant>
+//       static gates (build, jar contents, native shader verification) and gate 0 of 7.1 (transformed GL-site scan = 0).
+//       -PexportAfter is the start of the testbot run whose exported classes are scanned; a stale run/.mixin.out is rejected.
+//   sh ./gradlew nativeMobsScan --offline -PexportAfter=<instant>
+//       7.1 self-test: after a run with -Pvk.native.off=mobs, exactly the 17 mob classes must report GL sites.
+//   sh ./gradlew nativeOffScan --offline -PexportAfter=<instant> -PexpectOffTotal=<n> -PexpectOffClasses=<n>
+//       7.1 self-test: after a run with -Pvk.native=false, the inventory figures must be reproduced.
+//   sh ./gradlew integrationRoute --offline
+//       prints the runtime route; every step names the command that asserts it.
+// The runtime gates (testbot runs, captures, comparisons) need a display and minutes of game time; no task here runs them.
+
+def nr28ScanOut = (project.findProperty('glScanOut') ?: layout.buildDirectory.dir('reports/gl-site-scan').get().asFile).toString()
+def nr28Exports = file('run/.mixin.out/class')
+def nr28GameJar = file('libs/1.6.4-MITE.jar')
+def nr28MobClasses = ['RenderBat', 'RenderBlackWidowSpider', 'RenderCaveSpider', 'RenderDireWolf', 'RenderGelatinousCube',
+        'RenderGhast', 'RenderGiantZombie', 'RenderHorse', 'RenderMagmaCube', 'RenderOcelot', 'RenderSheep', 'RenderSkeleton',
+        'RenderSlime', 'RenderSquid', 'RenderVillager', 'RenderWolf', 'RenderWoodSpider'].collect { "net/minecraft/${it}" }.sort()
+
+// Command line of tools/GlSiteScan.java --mode=transformed over the exported classes of the run (with the game jar for unexported classes).
+def scanCommand = { String outDir, List<String> extra ->
+    ['java', 'tools/GlSiteScan.java', '--mode=transformed', '--class-dir=' + nr28Exports.path,
+     '--game-jar=' + nr28GameJar.path, '--out-dir=' + outDir] + extra
+}
+def scratchDir = { String sub -> "${projectDir}/build/nr28/${sub}".toString() }
+// Config-time value; the doFirst check below refuses to run the scan without the property.
+def exportAfterArg = (project.findProperty('exportAfter') ?: 'unset').toString()
+def requireProp = { String task, String name, String hint ->
+    if (!project.hasProperty(name) || project.property(name).toString().trim().isEmpty()) {
+        throw new GradleException("${task}: -P${name}=${hint} is required")
+    }
+}
+
+tasks.register('nativeScanGate', Exec) {
+    group = 'fishmodloader'
+    description = 'NR-28 gate 0 (7.1): the transformed GL/GLU site scan of the exported classes must report 0 sites (needs -PexportAfter)'
+    workingDir = projectDir
+    commandLine(*scanCommand(nr28ScanOut, ['--export-after=' + exportAfterArg, '--expect-total=0']))
+    doFirst {
+        requireProp('nativeScanGate', 'exportAfter', '<ISO-8601 instant>')
+    }
+}
+
+tasks.register('nativeMobsScan', Exec) {
+    group = 'fishmodloader'
+    description = 'NR-28 self-test (7.1): with -Pvk.native.off=mobs the transformed scan must report exactly the 17 mob classes (needs -PexportAfter)'
+    workingDir = projectDir
+    def outDir = scratchDir('mobs')
+    commandLine(*scanCommand(outDir, ['--export-after=' + exportAfterArg, '--expect-classes=' + nr28MobClasses.size()]))
+    doFirst {
+        requireProp('nativeMobsScan', 'exportAfter', '<ISO-8601 instant>')
+    }
+    doLast {
+        def report = new groovy.json.JsonSlurper().parse(new File(outDir, 'gl-sites-transformed.json'))
+        def got = report.classes.findAll { it.count > 0 }.collect { it['class'] }.sort()
+        def unexpected = got - nr28MobClasses
+        def absent = nr28MobClasses - got
+        if (!unexpected.isEmpty() || !absent.isEmpty()) {
+            throw new GradleException("nativeMobsScan: unexpected classes ${unexpected}, expected but absent ${absent}")
+        }
+        println "nativeMobsScan: exactly the ${nr28MobClasses.size()} mob classes report transformed GL sites"
+    }
+}
+
+tasks.register('nativeOffScan', Exec) {
+    group = 'fishmodloader'
+    description = 'NR-28 self-test (7.1): with -Pvk.native=false the transformed scan must reproduce the inventory totals (needs -PexportAfter, -PexpectOffTotal, -PexpectOffClasses)'
+    workingDir = projectDir
+    commandLine(*scanCommand(scratchDir('native-off'), ['--export-after=' + exportAfterArg,
+            '--expect-total=' + (project.findProperty('expectOffTotal') ?: 'unset').toString(),
+            '--expect-classes=' + (project.findProperty('expectOffClasses') ?: 'unset').toString()]))
+    doFirst {
+        requireProp('nativeOffScan', 'exportAfter', '<ISO-8601 instant>')
+        requireProp('nativeOffScan', 'expectOffTotal', 'the inventory total of direct GL/GLU sites (docs/inventory-native.md)')
+        requireProp('nativeOffScan', 'expectOffClasses', 'the inventory class count (docs/inventory-native.md)')
+    }
+}
+
+tasks.register('nativeGates') {
+    group = 'fishmodloader'
+    description = 'NR-28 gates: build, jar contents, native shader verification and the transformed GL-site scan = 0 (needs -PexportAfter)'
+    dependsOn 'build', 'verifyJarContents', 'verifyNativeShaders', 'nativeScanGate'
+    doLast {
+        println 'NR-28 gates passed: build, jar contents, native shaders, transformed GL-site scan = 0'
+    }
+}
+
+// NR-28: the runtime route of 7.1/7.2. Prints the command lines in order (the testbot runs need a display and minutes of game time,
+// so this task does not run them). Each step names the command that asserts its result.
+// runClient forwards -Pvk.* as -Dfml.vulkan.*; -Ptestbot_cmd is forwarded as -Dfml.vulkan.testbot.cmd.
+tasks.register('integrationRoute') {
+    group = 'fishmodloader'
+    description = 'NR-28: builds the project, then prints the integration route (7.1 static and scan gates, 7.1 self-tests, 7.2 captures and gates)'
+    dependsOn 'build'
+    doLast {
+        def route = [
+                '# 0. static gates: build, jar contents (22 registered configs and their mixin classes, SPIR-V magic, seed keys), native shaders',
+                'sh ./gradlew build verifyJarContents verifyNativeShaders --offline -q',
+                '# 1. cold start with an empty pipeline cache; mixin apply audit on (7.1 gate 3); every inventory class loaded and transformed',
+                'rm -f run/.fml/vulkan/pipeline-cache.bin run/.fml/vulkan/native-pipeline-cache.bin',
+                'EXPORT_AFTER_COLD=$(date -u +%Y-%m-%dT%H:%M:%SZ)',
+                'JAVA_TOOL_OPTIONS=-Dmixin.debug.export=true sh ./gradlew runClient --offline -Ptestbot -Ptestbot_tag=nr28-cold -Pvk.frozen=true -Pvk.forceLoadGameClasses=true -Pvk.native.audit=true -Ptestbot_cmd="mixinAudit;counterGate"',
+                '# 2. gate 0 (7.1 gate 2): static gates plus the transformed GL-site scan of the cold run, which must report 0 sites (fails otherwise)',
+                'sh ./gradlew nativeGates --offline -q -PexportAfter=$EXPORT_AFTER_COLD',
+                '# 3. validation route (7.2): 0 validation messages and shadow check 0 mismatches (NR-12). Placeholders in <> are for the SDK in use. The 2000-frame count is not set by any property yet: the scene list must add up to >= 2000 frames.',
+                'VK_LAYER_ENABLES=<synchronization-validation layer setting> sh ./gradlew runClient --offline -Ptestbot -Ptestbot_tag=nr28-validation -Pvk.frozen=true -Pvk.validation=true -Pvk.library=<sdk>/lib/libvulkan.1.dylib -Pvk.shadowCheck=true -Ptestbot_cmd="shadowCheck;counterGate"',
+                '# 4. self-test (7.1): native.off=mobs must report exactly the 17 mob classes (nativeMobsScan)',
+                'EXPORT_AFTER_MOBS=$(date -u +%Y-%m-%dT%H:%M:%SZ)',
+                'JAVA_TOOL_OPTIONS=-Dmixin.debug.export=true sh ./gradlew runClient --offline -Ptestbot -Ptestbot_tag=nr28-selftest-mobs -Pvk.frozen=true -Pvk.forceLoadGameClasses=true -Pvk.native.off=mobs',
+                'sh ./gradlew nativeMobsScan --offline -q -PexportAfter=$EXPORT_AFTER_MOBS',
+                '# 5. self-test (7.1) with the selftest config: NOT RUNNABLE YET. NativeMixinPlugin never registers the selftest config and no switch enables it,',
+                '#    so the applied and off variants cannot be produced. Once it is registered: copy each run/.mixin.out/class to run/selftest/<variant>/, then:',
+                'sh ./gradlew glSiteScanSelftest --offline -q',
+                '# 6. self-test (7.1): native=false must reproduce the inventory totals. The expected values are placeholders: docs/inventory-native.md counts 2,499 direct LWJGL sites (2,223 GL11), which may include non-GL/GLU references, and ARCHITECTURE-NATIVE 1.16.6 gives 142 classes while 7.1 gives 167. Confirm the GL/GLU-only figures before filling them in.',
+                'EXPORT_AFTER_OFF=$(date -u +%Y-%m-%dT%H:%M:%SZ)',
+                'JAVA_TOOL_OPTIONS=-Dmixin.debug.export=true sh ./gradlew runClient --offline -Ptestbot -Ptestbot_tag=nr28-safety-scan -Pvk.frozen=true -Pvk.forceLoadGameClasses=true -Pvk.native=false',
+                'sh ./gradlew nativeOffScan --offline -q -PexportAfter=$EXPORT_AFTER_OFF -PexpectOffTotal=<GL/GLU total> -PexpectOffClasses=<class count>',
+                '# 7. differential frozen captures (7.2): native on, then the whole native renderer off; compared per tolerance class (T0/T1/T2)',
+                'sh ./gradlew testbotCaptures --offline -Ptestbot_tag=nr28-native',
+                'sh ./gradlew testbotCaptures --offline -Ptestbot_tag=nr28-safety -Pvk.native=false',
+                'sh ./gradlew compareCaptures --offline -PcapA=nr28-native -PcapB=nr28-safety -PcapOut=nr28-native-vs-safety',
+                '# 8. full testbot runs with native on and off (7.2 acceptance); counterGate asserts GLAudit, GlShim and validation counters',
+                'sh ./gradlew runClient --offline -Ptestbot -Ptestbot_tag=nr28-full-native -Pvk.frozen=true -Ptestbot_cmd="counterGate"',
+                'sh ./gradlew runClient --offline -Ptestbot -Ptestbot_tag=nr28-full-safety -Pvk.frozen=true -Pvk.native=false',
+                '# 9. warm run with the cache of step 1 (7.2 pipeline warm-up): pipelineGate must report 0 render-thread creations and 0 misses after the title screen',
+                'sh ./gradlew runClient --offline -Ptestbot -Ptestbot_tag=nr28-warm -Pvk.frozen=true -Ptestbot_cmd="pipelineGate;counterGate"',
+                '# 10. seed refresh from the journal with absolute paths (the testbot runs in run/, and SeedTools defaults to user.dir); then repeat step 0',
+                'sh ./gradlew runClient --offline -Ptestbot -Ptestbot_tag=nr28-seed -Ptestbot_cmd="seedRefresh $(pwd)/src/main/resources/assets/fml/native-pipelines.seed $(pwd)/run/.fml/vulkan/native-pipelines.txt"',
+        ]
+        println 'NR-28 integration route (run in order from the working copy; reports go to ../docs):'
+        route.each { println it }
+    }
+}
+
+// NR-28: the built fat jar must carry the 22 registered native configs with their mixin classes, the SPIR-V modules of every native
+// shader job (valid magic) and a non-empty pipeline seed list.
+tasks.register('verifyJarContents') {
+    group = 'fishmodloader'
+    description = 'NR-28: fails unless the shadow jar has the 22 registered native configs and their mixin classes, valid native SPIR-V modules and a non-empty seed list'
+    dependsOn 'shadowJar'
+    def jarFile = shadowJar.archiveFile
+    def resourcesDir = file('src/main/resources')
+    def manifestDir = file('src/main/shaders/native/manifest.d')
+    doLast {
+        def jar = jarFile.get().asFile
+        if (!jar.isFile()) {
+            throw new GradleException("verifyJarContents: ${jar} does not exist")
+        }
+        def problems = []
+        int spvCount = 0
+        int seedKeys = 0
+        new java.util.zip.ZipFile(jar).withCloseable { zf ->
+            def entries = Collections.list(zf.entries()).collect { it.name } as Set
+            def bytesOf = { String n -> zf.getInputStream(zf.getEntry(n)).withCloseable { it.bytes } }
+
+            // 1. native configs: NativeMixinPlugin.registeredConfigs() is every area but selftest (22); each listed class must be in the jar
+            def configFiles = resourcesDir.listFiles().findAll { it.name ==~ /fishmodloader\.native\..+\.mixins\.json/ }*.name.sort()
+            if (configFiles.isEmpty()) {
+                throw new GradleException('verifyJarContents: no fishmodloader.native.*.mixins.json in src/main/resources')
+            }
+            def registered = configFiles.findAll { !it.endsWith('.selftest.mixins.json') }
+            if (registered.size() != 22) {
+                problems << "expected 22 registered native mixin configs, found ${registered.size()}"
+            }
+            configFiles.each { name ->
+                if (!entries.contains(name)) {
+                    problems << "config missing from jar: ${name}"
+                    return
+                }
+                def json = new groovy.json.JsonSlurper().parseText(new String(bytesOf(name), 'UTF-8'))
+                def pkgPath = (json.package ?: '').toString().replace('.', '/')
+                def classes = (json.mixins ?: []) + (json.client ?: []) + (json.server ?: [])
+                classes.each { c ->
+                    def entry = "${pkgPath}/${c}.class"
+                    if (!entries.contains(entry)) {
+                        problems << "${name}: mixin class ${entry} missing from jar"
+                    }
+                }
+            }
+
+            // 2. native SPIR-V modules: every job of manifest.d must be in the jar and start with the SPIR-V magic (little endian)
+            manifestDir.listFiles().findAll { it.name.endsWith('.txt') }.sort { it.name }.each { manifest ->
+                manifest.eachLine { raw ->
+                    def line = raw.replaceAll('#.*', '').trim()
+                    if (line.isEmpty()) {
+                        return
+                    }
+                    def words = line.split('\\s+')
+                    def entry = 'assets/fml_vulkan/shaders/' + words[1]
+                    spvCount++
+                    if (!entries.contains(entry)) {
+                        problems << "SPIR-V module missing from jar: ${entry}"
+                        return
+                    }
+                    def b = bytesOf(entry)
+                    if (b.length < 20 || (b[0] & 0xFF) != 0x03 || b[1] != 0x02 || b[2] != 0x23 || b[3] != 0x07) {
+                        problems << "not a SPIR-V module in jar: ${entry}"
+                    }
+                }
+            }
+            if (spvCount == 0) {
+                problems << 'no native shader jobs found in src/main/shaders/native/manifest.d'
+            }
+
+            // 3. pipeline seed list: present, every line parseable, at least one key
+            def seedName = 'assets/fml/native-pipelines.seed'
+            if (!entries.contains(seedName)) {
+                problems << "missing ${seedName}"
+            } else {
+                def programs = ['TERRAIN', 'STREAM', 'STATIC', 'LINES', 'PORTAL', 'BLIT']
+                new String(bytesOf(seedName), 'UTF-8').eachLine { raw, i ->
+                    def line = raw.replaceAll('#.*', '').trim()
+                    if (line.isEmpty()) {
+                        return
+                    }
+                    def w = line.split('\\s+')
+                    if (w.length < 2 || !programs.contains(w[0]) || !(w[1] ==~ /0x[0-9a-fA-F]{1,16}/)) {
+                        problems << "${seedName}:${i}: malformed line '${line}'"
+                    } else {
+                        seedKeys++
+                    }
+                }
+                if (seedKeys == 0) {
+                    problems << "${seedName} has 0 pipeline keys"
+                }
+            }
+        }
+        if (!problems.isEmpty()) {
+            throw new GradleException("verifyJarContents: ${jar.name} failed ${problems.size()} check(s):\n  " + problems.join('\n  '))
+        }
+        println "verifyJarContents: ${jar.name} has 22 native mixin configs (their classes present), ${spvCount} valid native SPIR-V modules, ${seedKeys} seed keys"
+    }
+}

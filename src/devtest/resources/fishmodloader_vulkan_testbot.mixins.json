@@ -1,0 +1,21 @@
+{
+  "required": true,
+  "package": "net.xiaoyu233.fml.vulkan.testbot.mixin",
+  "minVersion": "0.8.7",
+  "compatibilityLevel": "JAVA_21",
+  "target": "DEFAULT",
+  "mixins": [
+    "BotMinecraftMixin",
+    "BotMinecraftServerMixin",
+    "BotIntegratedPlayerListMixin",
+    "BotMouseHelperMixin",
+    "BotTimerMixin",
+    "BotWorldServerMixin",
+    "BotWorldClientMixin",
+    "BotWorldMixin",
+    "BotTextureMapMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

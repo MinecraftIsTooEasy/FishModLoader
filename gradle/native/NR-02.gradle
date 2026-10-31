@@ -1,0 +1,46 @@
+// Owner NR-02: checks of the native shader build (ARCHITECTURE-NATIVE 1.9). The compilation itself is shaders.gradle's compileShaders task
+// (shadertool with manifest.d/*.txt and #include support); this fragment only verifies its result.
+tasks.register('verifyNativeShaders') {
+    group = 'fishmodloader'
+    description = 'Checks that every job of src/main/shaders/native/manifest.d/*.txt produced a SPIR-V module and that the seed list parses'
+    dependsOn 'compileShaders'
+    def manifests = fileTree('src/main/shaders/native/manifest.d').include('*.txt').files.sort { it.name }
+    def outDir = layout.buildDirectory.dir('generated/shaders/assets/fml_vulkan/shaders').get().asFile
+    def seed = file('src/main/resources/assets/fml/native-pipelines.seed')
+    doLast {
+        int jobs = 0
+        manifests.each { f ->
+            f.eachLine { raw, i ->
+                def line = raw.replaceAll('#.*', '').trim()
+                if (line.isEmpty()) {
+                    return
+                }
+                def words = line.split('\\s+')
+                def spv = new File(outDir, words[1])
+                if (!spv.isFile() || spv.length() < 20) {
+                    throw new GradleException("${f.name}:${i + 1}: ${words[1]} was not produced")
+                }
+                def b = spv.bytes
+                // SPIR-V magic number 0x07230203, little endian
+                if ((b[0] & 0xFF) != 0x03 || b[1] != 0x02 || b[2] != 0x23 || b[3] != 0x07) {
+                    throw new GradleException("${f.name}:${i + 1}: ${words[1]} is not a SPIR-V module")
+                }
+                jobs++
+            }
+        }
+        int keys = 0
+        def programs = ['TERRAIN', 'STREAM', 'STATIC', 'LINES', 'PORTAL', 'BLIT']
+        seed.eachLine { raw, i ->
+            def line = raw.replaceAll('#.*', '').trim()
+            if (line.isEmpty()) {
+                return
+            }
+            def w = line.split('\\s+')
+            if (w.length < 2 || !programs.contains(w[0]) || !(w[1] ==~ /0x[0-9a-fA-F]{1,16}/)) {
+                throw new GradleException("native-pipelines.seed:${i + 1}: malformed line '${line}'")
+            }
+            keys++
+        }
+        println "native shaders: ${jobs} modules verified; native-pipelines.seed: ${keys} keys"
+    }
+}

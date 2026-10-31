@@ -40,11 +40,22 @@ repositories {
     }
 }
 
+ext {
+    lwjglVersion = '3.4.3'
+}
+
 configurations {
     shaded
     implementation.extendsFrom shaded
     launchLibs
     natives
+}
+
+configurations.configureEach {
+    // The LWJGL 2 core and platform natives come back transitively (lwjgl_util, paulscode librarylwjglopenal): the LWJGL 2 API is
+    // provided by the FML compat classes (org.lwjgl.opengl/input/openal/Sys...) on top of LWJGL 3 + Vulkan, never resolve the real ones.
+    exclude group: 'org.lwjgl.lwjgl', module: 'lwjgl'
+    exclude group: 'org.lwjgl.lwjgl', module: 'lwjgl-platform'
 }
 
 dependencies {
@@ -63,10 +74,26 @@ dependencies {
     shaded 'org.apache.commons:commons-lang3:3.18.0'
 //    shaded 'org.apache.commons:commons-io:1.3.2'
 
-    //TODO don't shaded
-    shaded 'org.lwjgl.lwjgl:lwjgl:2.9.0'
+    // LWJGL 2 core/platform are gone: org.lwjgl.opengl/input/Sys/openal are FML compat classes running on LWJGL 3 + Vulkan.
+    // Only the pure-Java lwjgl_util 2.x (vector/glu) stays; it links against the compat GL11.
     shaded 'org.lwjgl.lwjgl:lwjgl_util:2.9.0'
-    shaded 'org.lwjgl.lwjgl:lwjgl-platform:2.9.0'
+
+    // LWJGL 3 (Vulkan backend). Java classes of lwjgl-openal and lwjgl-opengl are NOT shipped (the LWJGL 2 compat owns those
+    // package names), lwjgl-openal contributes natives only. lwjgl-vulkan natives = MoltenVK, macOS only (Windows and Linux use the
+    // system Vulkan loader). Keep this list in sync with NativeExtractor.SUPPORTED_PLATFORMS.
+    shaded "org.lwjgl:lwjgl:${lwjglVersion}"
+    shaded "org.lwjgl:lwjgl-glfw:${lwjglVersion}"
+    shaded "org.lwjgl:lwjgl-vulkan:${lwjglVersion}"
+    shaded "org.lwjgl:lwjgl-vma:${lwjglVersion}"
+    ['natives-windows', 'natives-macos', 'natives-macos-arm64', 'natives-linux', 'natives-linux-arm64'].each { nativesClassifier ->
+        shaded "org.lwjgl:lwjgl:${lwjglVersion}:${nativesClassifier}"
+        shaded "org.lwjgl:lwjgl-glfw:${lwjglVersion}:${nativesClassifier}"
+        shaded "org.lwjgl:lwjgl-vma:${lwjglVersion}:${nativesClassifier}"
+        shaded "org.lwjgl:lwjgl-openal:${lwjglVersion}:${nativesClassifier}"
+    }
+    ['natives-macos', 'natives-macos-arm64'].each { nativesClassifier ->
+        shaded "org.lwjgl:lwjgl-vulkan:${lwjglVersion}:${nativesClassifier}"
+    }
 
     shaded 'org.ow2.asm:asm:9.9.1'
     shaded 'org.ow2.asm:asm-analysis:9.9.1'
@@ -79,15 +106,11 @@ dependencies {
 
     implementation 'it.unimi.dsi:fastutil:8.5.12'
 
-    natives 'org.lwjgl.lwjgl:lwjgl-platform:2.9.0:natives-windows'
-    natives 'org.lwjgl.lwjgl:lwjgl-platform:2.9.0:natives-linux'
-    natives 'org.lwjgl.lwjgl:lwjgl-platform:2.9.0:natives-osx'
+    // 'natives' is intentionally empty now: LWJGL 3 natives are bundled in the FML jar and extracted at launch (NativeExtractor).
 
     //---------------------------------//
     launchLibs 'net.sf.jopt-simple:jopt-simple:5.0.4'
-    launchLibs 'org.lwjgl.lwjgl:lwjgl:2.9.0'
     launchLibs 'org.lwjgl.lwjgl:lwjgl_util:2.9.0'
-    launchLibs 'org.lwjgl.lwjgl:lwjgl-platform:2.9.0'
     launchLibs 'net.java.jinput:jinput:2.0.9'
     launchLibs 'net.java.jutils:jutils:1.0.0'
     launchLibs 'com.ibm.icu:icu4j:51.1'
@@ -107,6 +130,26 @@ dependencies {
 }
 
 
+tasks.withType(JavaCompile).configureEach {
+    options.release = 25
+    options.encoding = 'UTF-8'
+}
+
+// "<git short sha>[-dirty] <build date>", shown on the Vulkan F3 block (read from this jar's manifest)
+def fmlBuildId() {
+    def run = { List<String> cmd ->
+        try {
+            def p = new ProcessBuilder(cmd).directory(projectDir).redirectErrorStream(true).start()
+            def out = p.inputStream.text.trim()
+            p.waitFor()
+            return out
+        } catch (Exception e) { return '' }
+    }
+    def sha = run(['git', 'rev-parse', '--short', 'HEAD']) ?: 'nogit'
+    def dirty = run(['git', 'status', '--porcelain']) ? '-dirty' : ''
+    return sha + dirty + ' ' + new Date().format("yyyy-MM-dd HH:mm")
+}
+
 tasks.register('shadowJar', Jar) {
     group = 'fishmodloader'
 
@@ -122,11 +165,45 @@ tasks.register('shadowJar', Jar) {
         exclude 'META-INF/*.DSA'
         exclude 'META-INF/*LICENSE*'
         exclude 'META-INF/*NOTICE*'
+        exclude 'META-INF/INDEX.LIST'
+        exclude 'module-info.class'
+        exclude 'META-INF/versions/*/module-info.class'
     }
 
     manifest {
+        attributes 'FML-Build': fmlBuildId()
         attributes 'Main-Class': 'net.xiaoyu233.fml.relaunch.DevLaunchInjector'
+        // lwjgl-3.4.3.jar has META-INF/versions/{11,25,27}/org/lwjgl/system classes: they are only served from a multi-release jar
+        attributes 'Multi-Release': 'true'
+        // Honoured by the JDK only when the jar is the main jar of "java -jar" (JEP 472). FML normally sits on the class path
+        // (launchers, runClient), where --enable-native-access=ALL-UNNAMED comes from tasks.gradle, the installer's version json
+        // (arguments.jvm) and the macOS relaunch (MacFirstThread)
+        attributes 'Enable-Native-Access': 'ALL-UNNAMED'
     }
 }
 
+// ---- Dev-only test bot source set (src/devtest) ----------------------------------------------------------------------------------
+// Modelled on the dev test setup of the user's Twilight Forest port (mite-twilightforest/src/devtest): a second, separate dev mod (own fml.mod.json and
+// mixin config) with a script thread, a report and screenshots, put on the runClient class path only with -Ptestbot. The shadow jar packs
+// sourceSets.main.output and nothing else, so the bot never ships. Reports, screenshots and perf CSV go to ../docs (outside the repository).
+sourceSets {
+    devtest // src/devtest/java, src/devtest/resources
+}
+configurations.devtestCompileOnly.extendsFrom configurations.implementation
+dependencies {
+    devtestCompileOnly sourceSets.main.output
+}
+
+// ---- Dev-only bench mod (src/benchtest) ------------------------------------------------------------------------------------------
+// A backend-agnostic benchmark mod (own fml.mod.json, mixins with defaultRequire 1, active only with -Dfml.bench=true), same shape as devtest and
+// equally never packed into the release jar. The runBench tasks live in gradle/native/NR-27.gradle.
+sourceSets {
+    benchtest // src/benchtest/java, src/benchtest/resources
+}
+configurations.benchtestCompileOnly.extendsFrom configurations.implementation
+dependencies {
+    benchtestCompileOnly sourceSets.main.output
+}
+
+apply from: 'shaders.gradle'
 apply from: 'tasks.gradle'

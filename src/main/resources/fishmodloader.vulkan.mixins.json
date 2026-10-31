@@ -1,0 +1,22 @@
+{
+  "required": false,
+  "minVersion": "0.8.7",
+  "package": "net.xiaoyu233.fml.vulkan.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "target": "@env(DEFAULT)",
+  "mixins": [],
+  "client": [
+    "window.GuiScreenClipboardMixin",
+    "window.GuiChatLinkMixin",
+    "window.GuiButtonLinkMixin",
+    "window.GuiMainMenuLinkMixin",
+    "window.GuiMultiplayerLinkMixin",
+    "window.GuiScreenDemoLinkMixin",
+    "test.MixinGuiMainMenu",
+    "test.MixinMinecraft",
+    "test.MixinMinecraftServer"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

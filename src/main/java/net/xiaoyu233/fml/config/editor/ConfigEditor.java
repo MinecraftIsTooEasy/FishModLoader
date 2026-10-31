@@ -18,6 +18,7 @@ import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.EventObject;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Consumer;
 
 import static net.xiaoyu233.fml.config.Config.GSON;
@@ -26,6 +27,16 @@ public class ConfigEditor extends JFrame {
     private static final Font TREE_FONT = new Font("Default", Font.PLAIN,16);
     private final List<Runnable> saveRuns = new ArrayList<>();
     private final int width = 600,height = 550;
+
+    /**
+     * Whether the editor window can be opened here. It cannot in headless mode, nor on macOS: the Vulkan backend owns the first thread
+     * there (-XstartOnFirstThread for GLFW), FML runs with java.awt.headless=true, and a JFrame would throw HeadlessException (or
+     * deadlock against GLFW's AppKit loop). Callers tell the player to edit the json files and use /configs reload instead.
+     */
+    public static boolean isSupported() {
+        return !System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("mac") && !GraphicsEnvironment.isHeadless();
+    }
+
     public ConfigEditor(List<ConfigRegistry> registries) {
         DefaultMutableTreeNode root = new DefaultMutableTreeNode("所有配置");
         for (ConfigRegistry registry : registries) {

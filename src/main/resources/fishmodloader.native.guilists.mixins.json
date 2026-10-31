@@ -1,0 +1,30 @@
+{
+  "required": true,
+  "minVersion": "0.8.7",
+  "package": "net.xiaoyu233.fml.vulkan.mixin.nat.guilists",
+  "compatibilityLevel": "JAVA_21",
+  "mixinPriority": 500,
+  "plugin": "net.xiaoyu233.fml.vulkan.mixin.nat.NativeMixinPlugin",
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  },
+  "mixins": [],
+  "client": [
+    "GuiCreateFlatWorldListSlotGuilistsMixin",
+    "GuiEditSignGuilistsMixin",
+    "GuiFlatPresetsListSlotGuilistsMixin",
+    "GuiMultiplayerGuilistsMixin",
+    "GuiScreenOnlineServersGuilistsMixin",
+    "GuiScreenSelectLocationGuilistsMixin",
+    "GuiScreenTemporaryResourcePackSelectSelectionListGuilistsMixin",
+    "GuiSlotGuilistsMixin",
+    "GuiSlotOnlineServerListGuilistsMixin",
+    "GuiSlotServerGuilistsMixin",
+    "GuiStatsGuilistsMixin",
+    "GuiWinGameGuilistsMixin",
+    "SelectionListBaseGuilistsMixin"
+  ]
+}

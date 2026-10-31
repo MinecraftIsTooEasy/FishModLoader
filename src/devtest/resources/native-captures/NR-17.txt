@@ -1,0 +1,19 @@
+# Capture scenes of NR-17 (GUI primitives, HUD, toast, chat, debug chart). Format: scene <id> <T0|T1|T2> <kind> [key=value ...]  (see CaptureRunner)
+# Set-up: each HUD scene is the devtest command hud <scene> (cmd kind, pose 0,0,-8,0,12 on the museum platform, frozen world, fixed time 12000).
+# Tolerance (ARCHITECTURE-NATIVE 7.2, NR-17 acceptance): T0 = full frame compared exactly (the world is frozen, so the background is identical on both
+# sides and needs no mask; ImageStats applies a mask only for T2); T1 = full frame (scene changes the 3D view itself: underwater fog and tint);
+# T2 = T1 outside masks/<scene id>.png (CaptureCompare). nr17_hud_f3 is T2 because its F3 text and pie chart carry run-dependent data (FPS, memory,
+# chunk and entity counts, profiler percentages). The mask is not written by the hud command yet; until it is, T2 gates as T1 and the scene fails.
+# nr17_hud_hurt stays T0 but is not yet deterministic: the heart blink (hurtResistantTime / 3 % 2) depends on the client ticks that run before the
+# capture window, so the hud command must pin hurtTime and hurtResistantTime inside the window (not yet implemented).
+# hotbarDraws is an assertion command (FrameStats draw budget <= 20), not a capture scene.
+scene nr17_hud_survival T0 cmd name=hud args=survival pose=0,0,-8,0,12 time=12000
+scene nr17_hud_creative T0 cmd name=hud args=creative pose=0,0,-8,0,12 time=12000
+scene nr17_hud_hurt T0 cmd name=hud args=hurt pose=0,0,-8,0,12 time=12000
+scene nr17_hud_underwater T1 cmd name=hud args=underwater pose=0,0,-8,0,12 time=12000
+scene nr17_hud_pumpkin T0 cmd name=hud args=pumpkin pose=0,0,-8,0,12 time=12000
+scene nr17_hud_f3 T2 cmd name=hud args=f3 pose=0,0,-8,0,12 time=12000
+scene nr17_hud_chat T0 cmd name=hud args=chat pose=0,0,-8,0,12 time=12000 chat=keep
+scene nr17_hud_tablist T0 cmd name=hud args=tablist pose=0,0,-8,0,12 time=12000
+scene nr17_hud_bossbar T0 cmd name=hud args=bossbar pose=0,0,-8,0,12 time=12000
+scene nr17_hud_toast T0 cmd name=hud args=toast pose=0,0,-8,0,12 time=12000

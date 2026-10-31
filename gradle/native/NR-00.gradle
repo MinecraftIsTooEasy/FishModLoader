@@ -1,0 +1,12 @@
+// Sample per-package Gradle fragment (owner NR-00): proves that tasks.gradle applies gradle/native/*.gradle.
+// Other packages add their own gradle/native/NR-<NN>.gradle (NR-02 shaders, NR-08 scans, NR-27 bench/testbot/baseline).
+tasks.register('nativeFragments') {
+    group = 'fishmodloader'
+    description = 'Lists the gradle/native/*.gradle fragments that were applied and the native mixin configs on the class path'
+    def fragments = fileTree('gradle/native').include('*.gradle').files.collect { it.name }.sort()
+    def configs = fileTree('src/main/resources').include('fishmodloader.native.*.mixins.json').files.collect { it.name }.sort()
+    doLast {
+        println "gradle/native fragments (${fragments.size()}): ${fragments.join(', ')}"
+        println "native mixin configs (${configs.size()}): ${configs.join(', ')}"
+    }
+}

@@ -41,6 +41,7 @@ import net.xiaoyu233.fml.util.Constants;
 import net.xiaoyu233.fml.util.MITEReleaseAccess;
 import net.xiaoyu233.fml.util.RemoteModInfo;
 import net.xiaoyu233.fml.util.UrlUtil;
+import net.xiaoyu233.fml.vulkan.mixin.nat.NativeMixinPlugin;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.spongepowered.asm.launch.MixinBootstrap;
@@ -70,11 +71,19 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class FishModLoader {
-   public static final File CONFIG_DIR = new File("config");
+   /** Game directory: the --gameDir argument (system property fml.gameDir, set by the client Main) or the working directory. Mods and config are looked up here,
+    * not in the process working directory (a launcher may start java in another folder than --gameDir). */
+   private static File gameDirRelative(String name) {
+      String dir = System.getProperty("fml.gameDir");
+      return dir == null || dir.isBlank() ? new File(name) : new File(dir, name);
+   }
+   public static final File CONFIG_DIR = gameDirRelative("config");
    public static final String VERSION = Constants.VERSION;
    private static final String MOD_ID = Constants.MOD_ID;
+   /** Mixin config of the Vulkan backend (window/clipboard/test harness mixins in the package net.xiaoyu233.fml.vulkan.mixin). */
+   private static final String VULKAN_MIXIN_CONFIG = "fishmodloader.vulkan.mixins.json";
    public static final Logger LOGGER = LogManager.getLogger(MOD_ID);
-   public static final File MOD_DIR = new File("mods");
+   public static final File MOD_DIR = gameDirRelative("mods");
    private static final Map<String, ModContainerImpl> modsMapForLoginCheck  = new HashMap<>();
    private static final ArrayList<ModContainerImpl> mods = new ArrayList<>();
    private static final Map<String, ModContainerImpl> modsMap = new HashMap<>();
@@ -376,6 +385,16 @@ public class FishModLoader {
 
    public static void registerModloaderMixin(ClassLoader classLoader){
       Mixins.registerConfiguration((InjectionConfig.Builder.of(MOD_ID, MinecraftServerTrans.class.getPackage(), MixinEnvironment.Phase.DEFAULT).build().toConfig(classLoader, MixinService.getService(),MixinEnvironment.getCurrentEnvironment())));
+      // The Vulkan mixins are listed per module in a JSON config (resolved through the Knot class loader by MixinService)
+      Mixins.addConfiguration(VULKAN_MIXIN_CONFIG);
+      // The native renderer's per-area configs (stub classes until the owning packages fill them); NativeMixinPlugin applies the switches
+      for (String nativeConfig : NativeMixinPlugin.registeredConfigs()) {
+         Mixins.addConfiguration(nativeConfig);
+      }
+      // Non-render optimisation areas (one config per owner; mixin lists filled by the R-subtasks, gated by -Dfml.vulkan.opt.<area>)
+      for (String area : net.xiaoyu233.fml.vulkan.mixin.opt.OptMixinPlugin.AREAS) {
+         Mixins.addConfiguration(net.xiaoyu233.fml.vulkan.mixin.opt.OptMixinPlugin.configName(area));
+      }
    }
 
    public static MixinEnvironment.Side getSide(){

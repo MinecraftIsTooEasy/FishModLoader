@@ -1,0 +1,18 @@
+# Capture scenes of NR-25 (simple GUI screens). Format: scene <id> <T0|T1|T2> <kind> [key=value ...]  ('+' in a value is a space); see CaptureRunner.
+# Every screen is opened by its devtest command (cmd kind, testbot/cmd/nr25/Commands.java) in the frozen world; the runner closes the screen after the capture.
+# Opaque containers are T0 (GUI). Translucent screens (game over, confirm link, chat, demo) are T0 (GUI) and also T1 with the frozen world behind them.
+scene nr25_furnace T0 cmd name=guiFurnace
+scene nr25_chest T0 cmd name=guiChest
+scene nr25_dispenser T0 cmd name=guiDispenser
+scene nr25_hopper T0 cmd name=guiHopper
+scene nr25_brewing_stand T0 cmd name=guiBrewingStand
+scene nr25_crafting T0 cmd name=guiCrafting
+scene nr25_book T0 cmd name=guiBook
+scene nr25_game_over T0 cmd name=guiGameOver
+scene nr25_game_over_world T1 cmd name=guiGameOver
+scene nr25_chat T0 cmd name=guiChat
+scene nr25_chat_world T1 cmd name=guiChat
+scene nr25_confirm_link T0 cmd name=guiConfirmLink
+scene nr25_confirm_link_world T1 cmd name=guiConfirmLink
+scene nr25_demo T0 cmd name=guiDemo
+scene nr25_demo_world T1 cmd name=guiDemo

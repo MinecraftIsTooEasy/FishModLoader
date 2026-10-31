@@ -6,6 +6,7 @@ import org.objectweb.asm.FieldVisitor;
 import org.objectweb.asm.Opcodes;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 
 public class MITEReleaseAccess {
@@ -14,7 +15,16 @@ public class MITEReleaseAccess {
 
     static {
         try {
-            byte[] data = MITEReleaseAccess.class.getResourceAsStream("/net/minecraft/Minecraft.class").readAllBytes();
+            // Dev environments have the named jar on the classpath; real installs only have the obfuscated one (Minecraft = atv)
+            InputStream named = MITEReleaseAccess.class.getResourceAsStream("/net/minecraft/Minecraft.class");
+            InputStream found = named != null ? named : MITEReleaseAccess.class.getResourceAsStream("/atv.class");
+            if (found == null) {
+                throw new IllegalStateException("Cannot find the Minecraft class (net/minecraft/Minecraft or atv) on the classpath");
+            }
+            byte[] data;
+            try (InputStream in = found) {
+                data = in.readAllBytes();
+            }
             final int[] version = new int[1];
             ClassReader cr = new ClassReader(data);
             cr.accept(new ClassVisitor(Opcodes.ASM9) {

@@ -1,0 +1,60 @@
+// NR-08: GL site scans (ARCHITECTURE-NATIVE 1.16.6). Implementation: tools/GlSiteScan.java (single-file Java 25 program).
+// Game jar lookup: libs/1.6.4-MITE.jar (build.gradle: implementation files('libs/1.6.4-MITE.jar')), the remapped MITE jar.
+// Reports: -PglScanOut=<dir> (default build/reports/gl-site-scan, inside the project so it works on every machine and on CI).
+def glScanOut = (project.findProperty('glScanOut') ?: layout.buildDirectory.dir('reports/gl-site-scan').get().asFile).toString()
+
+tasks.register('glSiteScan', Exec) {
+    group = 'fishmodloader'
+    description = 'Annotation scan of unmigrated GL sites (tools/GlSiteScan.java --mode=annotations); inner-loop only, not a gate'
+    dependsOn 'compileJava'
+    workingDir = projectDir
+    commandLine 'java', 'tools/GlSiteScan.java', '--mode=annotations',
+            '--game-jar=' + file('libs/1.6.4-MITE.jar'),
+            '--mixin-classes=' + layout.buildDirectory.dir('classes/java/main').get().asFile,
+            '--out-dir=' + glScanOut
+}
+
+tasks.register('glSiteScanTransformed', Exec) {
+    group = 'fishmodloader'
+    description = 'Post-mixin bytecode scan (tools/GlSiteScan.java --mode=transformed) of run/.mixin.out/class; the real gate'
+    workingDir = projectDir
+    commandLine 'java', 'tools/GlSiteScan.java', '--mode=transformed',
+            '--class-dir=' + file('run/.mixin.out/class'),
+            '--out-dir=' + glScanOut
+}
+
+// Negative self-test of the transformed scan (manual game runs, then the asserted scans below).
+// The selftest config (fishmodloader.native.selftest.mixins.json) holds RenderSkeletonSelftestMixin, which lives in the
+// "selftest" area, so the area switch that disables it is -Dfml.vulkan.native.off=selftest (NOT mobs: RenderSkeletonMobsMixin
+// is an empty stub and the mobs switch changes nothing for RenderSkeleton). Each run is started with
+//   -Dfml.vulkan.forceLoadGameClasses=true -Dmixin.debug.export=true
+// and its run/.mixin.out/class is copied to run/selftest/<variant>/ (the directory must contain net/minecraft/**).
+//  variant applied: selftest config registered, selftest area on   -> RenderSkeleton must report 0 sites
+//  variant off:     selftest config registered, -Dfml.vulkan.native.off=selftest -> RenderSkeleton must report 2 sites
+//  variant dropped: selftest config not registered                  -> RenderSkeleton must report 2 sites
+// Exit code 1 from GlSiteScan means an expectation failed, 2 means bad arguments.
+def selftestRoot = (project.findProperty('selftestRoot') ?: "${projectDir}/run/selftest").toString()
+def selftestVariants = [
+        [name: 'applied', count: 0],
+        [name: 'off', count: 2],
+        [name: 'dropped', count: 2],
+]
+
+def selftestTasks = selftestVariants.collect { v ->
+    tasks.register("glSiteScanSelftest_${v.name.replace('-', '_')}", Exec) {
+        group = 'fishmodloader'
+        description = "Negative self-test, variant ${v.name}: RenderSkeleton must report ${v.count} transformed GL sites"
+        workingDir = projectDir
+        commandLine 'java', 'tools/GlSiteScan.java', '--mode=transformed',
+                '--class-dir=' + file("${selftestRoot}/${v.name}"),
+                '--out-dir=' + file("${glScanOut}/selftest/${v.name}"),
+                '--expect-class=net/minecraft/RenderSkeleton',
+                '--expect-count=' + v.count
+    }
+}
+
+tasks.register('glSiteScanSelftest') {
+    group = 'fishmodloader'
+    description = 'Asserts the three negative self-test variants (-PselftestRoot=<dir> overrides run/selftest); fails if any variant differs'
+    dependsOn selftestTasks
+}

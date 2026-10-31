@@ -52,6 +52,13 @@ public class CommandHandlerTrans {
                     //Not server console
                     player != null){
                 player.sendChatToPlayer(ChatMessageComponent.createFromText("无法编辑服务器配置,请联系服主修改").setColor(EnumChatFormatting.RED));
+            }else if (!ConfigEditor.isSupported()) {
+                String message = "当前环境(macOS 或无图形界面)无法打开图形化配置编辑器,请直接编辑 config 目录下的 json 配置文件,再执行 /configs reload";
+                if (player != null) {
+                    player.sendChatToPlayer(ChatMessageComponent.createFromText(message));
+                } else {
+                    System.out.println(message);
+                }
             }else {
                 if (player != null) {
                     player.sendChatToPlayer(ChatMessageComponent.createFromText("正在打开配置文件编辑器..."));

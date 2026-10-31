@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "fishmodloader_vulkan_bench",
+  "version": "0.0.0",
+  "name": "FML Vulkan Bench (dev only)",
+  "description": "Backend-agnostic traversal benchmark of the Vulkan port of FishModLoader (four-dimension route, per-frame CSV, summary). Dev runs only, never packed into the release jar. Active only with -Dfml.bench=true (runBench).",
+  "authors": [
+    "XMRhapsody"
+  ],
+  "license": "LGPL-2.1",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "vkbench.BenchInit"
+    ]
+  },
+  "mixins": [
+    "fishmodloader_vulkan_bench.mixins.json"
+  ],
+  "depends": {
+    "fishmodloader": ">=4.0.0",
+    "minecraft": "1.6.4-mite",
+    "java": ">=21"
+  }
+}

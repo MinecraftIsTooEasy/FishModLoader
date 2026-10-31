@@ -1,0 +1,6 @@
+# NR-04 capture scenes (texture system). Format: <scene> <tolerance class T0|T1|T2> <description>
+atlas-blocks-dump      T0  atlasDump blocks: level 0 of the blocks atlas, SHA-256 equal to the fml.vulkan.native=false run
+atlas-items-dump       T0  atlasDump items: level 0 of the items atlas, SHA-256 equal to the fml.vulkan.native=false run
+title-textures         T0  title screen (font, logo, buttons): every texture upload path of the title
+leaves-mipmaps         T1  fml.vulkan.mipmaps=4 oak/jungle leaves at distance: no cutout holes (compared with mipmaps=0 under the tolerance of the screen)
+animated-water-lava    T1  frozen at tick N: animation uploads of the batch path equal the per-sprite path

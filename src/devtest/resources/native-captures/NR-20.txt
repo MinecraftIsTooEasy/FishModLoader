@@ -1,0 +1,23 @@
+# Capture scenes of NR-20 (special entity renderers). Format: scene <id> <T0|T1|T2> <kind> [key=value ...]  ('+' in a value is a space); see CaptureRunner.
+# All scenes are frozen (client-only entities pinned by cmd specialScene, fixed ticksExisted / animTime / deathTicks / boltVertex seed, fake clock, forced partial tick).
+# T1 per ARCHITECTURE-NATIVE.md 7.2; T2 where a D10 item applies (a mask is optional: without one the runner degrades T2 to T1 and says so).
+# End portal: 3x3 End portal blocks on the museum platform (PORTAL program: per-layer texgen/uv push constants), static top-down and two fixed oblique poses.
+scene nr20_portal_static T1 cmd name=specialScene args=portal pose=0,5,-4,0,90 time=12000
+scene nr20_portal_pose_a T1 cmd name=specialScene args=portal pose=-5,2,-9,-45,16 time=12000
+scene nr20_portal_pose_b T1 cmd name=specialScene args=portal pose=6,3,-8,55,25 time=12000
+# Ender dragon: alive, dying at death tick 100 (beams, dissolve alpha ref 0.5) and 190 (dissolve alpha ref 0.95); D10: entity order of beams/dissolve passes.
+scene nr20_dragon_alive T1 cmd name=specialScene args=dragon+alive pose=0,2,-8,0,8
+scene nr20_dragon_dying_100 T2 cmd name=specialScene args=dragon+dying100 pose=0,2,-8,0,8
+scene nr20_dragon_dying_190 T2 cmd name=specialScene args=dragon+dying190 pose=0,2,-8,0,8
+# Charged creeper (power armour: uv scroll, ONE/ONE), armoured wither (same pass), enderman carrying a pumpkin (glow eyes pass, carried block via renderBlockAsItem).
+scene nr20_creeper_charged T1 cmd name=specialScene args=creeper pose=0,1,-8,0,5
+scene nr20_wither_armor T1 cmd name=specialScene args=wither pose=0,3,-8,0,5
+scene nr20_enderman_block T1 cmd name=specialScene args=enderman pose=0,2,-8,0,5
+# Player: iron armour with enchanted chest + sword (D10 rescale normal on held items), from behind with cape, wither skull helmet + bow, held block.
+scene nr20_player_armor T2 cmd name=specialScene args=player+armor pose=0,1,-8,0,5
+scene nr20_player_cape_back T1 cmd name=specialScene args=player+armor+back pose=0,1,-8,0,5
+scene nr20_player_skull T2 cmd name=specialScene args=player+skull pose=0,1,-8,0,5
+scene nr20_player_block T2 cmd name=specialScene args=player+block pose=0,1,-8,0,5
+# Fishing line (line strip: D10 line width 2 px) and a seeded lightning bolt (additive strips, needs rain=1: D10 entity order).
+scene nr20_fishing_line T2 cmd name=specialScene args=fish pose=0,1,-8,0,5
+scene nr20_lightning T2 cmd name=specialScene args=lightning pose=0,2,-8,0,10 rain=1 time=12000

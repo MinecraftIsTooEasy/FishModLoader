@@ -1,0 +1,13 @@
+{
+  "required": false,
+  "minVersion": "0.8.7",
+  "package": "net.xiaoyu233.fml.vulkan.mixin.opt.input",
+  "compatibilityLevel": "JAVA_21",
+  "mixinPriority": 1500,
+  "plugin": "net.xiaoyu233.fml.vulkan.mixin.opt.OptMixinPlugin",
+  "injectors": {
+    "defaultRequire": 0
+  },
+  "mixins": [],
+  "client": ["GuiControlsRawMouseMixin"]
+}

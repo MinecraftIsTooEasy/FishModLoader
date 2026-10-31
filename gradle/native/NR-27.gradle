@@ -1,0 +1,213 @@
+// NR-27: testbot capture tasks, comparison tooling, bench mod tasks (runBench, benchBaseline). Applied by tasks.gradle through gradle/native/*.gradle.
+//
+//   sh ./gradlew runClient --offline -Ptestbot -Ptestbot_tag=<tag> [-Pvk.frozen=true] [-Ptestbot_only=captures] [-Ptestbot_scenes=<regex,regex>] [-Ptestbot_repeat=true]
+//                                  [-Ptestbot_cmd="mathTest;nr27 args"]   (extra properties handled below, the others are in tasks.gradle)
+//   sh ./gradlew testbotCaptures   -Ptestbot_tag=<tag> [-Pvk.native=false|-Pvk.native.off=<area>]   frozen capture route (title + world scenes of every native-captures/NR-*.txt)
+//   sh ./gradlew compareCaptures   -PcapA=<tag|dir> -PcapB=<tag|dir> [-PcapOut=<tag>] [-PcapClass=T0|T1|T2]   scene by scene comparison -> ../docs/testbot/compare-<out>/compare.md
+//   sh ./gradlew runBench          -Pbench_tag=<tag> [-Pbench_build=native|phase1|<variant>] [-Pbench_rd=normal,far] [-Pbench_runs=3] [-Pbench_scale=1.0]
+//                                  [-Pbench_dims=overworld,tf,underworld,nether] [-Pbench_tf=true] [-Pxmx=6G]  -> ../docs/perf/bench-<tag>/
+//                                  [-Pbench_java=<jdk home> -Pbench_arch=x86_64]  same JVM as the baseline for one table (Rosetta); runs uncapped (capUnfocused/capMinimised=9999, vsync=false)
+//   sh ./gradlew benchBaseline     -Pbench_tag=<tag> [-Pbaseline_java=<x86_64 jdk home>]  the same bench mod on the OpenGL baseline worktree (../bench-baseline, commit 2041277)
+
+import java.util.Locale
+
+// ---- extra -Ptestbot_* properties of the runClient task (tasks.gradle only knows the phase-1 ones) --------------------------------------------------
+tasks.named('runClient') {
+    def extra = []
+    ['scenes', 'repeat', 'cmd'].each { k ->
+        if (project.hasProperty("testbot_${k}")) {
+            extra.add("-Dfml.vulkan.testbot.${k}=${project.property("testbot_${k}")}".toString())
+        }
+    }
+    if (extra) {
+        jvmArgs(extra)
+    }
+}
+
+// ---- frozen capture route ---------------------------------------------------------------------------------------------------------------------------
+tasks.register('testbotCaptures', JavaExec) {
+    group = 'fishmodloader'
+    description = 'Frozen-world capture route: every scene of native-captures/NR-*.txt into ../docs/screenshots/<tag>/ (scenes.tsv names the tolerance classes)'
+    dependsOn shadowJar, copyLogConfig, 'devtestClasses'
+    mainClass = 'net.xiaoyu233.fml.relaunch.client.Main'
+    classpath = runConfig.buildClasspath.call() + sourceSets.devtest.output
+    workingDir = runConfig.workingDir
+    doFirst {
+        def docsDir = new File(rootDir.parentFile, 'docs')
+        def tag = (project.findProperty('testbot_tag') ?: 'captures').toString()
+        def jvm = new ArrayList(runConfig.jvmArgs as Collection)
+        jvm.add('-Dlog.file.prefix=client')
+        jvm.add('-Dfml.vulkan.testbot=true')
+        jvm.add('-Dfml.vulkan.frozen=true')
+        jvm.add("-Dfml.vulkan.testbot.docs=${docsDir}".toString())
+        jvm.add("-Dfml.vulkan.testbot.tag=${tag}".toString())
+        jvm.add("-Dfml.vulkan.captureDir=${docsDir}/screenshots/${tag}".toString())
+        jvm.add('-Dfml.vulkan.testbot.only=captures')
+        jvm.add('-Dfml.vulkan.testbot.nopace=true')
+        jvm.add('-Dfml.vulkan.testbot.noCave=true')
+        ['scenes', 'repeat', 'keepWorld', 'seed', 'view'].each { k ->
+            if (project.hasProperty("testbot_${k}")) {
+                jvm.add("-Dfml.vulkan.testbot.${k == 'view' ? 'viewDistance' : k}=${project.property("testbot_${k}")}".toString())
+            }
+        }
+        project.properties.each { key, value ->
+            if (key.startsWith('vk.') && key != 'vk.frozen') {
+                jvm.add("-Dfml.vulkan.${key.substring(3)}=${value}".toString())
+            }
+        }
+        if (project.hasProperty('xmx')) {
+            jvm.removeAll { it.startsWith('-Xmx') }
+            jvm.add("-Xmx${project.property('xmx')}".toString())
+        }
+        if (System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('mac')) {
+            jvm.add(0, '-XstartOnFirstThread')
+        }
+        jvmArgs(jvm)
+        def clientArgs = new ArrayList(runConfig.gameArgs as Collection)
+        clientArgs[clientArgs.indexOf('--width') + 1] = (project.findProperty('testbot_width') ?: 1280).toString()
+        clientArgs[clientArgs.indexOf('--height') + 1] = (project.findProperty('testbot_height') ?: 720).toString()
+        args(clientArgs)
+    }
+}
+
+// ---- comparison tool ---------------------------------------------------------------------------------------------------------------------------------
+tasks.register('compareCaptures', JavaExec) {
+    group = 'fishmodloader'
+    description = 'Compares two capture directories scene by scene under the tolerance class of each scene (-PcapA, -PcapB tags or directories, -PcapOut, -PcapClass)'
+    dependsOn 'devtestClasses'
+    mainClass = 'net.xiaoyu233.fml.vulkan.testbot.CaptureCompare'
+    classpath = sourceSets.devtest.output + sourceSets.devtest.compileClasspath
+    jvmArgs('-Djava.awt.headless=true')
+    doFirst {
+        def docsDir = new File(rootDir.parentFile, 'docs')
+        def dir = { String v -> new File(v).isAbsolute() ? new File(v) : new File(docsDir, "screenshots/${v}") }
+        if (!project.hasProperty('capA') || !project.hasProperty('capB')) {
+            throw new GradleException('usage: compareCaptures -PcapA=<tag|dir> -PcapB=<tag|dir> [-PcapOut=<tag>] [-PcapClass=T0|T1|T2]')
+        }
+        def out = (project.findProperty('capOut') ?: "${project.capA}-vs-${project.capB}").toString()
+        def a = [dir(project.capA.toString()).absolutePath, dir(project.capB.toString()).absolutePath, new File(docsDir, "testbot/compare-${out}").absolutePath]
+        if (project.hasProperty('capClass')) {
+            a.add(project.capClass.toString())
+        }
+        args(a)
+    }
+}
+
+// ---- bench mod -----------------------------------------------------------------------------------------------------------------------------------------
+def benchJvmArgs = { boolean isBaseline ->
+    def tag = (project.findProperty('bench_tag') ?: 'run').toString()
+    def docsDir = new File(rootDir.parentFile, 'docs')
+    def jvm = []
+    jvm.add('-Dfml.bench=true')
+    jvm.add("-Dfml.bench.tag=${tag}".toString())
+    jvm.add("-Dfml.bench.docs=${docsDir}".toString())
+    jvm.add("-Dfml.bench.build=${project.findProperty('bench_build') ?: (isBaseline ? 'baseline' : 'native')}".toString())
+    ['rd', 'runs', 'scale', 'dims', 'warm', 'keepWorld', 'viewDistance'].each { k ->
+        if (project.hasProperty("bench_${k}")) {
+            jvm.add("-Dfml.bench.${k}=${project.property("bench_${k}")}".toString())
+        }
+    }
+    // far render distance needs the server to send 16 chunks
+    if (!project.hasProperty('bench_viewDistance') && project.findProperty('bench_rd')?.toString()?.contains('far')) {
+        jvm.add('-Dfml.bench.viewDistance=16')
+    }
+    return jvm
+}
+
+tasks.register('runBench', JavaExec) {
+    group = 'fishmodloader'
+    description = 'Traversal benchmark (src/benchtest) on this build: per-frame CSV + summary in ../docs/perf/bench-<tag>/ (-Pbench_* properties, -Pvk.* switches pass through)'
+    dependsOn shadowJar, copyLogConfig, 'benchtestClasses'
+    mainClass = 'net.xiaoyu233.fml.relaunch.client.Main'
+    classpath = runConfig.buildClasspath.call() + sourceSets.benchtest.output
+    workingDir = runConfig.workingDir
+    doFirst {
+        if (project.findProperty('bench_tf')?.toString() == 'true') {
+            def tfRel = 'twilightforest/mite-twilightforest/build/libs/twilightforest-1.0.0+tf.2.3.8.jar'
+            def tf = (project.findProperty('bench_tfjar') ? new File(project.findProperty('bench_tfjar').toString())
+                    : [rootDir.parentFile.parentFile, rootDir.parentFile.parentFile.parentFile.parentFile].collect { new File(it, tfRel) }.find { it.exists() })
+            if (tf != null && tf.exists()) {
+                copy { from tf; into new File(runConfig.workingDir, 'mods') }
+            } else {
+                logger.warn("bench_tf: ${tfRel} not found (-Pbench_tfjar=<jar>), the Twilight Forest segments will be skipped")
+            }
+        }
+        def jvm = new ArrayList(runConfig.jvmArgs as Collection)
+        jvm.removeAll { it.startsWith('-Xmx') || it.startsWith('-Xms') }
+        jvm.add("-Xms${project.findProperty('xms') ?: '2G'}".toString())
+        jvm.add("-Xmx${project.findProperty('xmx') ?: '4G'}".toString())
+        jvm.add('-Dlog.file.prefix=client')
+        jvm.addAll(benchJvmArgs(false))
+        if (System.getenv('PERF_JVM')) { jvm.addAll(System.getenv('PERF_JVM').split(' ') as List) }
+        // an uncapped run: no unfocused / minimised frame cap (the user works while a bench runs in the background), vsync off. -Pvk.* can override (and then shows in summary.md)
+        def vkProps = [:]
+        vkProps['capUnfocused'] = '9999'
+        vkProps['capMinimised'] = '9999'
+        vkProps['vsync'] = 'false'
+        project.properties.each { key, value ->
+            if (key.startsWith('vk.')) {
+                vkProps[key.substring(3)] = value
+            }
+        }
+        vkProps.each { k, v -> jvm.add("-Dfml.vulkan.${k}=${v}".toString()) }
+        // same JVM for every build of one table (baseline option A): -Pbench_java=<x86_64 jdk home> -Pbench_arch=x86_64 runs the native build under Rosetta like benchBaseline
+        if (project.hasProperty('bench_java')) {
+            def javaBin = new File(project.property('bench_java').toString(), 'bin/java')
+            if (!javaBin.exists()) {
+                throw new GradleException("bench_java: ${javaBin} not found")
+            }
+            def arch = project.findProperty('bench_arch')?.toString()
+            if (arch && arch != 'native' && arch != System.getProperty('os.arch')) {
+                def wrapper = new File(layout.buildDirectory.get().asFile, 'bench-java-wrapper.sh')
+                wrapper.parentFile.mkdirs()
+                wrapper.text = "#!/bin/sh\nexec arch -${arch} '${javaBin.absolutePath}' \"\$@\"\n"
+                wrapper.setExecutable(true)
+                executable = wrapper.absolutePath
+            } else {
+                executable = javaBin.absolutePath
+            }
+        } else if (project.hasProperty('bench_arch')) {
+            throw new GradleException('bench_arch needs -Pbench_java=<jdk home of that architecture>')
+        }
+        if (System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('mac')) {
+            jvm.add(0, '-XstartOnFirstThread')
+        }
+        jvmArgs(jvm)
+        def clientArgs = new ArrayList(runConfig.gameArgs as Collection)
+        clientArgs[clientArgs.indexOf('--width') + 1] = (project.findProperty('bench_width') ?: '1920').toString()
+        clientArgs[clientArgs.indexOf('--height') + 1] = (project.findProperty('bench_height') ?: '1080').toString()
+        args(clientArgs)
+    }
+}
+
+// one jar with classes and fml.mod.json: the older FML of the baseline worktree only exposes the origin of the mod descriptor to the game class loader
+tasks.register('benchtestJar', Jar) {
+    group = 'fishmodloader'
+    description = 'src/benchtest as one jar (build/libs/benchtest.jar), used by benchBaseline'
+    from sourceSets.benchtest.output
+    archiveBaseName = 'benchtest'
+    archiveVersion = ''
+    destinationDirectory = layout.buildDirectory.dir('libs')
+}
+
+tasks.register('benchBaseline', Exec) {
+    group = 'fishmodloader'
+    description = 'The same bench mod on the OpenGL baseline worktree ../bench-baseline (commit 2041277); needs the feasibility configuration of ../docs/native/bench/baseline-feasibility.md'
+    dependsOn 'benchtestJar'
+    doFirst {
+        def script = [rootDir.parentFile, rootDir.parentFile.parentFile.parentFile].collect { new File(it, 'docs/native/bench/run-baseline-bench.sh') }.find { it.exists() } ?: new File(rootDir.parentFile, 'docs/native/bench/run-baseline-bench.sh')
+        if (!script.exists()) {
+            throw new GradleException("${script} missing (created by NR-27, lives outside the repository)")
+        }
+        def jdkRel = 'work/jdk-x64/jdk-25.0.5+8/Contents/Home'
+        def java = (project.findProperty('baseline_java') ?: [rootDir.parentFile, rootDir.parentFile.parentFile, rootDir.parentFile.parentFile.parentFile].collect { new File(it, jdkRel) }.find { it.exists() } ?: new File(rootDir.parentFile, jdkRel)).toString()
+        def classes = tasks.named('benchtestJar').get().archiveFile.get().asFile.absolutePath
+        def jvm = benchJvmArgs(true).join(' ')
+        environment 'BENCH_CLASSPATH', classes
+        environment 'BENCH_JVM_ARGS', jvm
+        environment 'BENCH_XMX', (project.findProperty('xmx') ?: '4G').toString()
+        environment 'BENCH_XMS', (project.findProperty('xms') ?: '2G').toString()
+        environment 'BENCH_ARCH', (project.findProperty('baseline_arch') ?: 'x86_64').toString()
+        commandLine 'bash', script.absolutePath, java
+    }
+}

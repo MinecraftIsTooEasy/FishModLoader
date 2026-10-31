@@ -1,0 +1,32 @@
+{
+  "required": true,
+  "minVersion": "0.8.7",
+  "package": "net.xiaoyu233.fml.vulkan.mixin.nat.objects",
+  "compatibilityLevel": "JAVA_21",
+  "mixinPriority": 500,
+  "plugin": "net.xiaoyu233.fml.vulkan.mixin.nat.NativeMixinPlugin",
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  },
+  "mixins": [],
+  "client": [
+    "RenderArrowObjectsMixin",
+    "RenderBoatObjectsMixin",
+    "RenderEnchantmentTableObjectsMixin",
+    "RenderEnderCrystalObjectsMixin",
+    "RenderEntityObjectsMixin",
+    "RenderFallingSandObjectsMixin",
+    "RenderFireballObjectsMixin",
+    "RenderLeashKnotObjectsMixin",
+    "RenderMinecartObjectsMixin",
+    "RenderPaintingObjectsMixin",
+    "RenderSnowballObjectsMixin",
+    "RenderTNTPrimedObjectsMixin",
+    "RenderTntMinecartObjectsMixin",
+    "RenderWitherSkullObjectsMixin",
+    "RenderXPOrbObjectsMixin"
+  ]
+}
